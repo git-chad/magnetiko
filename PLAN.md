@@ -116,14 +116,14 @@ This creates a **sequential filter chain**, not a compositing stack of independe
 
 ### 0.1 Design Tokens File (`src/styles/tokens.ts`)
 
-- [ ] Export all color tokens as JS constants (primary shades, secondary, accent, surfaces, semantic, interactive states)
-- [ ] Export spacing scale: `4xs` through `4xl` mapped to px values
-- [ ] Export typography scale objects: caption, body, subhead, title, headline, display — each with fontFamily, fontSize, fontWeight, lineHeight, letterSpacing
-- [ ] Export border radius scale: xs, sm, md, lg, xl, full
-- [ ] Export elevation map: low, mid, high (box-shadow strings)
-- [ ] Export motion tokens: duration (micro, base, medium, large) + easing curves (enter, exit, move, micro) as CSS timing strings
-- [ ] Export border color tokens: base, divider, hover, focus (rgba strings)
-- [ ] Export overlay tokens: backdrop, uniform, blur, scrim gradient
+- [x] Export all color tokens as JS constants (primary shades, secondary, accent, surfaces, semantic, interactive states)
+- [x] Export spacing scale: `4xs` through `4xl` mapped to px values
+- [x] Export typography scale objects: caption, body, subhead, title, headline, display — each with fontFamily, fontSize, fontWeight, lineHeight, letterSpacing
+- [x] Export border radius scale: xs, sm, md, lg, xl, full
+- [x] Export elevation map: low, mid, high (box-shadow strings)
+- [x] Export motion tokens: duration (micro, base, medium, large) + easing curves (enter, exit, move, micro) as CSS timing strings
+- [x] Export border color tokens: base, divider, hover, focus (rgba strings)
+- [x] Export overlay tokens: backdrop, uniform, blur, scrim gradient
 
 **Done when:** File compiles, all values match the design system spec exactly, imported successfully in at least one component.
 
@@ -987,7 +987,7 @@ Tasks can be marked with:
 
 | Phase | Name | Tasks | Done | Status |
 |-------|------|-------|------|--------|
-| 0 | Design System | 6 | 0 | ⬜ Not started |
+| 0 | Design System | 6 | 1 | 🟡 In progress |
 | 1 | Data Model & State | 6 | 0 | ⬜ Not started |
 | 2 | WebGPU Renderer | 6 | 0 | ⬜ Not started |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |
