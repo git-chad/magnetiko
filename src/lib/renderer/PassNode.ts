@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { uv, texture as tslTexture } from "three/tsl";
+import { uv, vec2, float, texture as tslTexture } from "three/tsl";
 import type { ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,9 +36,14 @@ export class PassNode {
     this._scene = new THREE.Scene();
     this._camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-    // Placeholder texture — replaced each frame via _inputNode.value
+    // Placeholder texture — replaced each frame via _inputNode.value.
+    // Render target textures have flipY=false (GPU-native), so V=0 is at the
+    // TOP in WebGPU convention — opposite of PlaneGeometry UVs (V=0=bottom).
+    // Flip Y here so every RT-to-RT step samples correctly without accumulating
+    // a flip per pass.
     const placeholder = new THREE.Texture();
-    this._inputNode = tslTexture(placeholder, uv());
+    const rtUV = vec2(uv().x, float(1.0).sub(uv().y));
+    this._inputNode = tslTexture(placeholder, rtUV);
 
     this._material = new THREE.MeshBasicNodeMaterial();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

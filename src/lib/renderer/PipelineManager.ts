@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { uv, texture as tslTexture } from "three/tsl";
+import { uv, vec2, float, texture as tslTexture } from "three/tsl";
 import { FullscreenQuad } from "./MediaTexture";
 import { PassNode, createPassNode } from "./PassNode";
 import type { ShaderParam } from "@/types";
@@ -77,10 +77,12 @@ export class PipelineManager {
     this._rtA = this._makeRT(width, height);
     this._rtB = this._makeRT(width, height);
 
-    // Blit scene — final RT → screen
+    // Blit scene — final RT → screen.
+    // Same Y-flip as PassNode: RT textures have V=0=top in WebGPU convention.
     this._blitScene = new THREE.Scene();
     this._blitCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    this._blitInputNode = tslTexture(new THREE.Texture(), uv());
+    const blitUV = vec2(uv().x, float(1.0).sub(uv().y));
+    this._blitInputNode = tslTexture(new THREE.Texture(), blitUV);
     this._blitMaterial = new THREE.MeshBasicNodeMaterial();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this._blitMaterial.colorNode = this._blitInputNode as any;
