@@ -390,12 +390,12 @@ This is the **core architecture** for the filter chain.
 
 ### 2.5 React Integration (`src/components/editor/Canvas.tsx`)
 
-- [ ] Mount Three.js canvas via `useRef` on a container div
-- [ ] Use `useEffect` to initialize WebGPURenderer on mount, dispose on unmount
-- [ ] Subscribe to `layerStore` — when layers change, update PipelineManager
-- [ ] Subscribe to `editorStore` — handle zoom/pan by adjusting camera or container transform
+- [x] Mount Three.js canvas via `useRef` on a container div
+- [x] Use `useEffect` to initialize WebGPURenderer on mount, dispose on unmount
+- [x] Subscribe to `layerStore` — when layers change, update PipelineManager
+- [x] Subscribe to `editorStore` — handle zoom/pan by adjusting camera or container transform
 - [ ] Forward pointer events to the interactivity system (Phase 7)
-- [ ] Display FPS counter (dev mode)
+- [x] Display FPS counter (dev mode)
 
 **Done when:** Canvas renders in the editor layout. Responds to window resize. Shows uploaded media through the pipeline.
 
