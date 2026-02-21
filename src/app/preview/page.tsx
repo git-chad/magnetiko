@@ -63,9 +63,9 @@ import {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-xs">
-      <h2 className="text-caption font-medium uppercase tracking-widest text-[var(--color-fg-tertiary)]">
+      <Text variant="caption" color="tertiary" as="h2" className="font-medium uppercase tracking-widest">
         {title}
-      </h2>
+      </Text>
       <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-raised)] p-md">
         {children}
       </div>
@@ -76,7 +76,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-md py-3xs">
-      <span className="text-caption text-[var(--color-fg-secondary)] w-32 shrink-0">{label}</span>
+      <Text variant="caption" color="secondary" as="span" className="w-32 shrink-0">{label}</Text>
       <div className="flex items-center gap-3xs flex-wrap">{children}</div>
     </div>
   );
@@ -98,12 +98,10 @@ export default function PreviewPage() {
         <div className="mx-auto max-w-[48rem]">
           <div className="mb-lg flex items-center justify-between">
             <div>
-              <h1 className="text-headline font-bold text-[var(--color-fg)]">
-                Component Preview
-              </h1>
-              <p className="mt-3xs text-body text-[var(--color-fg-secondary)]">
+              <Text variant="headline">Component Preview</Text>
+              <Text variant="body" color="secondary" className="mt-3xs">
                 Phase 0.4 — Design system primitives
-              </p>
+              </Text>
             </div>
             <ThemeToggle />
           </div>
@@ -271,9 +269,9 @@ export default function PreviewPage() {
                       onCheckedChange={setSwitchOn}
                       id="sw1"
                     />
-                    <label htmlFor="sw1" className="text-body text-[var(--color-fg)] cursor-pointer">
+                    <Text as="label" variant="body" className="cursor-pointer" {...{ htmlFor: "sw1" }}>
                       {switchOn ? "On" : "Off"}
-                    </label>
+                    </Text>
                   </div>
                   <Switch disabled />
                   <Switch disabled checked />
@@ -286,9 +284,9 @@ export default function PreviewPage() {
                       checked={checked}
                       onCheckedChange={(v) => setChecked(Boolean(v))}
                     />
-                    <label htmlFor="cb1" className="text-body text-[var(--color-fg)] cursor-pointer">
+                    <Text as="label" variant="body" className="cursor-pointer" {...{ htmlFor: "cb1" }}>
                       {checked ? "Checked" : "Unchecked"}
-                    </label>
+                    </Text>
                   </div>
                   <Checkbox disabled />
                   <Checkbox disabled checked />
@@ -348,10 +346,10 @@ export default function PreviewPage() {
                   </PopoverTrigger>
                   <PopoverContent className="w-64">
                     <div className="space-y-3xs">
-                      <p className="text-body font-medium text-[var(--color-fg)]">Layer options</p>
-                      <p className="text-caption text-[var(--color-fg-secondary)]">
+                      <Text variant="body" className="font-medium">Layer options</Text>
+                      <Text variant="caption" color="secondary">
                         Configure blend mode and opacity for this layer.
-                      </p>
+                      </Text>
                     </div>
                   </PopoverContent>
                 </Popover>
@@ -432,19 +430,19 @@ export default function PreviewPage() {
                   <TabsTrigger value="info">Info</TabsTrigger>
                 </TabsList>
                 <TabsContent value="params">
-                  <p className="text-body text-[var(--color-fg-secondary)]">
+                  <Text variant="body" color="secondary">
                     Shader parameters appear here.
-                  </p>
+                  </Text>
                 </TabsContent>
                 <TabsContent value="blend">
-                  <p className="text-body text-[var(--color-fg-secondary)]">
+                  <Text variant="body" color="secondary">
                     Blend mode and opacity controls.
-                  </p>
+                  </Text>
                 </TabsContent>
                 <TabsContent value="info">
-                  <p className="text-body text-[var(--color-fg-secondary)]">
+                  <Text variant="body" color="secondary">
                     Layer metadata and documentation.
-                  </p>
+                  </Text>
                 </TabsContent>
               </Tabs>
             </Section>
@@ -458,9 +456,9 @@ export default function PreviewPage() {
                       key={i}
                       className="flex items-center justify-between rounded-xs px-xs py-3xs hover:bg-[var(--color-hover-bg)]"
                     >
-                      <span className="text-body text-[var(--color-fg)]">
+                      <Text variant="body" as="span">
                         Layer {i + 1}
-                      </span>
+                      </Text>
                       <Badge variant={i % 3 === 0 ? "accent" : i % 3 === 1 ? "secondary" : "outline"}>
                         {["Halftone", "Grain", "Bloom"][i % 3]}
                       </Badge>
@@ -474,14 +472,14 @@ export default function PreviewPage() {
             <Section title="Separator">
               <div className="space-y-xs">
                 <div className="space-y-3xs">
-                  <p className="text-body text-[var(--color-fg)]">Above separator</p>
+                  <Text variant="body">Above separator</Text>
                   <Separator />
-                  <p className="text-body text-[var(--color-fg-secondary)]">Below separator</p>
+                  <Text variant="body" color="secondary">Below separator</Text>
                 </div>
                 <div className="flex h-8 items-center gap-xs">
-                  <span className="text-body text-[var(--color-fg)]">Left</span>
+                  <Text variant="body" as="span">Left</Text>
                   <Separator orientation="vertical" />
-                  <span className="text-body text-[var(--color-fg-secondary)]">Right</span>
+                  <Text variant="body" color="secondary" as="span">Right</Text>
                 </div>
               </div>
             </Section>
