@@ -68,6 +68,7 @@ import {
 
 import { RendererPreview } from "@/components/editor/RendererPreview";
 import { MediaTexturePreview } from "@/components/editor/MediaTexturePreview";
+import { PipelinePreview } from "@/components/editor/PipelinePreview";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore } from "@/store/historyStore";
@@ -623,6 +624,24 @@ export default function PreviewPage() {
                   </Text>
                 </div>
                 <MediaTexturePreview />
+              </div>
+            </Section>
+
+            {/* ── Phase 2.3 / 2.4 ── */}
+            <Section title="Renderer / Pipeline Manager">
+              <div className="space-y-xs">
+                <div className="mb-xs flex items-start gap-xs rounded-xs border-l-2 border-accent bg-[var(--color-bg)] px-xs py-3xs">
+                  <Info size={13} weight="bold" className="mt-px shrink-0 text-accent" />
+                  <Text variant="caption" color="secondary">
+                    The <code className="font-mono">PipelineManager</code> owns two ping-pong{" "}
+                    <code className="font-mono">WebGLRenderTarget</code>s and an ordered list of{" "}
+                    <code className="font-mono">PassNode</code>s. With 0 passes, media renders
+                    directly to screen. Each added pass reads from one RT and writes to the
+                    other — the blit step outputs the final RT to screen. Upload media and add
+                    passthrough passes to verify the chain produces identical output.
+                  </Text>
+                </div>
+                <PipelinePreview />
               </div>
             </Section>
 
