@@ -31,7 +31,7 @@ Prefix titles with severity:
 
 > This section grows as mistakes are logged. Extract the **Rule** from each entry and add it here for fast scanning.
 
-_No rules yet — project just started._
+- NEVER use named spacing tokens (`sm`, `md`, `lg`, `xl`, `2xl`, `3xl`, `4xl`) with `max-w-*` — our `--spacing-*` tokens override Tailwind's default `max-w-{name}` values. Use arbitrary values (`max-w-[32rem]`) instead.
 
 <!-- 
 Example of what this section will look like:
@@ -46,7 +46,13 @@ Example of what this section will look like:
 
 ## Log
 
-_No entries yet — project just started._
+### 🔴 [0.4] Tailwind v4 `--spacing-*` overrides `max-w-{name}` utilities
+**Date:** 2026-02-21
+**Task:** Phase 0.4 — Base UI components + preview page
+**What went wrong:** The preview page container rendered at ~96px wide instead of 48rem. All named `max-w-*` utilities using our spacing token names (sm, md, lg, xl, 2xl, 3xl) were broken. Dialog was also broken (`max-w-lg` = 2.25rem instead of 32rem).
+**Why it happened:** In Tailwind v4, `--spacing-*` variables in `@theme` generate ALL sizing utilities — including `max-w-*`, `min-w-*`, `w-*`, `h-*`, etc. Our tokens `--spacing-sm: 1.125rem`, `--spacing-3xl: 6rem`, etc. silently replaced Tailwind's default `max-w-sm` (24rem) and `max-w-3xl` (48rem) values.
+**The fix:** Replace all `max-w-{spacing-name}` with arbitrary values: `max-w-[32rem]`, `max-w-[48rem]`, etc. Affected: `dialog.tsx` (`max-w-lg` → `max-w-[32rem]`), preview page (`max-w-3xl` → `max-w-[48rem]`, `max-w-sm` → `max-w-[20rem]`, `max-w-xs` → `max-w-[16rem]`).
+**Rule:** NEVER use named spacing tokens with `max-w-*` — always use arbitrary pixel/rem values for max-widths.
 
 <!--
 ### 🟡 [2.1] WebGPURenderer failed to initialize on Firefox

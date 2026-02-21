@@ -1,4 +1,6 @@
 export * from "./badge";
+export * from "./theme-provider";
+export * from "./theme-toggle";
 export * from "./button";
 export * from "./checkbox";
 export * from "./dialog";

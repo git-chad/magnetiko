@@ -8,8 +8,6 @@ import {
   Sparkle,
   Trash,
   DotsThree,
-  Sun,
-  Moon,
   Eye,
   EyeSlash,
   Plus,
@@ -18,6 +16,7 @@ import {
 import {
   Badge,
   Button,
+  ThemeToggle,
   Checkbox,
   Dialog,
   DialogContent,
@@ -86,21 +85,16 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function PreviewPage() {
   const { toast } = useToast();
-  const [dark, setDark] = React.useState(false);
   const [sliderVal, setSliderVal] = React.useState([32]);
   const [switchOn, setSwitchOn] = React.useState(false);
   const [checked, setChecked] = React.useState(false);
   const [visible, setVisible] = React.useState(true);
 
-  React.useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
-
   return (
     <TooltipProvider delayDuration={300}>
       <div className="min-h-screen bg-[var(--color-bg)] px-md py-lg">
         {/* Header */}
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto max-w-[48rem]">
           <div className="mb-lg flex items-center justify-between">
             <div>
               <h1 className="text-headline font-bold text-[var(--color-fg)]">
@@ -110,17 +104,7 @@ export default function PreviewPage() {
                 Phase 0.4 — Design system primitives
               </p>
             </div>
-            <div className="flex items-center gap-3xs">
-              <span className="text-caption text-[var(--color-fg-tertiary)]">
-                {dark ? "Dark" : "Light"}
-              </span>
-              <button
-                onClick={() => setDark((d) => !d)}
-                className="flex size-8 items-center justify-center rounded-sm text-[var(--color-fg-secondary)] hover:bg-[var(--color-hover-bg)] transition-colors duration-micro"
-              >
-                {dark ? <Sun size={16} /> : <Moon size={16} />}
-              </button>
-            </div>
+            <ThemeToggle />
           </div>
 
           <div className="space-y-md">
@@ -175,7 +159,7 @@ export default function PreviewPage() {
 
             {/* ── Input ── */}
             <Section title="Input">
-              <div className="space-y-xs max-w-sm">
+              <div className="space-y-xs max-w-[20rem]">
                 <Input placeholder="Default input" />
                 <Input
                   placeholder="With leading icon"
@@ -192,7 +176,7 @@ export default function PreviewPage() {
 
             {/* ── Select ── */}
             <Section title="Select">
-              <div className="max-w-xs">
+              <div className="max-w-[16rem]">
                 <Select>
                   <SelectTrigger>
                     <SelectValue placeholder="Pick a shader…" />
@@ -211,7 +195,7 @@ export default function PreviewPage() {
 
             {/* ── Slider ── */}
             <Section title="Slider">
-              <div className="space-y-xs max-w-sm">
+              <div className="space-y-xs max-w-[20rem]">
                 <Row label="Default">
                   <Slider
                     className="w-48"

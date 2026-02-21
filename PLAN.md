@@ -178,10 +178,11 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
 
 ### 0.5 Theme Provider & Toggle
 
-- [ ] Create `ThemeProvider` component using `next-themes` or manual class toggle
-- [ ] Light mode by default, dark mode supported
-- [ ] Persist preference (cookie-based for SSR compat, not localStorage)
-- [ ] Add theme toggle to Toolbar
+- [x] Create `ThemeProvider` component (manual class toggle, no next-themes dependency)
+- [x] Light mode by default, dark mode supported
+- [x] Persist preference (cookie-based for SSR compat, not localStorage)
+- [x] Add `ThemeToggle` component (Moon/Sun icon button with Tooltip)
+- [x] Layout reads cookie server-side, injects `dark` class on `<html>` before paint — no flash
 
 **Done when:** Toggling theme switches all tokens. Page loads in correct mode. No flash of wrong theme.
 
@@ -989,7 +990,7 @@ Tasks can be marked with:
 
 | Phase | Name | Tasks | Done | Status |
 |-------|------|-------|------|--------|
-| 0 | Design System | 6 | 4 | 🟡 In progress |
+| 0 | Design System | 6 | 5 | 🟡 In progress |
 | 1 | Data Model & State | 6 | 0 | ⬜ Not started |
 | 2 | WebGPU Renderer | 6 | 0 | ⬜ Not started |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |

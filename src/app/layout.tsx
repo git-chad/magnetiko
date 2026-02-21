@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { ToastContextProvider, Toaster } from "@/components/ui/toast";
+import { ThemeProvider, COOKIE_NAME } from "@/components/ui/theme-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -14,18 +16,24 @@ export const metadata: Metadata = {
   description: "No-code shader studio powered by WebGPU",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const savedTheme = cookieStore.get(COOKIE_NAME)?.value;
+  const theme = savedTheme === "dark" ? "dark" : "light";
+
   return (
-    <html lang="en">
+    <html lang="en" className={theme} suppressHydrationWarning>
       <body className={`${inter.variable} antialiased`}>
-        <ToastContextProvider>
-          {children}
-          <Toaster />
-        </ToastContextProvider>
+        <ThemeProvider defaultTheme={theme}>
+          <ToastContextProvider>
+            {children}
+            <Toaster />
+          </ToastContextProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
