@@ -397,7 +397,7 @@ This is the **core architecture** for the filter chain.
 - [ ] Forward pointer events to the interactivity system (Phase 7)
 - [x] Display FPS counter (dev mode)
 
-**Done when:** Canvas renders in the editor layout. Responds to window resize. Shows uploaded media through the pipeline. ✓ Fixed: layer sync timing (status dep), zoom pollution (reset on mount), FullscreenQuad black canvas (mutable TextureNode instead of needsUpdate recompile).
+**Done when:** Canvas renders in the editor layout. Responds to window resize. Shows uploaded media through the pipeline. ✓ Fixed: layer sync timing, zoom pollution, FullscreenQuad TextureNode recompile, React effect dep-chain replaced with direct Zustand subscribe().
 
 ### 2.6 Blend Mode Library (`src/lib/utils/blendModes.ts`)
 

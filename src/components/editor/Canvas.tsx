@@ -49,6 +49,8 @@ function CanvasFallback({ status }: { status: "loading" | "unsupported" | "error
  * - Mounts a Three.js WebGPURenderer; disposes on unmount
  * - Drives PipelineManager from layerStore (shader passes) and any media
  *   layers (kind='image'|'video' with a mediaUrl set)
+ * - Uses a direct Zustand store subscription (not a React effect dep chain)
+ *   so media loads and pass syncs fire synchronously on every store update
  * - Applies zoom/pan from editorStore as a CSS transform on the inner wrapper
  * - Reports FPS back to editorStore
  * - ResizeObserver keeps the renderer in sync with container size
@@ -65,8 +67,6 @@ export function Canvas({ className }: CanvasProps) {
   );
 
   // ── Store subscriptions ────────────────────────────────────────────────────
-  const layers = useLayerStore((s) => s.layers);
-  const getLayersByOrder = useLayerStore((s) => s.getLayersByOrder);
   const zoom = useEditorStore((s) => s.zoom);
   const panOffset = useEditorStore((s) => s.panOffset);
   const setFps = useEditorStore((s) => s.setFps);
@@ -154,44 +154,57 @@ export function Canvas({ className }: CanvasProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Layer sync ─────────────────────────────────────────────────────────────
-  // Depends on `status` so this re-runs once the pipeline becomes ready,
-  // even if `layers` hasn't changed between mount and init completing.
+  // ── Layer / media sync via direct Zustand subscription ───────────────────
+  //
+  // PipelinePreview works by calling pipeline.baseQuad.setTexture() directly
+  // in the event handler, reading pipelineRef.current synchronously.
+  // The React effect dep-chain approach (layers → re-render → effect → async)
+  // is unreliable for WebGPU because it introduces a multi-step async gap
+  // between the store update and the actual texture assignment.
+  //
+  // Fix: use useLayerStore.subscribe() which fires SYNCHRONOUSLY on every
+  // store update — exactly like PipelinePreview reads pipelineRef directly.
   React.useEffect(() => {
     if (status !== "ready") return;
     const pipeline = pipelineRef.current;
     if (!pipeline) return;
 
-    const ordered: Layer[] = getLayersByOrder();
+    function sync(layers: Layer[]) {
+      const ordered = [...layers].reverse(); // bottom → top
 
-    // Shader layers → pipeline passes (bottom to top)
-    const passes: PipelineLayer[] = ordered
-      .filter((l) => l.kind === "shader")
-      .map((l) => ({
-        id: l.id,
-        visible: l.visible,
-        opacity: l.opacity,
-        blendMode: l.blendMode,
-        filterMode: l.filterMode,
-        params: l.params,
-      }));
+      // Shader layers → pipeline passes
+      const passes: PipelineLayer[] = ordered
+        .filter((l) => l.kind === "shader")
+        .map((l) => ({
+          id: l.id,
+          visible: l.visible,
+          opacity: l.opacity,
+          blendMode: l.blendMode,
+          filterMode: l.filterMode,
+          params: l.params,
+        }));
+      pipeline.syncLayers(passes);
 
-    pipeline.syncLayers(passes);
-
-    // Base media: the lowest media layer with a URL drives the base quad
-    const mediaLayer = ordered.find(
-      (l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl,
-    );
-
-    if (mediaLayer?.mediaUrl && mediaLayer.mediaUrl !== loadedBaseUrlRef.current) {
-      loadedBaseUrlRef.current = mediaLayer.mediaUrl;
-      _loadBaseMedia(pipeline, mediaLayer);
+      // Base media: lowest media layer with a URL drives the base quad
+      const mediaLayer = ordered.find(
+        (l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl,
+      );
+      if (mediaLayer?.mediaUrl && mediaLayer.mediaUrl !== loadedBaseUrlRef.current) {
+        loadedBaseUrlRef.current = mediaLayer.mediaUrl;
+        _loadBaseMedia(pipeline, mediaLayer);
+      }
     }
-  }, [layers, getLayersByOrder, status]);
+
+    // Sync immediately with current store state (handles pre-existing layers)
+    sync(useLayerStore.getState().layers);
+
+    // Subscribe to all future store changes — fires synchronously on every set()
+    const unsub = useLayerStore.subscribe((state) => sync(state.layers));
+
+    return unsub;
+  }, [status]);
 
   // ── Zoom / pan → CSS transform ─────────────────────────────────────────────
-  // Applied on the inner wrapper so the canvas element itself is unaffected
-  // (renderer pixel dimensions stay accurate)
   React.useEffect(() => {
     const inner = innerRef.current;
     if (!inner) return;
