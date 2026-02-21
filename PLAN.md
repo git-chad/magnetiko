@@ -349,11 +349,11 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
 
 ### 2.2 Fullscreen Quad & Media Texture (`src/lib/renderer/MediaTexture.ts`)
 
-- [ ] Create `FullscreenQuad` class: a `THREE.Mesh` with `PlaneGeometry(2,2)` and a custom TSL material
-- [ ] Load image as `THREE.Texture` and display on the quad (UV-mapped, aspect-ratio correct)
-- [ ] Load video as `THREE.VideoTexture` with auto-play, loop, muted
-- [ ] Handle aspect ratio: letterbox or cover mode (user preference, default cover)
-- [ ] Provide method to swap media at runtime
+- [x] Create `FullscreenQuad` class: a `THREE.Mesh` with `PlaneGeometry(2,2)` and a custom TSL material
+- [x] Load image as `THREE.Texture` and display on the quad (UV-mapped, aspect-ratio correct)
+- [x] Load video as `THREE.VideoTexture` with auto-play, loop, muted
+- [x] Handle aspect ratio: letterbox or contain mode (user preference, default cover)
+- [x] Provide method to swap media at runtime (`applyFitMode`, `setVideoHandle`)
 
 **Done when:** Uploading or selecting an image shows it on the canvas, correctly sized. A video plays in real-time on the canvas.
 
@@ -992,7 +992,7 @@ Tasks can be marked with:
 |-------|------|-------|------|--------|
 | 0 | Design System | 6 | 6 | ✅ Complete |
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
-| 2 | WebGPU Renderer | 6 | 1 | 🔵 In progress |
+| 2 | WebGPU Renderer | 6 | 2 | 🔵 In progress |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |
 | 4 | Shader Library | 9 | 0 | ⬜ Not started |
 | 5 | Controls & Sidebar | 4 | 0 | ⬜ Not started |

@@ -67,6 +67,7 @@ import {
 } from "@/components/ui";
 
 import { RendererPreview } from "@/components/editor/RendererPreview";
+import { MediaTexturePreview } from "@/components/editor/MediaTexturePreview";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore } from "@/store/historyStore";
@@ -601,6 +602,27 @@ export default function PreviewPage() {
                   </Text>
                 </div>
                 <RendererPreview />
+              </div>
+            </Section>
+
+            {/* ── Phase 2.2 ── */}
+            <Section title="Renderer / Media Texture">
+              <div className="space-y-xs">
+                <div className="mb-xs flex items-start gap-xs rounded-xs border-l-2 border-accent bg-[var(--color-bg)] px-xs py-3xs">
+                  <Info size={13} weight="bold" className="mt-px shrink-0 text-accent" />
+                  <Text variant="caption" color="secondary">
+                    Upload any PNG, JPG, WebP, MP4, or WebM (max 50 MB) to display it on
+                    the WebGPU canvas. The{" "}
+                    <code className="font-mono">FullscreenQuad</code> applies aspect-ratio
+                    correction via two{" "}
+                    <code className="font-mono">uniform()</code> GPU nodes — no shader
+                    recompile on window resize. Toggle{" "}
+                    <strong>Cover</strong> (fills canvas, crops) ↔{" "}
+                    <strong>Contain</strong> (fits whole image, dark bars) to compare fit
+                    modes. Video plays automatically, looped and muted.
+                  </Text>
+                </div>
+                <MediaTexturePreview />
               </div>
             </Section>
 
