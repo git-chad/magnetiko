@@ -202,7 +202,7 @@ function CanvasDemo() {
     <div className="space-y-xs">
       {/* Canvas */}
       <div className="relative h-64 w-full overflow-hidden rounded-sm border border-[var(--color-border)] bg-primary">
-        <Canvas className="absolute inset-0" />
+        <Canvas className="absolute inset-0 size-full" />
         <div className="pointer-events-none absolute bottom-xs right-xs flex items-center gap-3xs">
           <Badge variant="secondary" className="border-0 bg-black/40 text-white backdrop-blur-sm">
             {shaderLayerCount} pass{shaderLayerCount !== 1 ? "es" : ""}

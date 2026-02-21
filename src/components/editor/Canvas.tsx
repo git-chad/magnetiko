@@ -155,21 +155,14 @@ export function Canvas({ className }: CanvasProps) {
   }, []);
 
   // ── Layer / media sync via direct Zustand subscription ───────────────────
-  //
-  // PipelinePreview works by calling pipeline.baseQuad.setTexture() directly
-  // in the event handler, reading pipelineRef.current synchronously.
-  // The React effect dep-chain approach (layers → re-render → effect → async)
-  // is unreliable for WebGPU because it introduces a multi-step async gap
-  // between the store update and the actual texture assignment.
-  //
-  // Fix: use useLayerStore.subscribe() which fires SYNCHRONOUSLY on every
-  // store update — exactly like PipelinePreview reads pipelineRef directly.
   React.useEffect(() => {
     if (status !== "ready") return;
-    const pipeline = pipelineRef.current;
-    if (!pipeline) return;
 
     function sync(layers: Layer[]) {
+      // Always read the current pipeline — avoids stale closure + fixes TS null narrowing
+      const p = pipelineRef.current;
+      if (!p) return;
+
       const ordered = [...layers].reverse(); // bottom → top
 
       // Shader layers → pipeline passes
@@ -183,15 +176,16 @@ export function Canvas({ className }: CanvasProps) {
           filterMode: l.filterMode,
           params: l.params,
         }));
-      pipeline.syncLayers(passes);
+      p.syncLayers(passes);
 
       // Base media: lowest media layer with a URL drives the base quad
       const mediaLayer = ordered.find(
         (l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl,
       );
+
       if (mediaLayer?.mediaUrl && mediaLayer.mediaUrl !== loadedBaseUrlRef.current) {
         loadedBaseUrlRef.current = mediaLayer.mediaUrl;
-        _loadBaseMedia(pipeline, mediaLayer);
+        _loadBaseMedia(p, mediaLayer);
       }
     }
 

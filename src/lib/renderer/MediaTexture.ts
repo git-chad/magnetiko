@@ -212,10 +212,6 @@ export class FullscreenQuad {
     this._uTextureAspect.value = tw / Math.max(th, 1);
     this._currentTex = tex;
 
-    // Swap texture binding on both nodes (no recompile — same as PassNode)
-    this._coverTexNode.value = tex;
-    this._containTexNode.value = tex;
-
     // Switch colorNode only when fit mode changes (rare — one recompile)
     if (fitMode !== this._currentFitMode) {
       this._currentFitMode = fitMode;
@@ -237,11 +233,17 @@ export class FullscreenQuad {
   }
 
   /**
-   * Call once per animation frame.
-   * Marks the video texture dirty so the WebGPU backend re-uploads the current
-   * frame. Without this, VideoTexture shows only the first frame.
+   * Call once per animation frame, BEFORE renderer.render().
+   *
+   * Mirrors PassNode exactly: sets texNode.value = _currentTex on EVERY frame,
+   * unconditionally. This ensures the WebGPU bind group is always current,
+   * regardless of when setTexture() was called (even across async boundaries).
    */
   tick(): void {
+    if (this._currentTex) {
+      this._coverTexNode.value = this._currentTex;
+      this._containTexNode.value = this._currentTex;
+    }
     if (this._videoTex) this._videoTex.needsUpdate = true;
   }
 

@@ -125,7 +125,6 @@ export class PipelineManager {
     // Re-order to match layer stack (bottom → top)
     this._passes = layers.map((l) => this._passMap.get(l.id)!);
 
-    console.log(`[Pipeline] synced — ${this._passes.length} pass(es)`);
   }
 
   /**
