@@ -16,6 +16,7 @@ import {
 import {
   Badge,
   Button,
+  Text,
   ThemeToggle,
   Checkbox,
   Dialog,
@@ -108,6 +109,36 @@ export default function PreviewPage() {
           </div>
 
           <div className="space-y-md">
+            {/* ── Typography ── */}
+            <Section title="Typography">
+              <div className="space-y-xs">
+                <div className="flex items-baseline gap-md flex-wrap">
+                  <Text variant="display">Display</Text>
+                  <Text variant="headline">Headline</Text>
+                  <Text variant="title">Title</Text>
+                  <Text variant="subhead">Subhead</Text>
+                  <Text variant="body">Body</Text>
+                  <Text variant="caption">Caption</Text>
+                </div>
+                <Separator />
+                <div className="space-y-3xs">
+                  <Text variant="body" color="primary">primary — Inter 14px/24px, the default text color</Text>
+                  <Text variant="body" color="secondary">secondary — supporting text and labels</Text>
+                  <Text variant="body" color="tertiary">tertiary — placeholders, hints, less emphasis</Text>
+                  <Text variant="body" color="disabled">disabled — inactive states</Text>
+                </div>
+                <Separator />
+                <div className="flex gap-3xs">
+                  <span className="rounded-sm bg-primary px-xs py-3xs">
+                    <Text variant="caption" color="onPrimary">onPrimary</Text>
+                  </span>
+                  <span className="rounded-sm bg-accent px-xs py-3xs">
+                    <Text variant="caption" color="onAccent">onAccent</Text>
+                  </span>
+                </div>
+              </div>
+            </Section>
+
             {/* ── Badges ── */}
             <Section title="Badge">
               <div className="flex flex-wrap gap-3xs">

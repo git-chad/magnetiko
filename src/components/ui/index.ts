@@ -1,4 +1,5 @@
 export * from "./badge";
+export * from "./text";
 export * from "./theme-provider";
 export * from "./theme-toggle";
 export * from "./button";

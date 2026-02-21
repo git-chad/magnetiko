@@ -188,10 +188,10 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
 
 ### 0.6 Typography Components
 
-- [ ] Create `<Text>` component with `variant` prop: caption, body, subhead, title, headline, display
-- [ ] Each variant applies the exact font-family, size, weight, lineHeight, letterSpacing from the type scale
-- [ ] Support `as` prop for semantic HTML elements (p, h1-h6, span, label)
-- [ ] Support `color` prop: primary, secondary, tertiary, disabled, onPrimary, onSecondary, onAccent
+- [x] Create `<Text>` component with `variant` prop: caption, body, subhead, title, headline, display
+- [x] Each variant applies font-size + weight from type scale via Tailwind `text-*` tokens (line-height + letter-spacing baked in)
+- [x] Support `as` prop for semantic HTML elements (defaults: span/p/p/h3/h2/h1 per variant)
+- [x] Support `color` prop: primary, secondary, tertiary, disabled, onPrimary, onSecondary, onAccent
 
 **Done when:** All 6 variants render with correct metrics. Line heights snap to 8px grid.
 
@@ -990,7 +990,7 @@ Tasks can be marked with:
 
 | Phase | Name | Tasks | Done | Status |
 |-------|------|-------|------|--------|
-| 0 | Design System | 6 | 5 | 🟡 In progress |
+| 0 | Design System | 6 | 6 | ✅ Complete |
 | 1 | Data Model & State | 6 | 0 | ⬜ Not started |
 | 2 | WebGPU Renderer | 6 | 0 | ⬜ Not started |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |
