@@ -51,38 +51,46 @@ export function loadImageTexture(url: string): Promise<THREE.Texture> {
  * Create a VideoTexture from a URL.
  * Video is set to autoplay, loop, and muted so browsers allow it without user
  * interaction. Call `handle.dispose()` to pause and release GPU resources.
+ *
+ * Resolves on the `playing` event (not `loadedmetadata`) so the first frame is
+ * guaranteed to be decoded before the WebGPU backend tries to upload it.
  */
 export function createVideoTexture(url: string): Promise<VideoHandle> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
     video.loop = true;
     video.muted = true;
     video.playsInline = true;
 
-    video.onloadedmetadata = () => {
-      // Play must be triggered after user gesture or muted=true
-      video.play().catch(console.warn);
+    // Wait until a real frame is available — `loadedmetadata` is too early.
+    video.addEventListener(
+      "playing",
+      () => {
+        const tex = new THREE.VideoTexture(video);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        resolve({
+          texture: tex,
+          video,
+          dispose: () => {
+            tex.dispose();
+            video.pause();
+            video.src = "";
+          },
+        });
+      },
+      { once: true },
+    );
 
-      const tex = new THREE.VideoTexture(video);
-      tex.colorSpace = THREE.SRGBColorSpace;
+    // Kick off playback once dimensions are known.
+    video.addEventListener(
+      "loadedmetadata",
+      () => { video.play().catch(reject); },
+      { once: true },
+    );
 
-      resolve({
-        texture: tex,
-        video,
-        dispose: () => {
-          tex.dispose();
-          video.pause();
-          video.src = "";
-        },
-      });
-    };
-
-    video.onerror = () =>
-      reject(new Error(`Failed to load video: ${url}`));
+    video.onerror = () => reject(new Error(`Failed to load video: ${url}`));
 
     video.src = url;
-    // Trigger metadata load (some browsers need explicit load())
     video.load();
   });
 }
@@ -111,6 +119,7 @@ export class FullscreenQuad {
 
   private readonly _material: THREE.MeshBasicNodeMaterial;
   private _currentTex: THREE.Texture | null = null;
+  private _videoTex: THREE.VideoTexture | null = null;
   private _videoHandle: VideoHandle | null = null;
 
   // Float uniforms so aspect ratio updates are uniform-only (no recompile)
@@ -155,8 +164,21 @@ export class FullscreenQuad {
 
   /** Convenience: track a VideoHandle so dispose() also cleans up the video. */
   setVideoHandle(handle: VideoHandle, fitMode: FitMode = "cover"): void {
-    this._videoHandle = handle;
+    // IMPORTANT: call setTexture FIRST — it calls _releaseCurrentMedia() which
+    // disposes the OLD _videoHandle. Setting _videoHandle before that would
+    // cause the NEW handle to be disposed immediately.
     this.setTexture(handle.texture, fitMode);
+    this._videoHandle = handle;
+    this._videoTex = handle.texture;
+  }
+
+  /**
+   * Call once per animation frame.
+   * Marks the video texture dirty so the WebGPU backend re-uploads the current
+   * frame. Without this, VideoTexture shows only the first frame.
+   */
+  tick(): void {
+    if (this._videoTex) this._videoTex.needsUpdate = true;
   }
 
   /** Call from ResizeObserver — updates the canvas aspect uniform every frame. */
@@ -185,6 +207,7 @@ export class FullscreenQuad {
   private _releaseCurrentMedia(): void {
     this._currentTex?.dispose();
     this._currentTex = null;
+    this._videoTex = null;
     this._videoHandle?.dispose();
     this._videoHandle = null;
   }

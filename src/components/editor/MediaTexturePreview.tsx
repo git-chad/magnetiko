@@ -77,6 +77,9 @@ export function MediaTexturePreview() {
         let frames = 0;
         let lastFpsSec = 0;
         instance.setAnimationCallback((timeSec) => {
+          // Mark video texture dirty each frame so the GPU re-uploads it
+          quad?.tick();
+
           frames++;
           if (timeSec - lastFpsSec >= 1) {
             setFps(frames);
