@@ -127,17 +127,19 @@ This creates a **sequential filter chain**, not a compositing stack of independe
 
 **Done when:** File compiles, all values match the design system spec exactly, imported successfully in at least one component.
 
-### 0.2 Tailwind Configuration (`tailwind.config.ts`)
+### 0.2 Tailwind Configuration (`globals.css` — Tailwind v4 `@theme`)
 
-- [ ] Extend `colors` with all primary, secondary, accent shades + semantic colors + surface colors
-- [ ] Extend `spacing` with the full spacing scale (3, 6, 9, 12, 18, 24, 36, 48, 72, 96, 144)
-- [ ] Extend `borderRadius` with xs, sm, md, lg, xl, full
-- [ ] Extend `boxShadow` with low, mid, high
-- [ ] Extend `fontFamily` with Inter stack
-- [ ] Extend `fontSize` with the type scale (caption, body, subhead, title, headline, display) including lineHeight and letterSpacing
-- [ ] Extend `transitionDuration` and `transitionTimingFunction` with motion tokens
-- [ ] Configure dark mode: `class` strategy
-- [ ] Add CSS custom properties via `@layer base` in `globals.css` for both light and dark themes
+> Note: Project uses Tailwind v4. Configuration lives in `globals.css` via `@theme`, not a separate config file.
+
+- [x] Extend `colors` with all primary, secondary, accent shades + semantic colors + surface colors
+- [x] Extend `spacing` with the full spacing scale (3, 6, 9, 12, 18, 24, 36, 48, 72, 96, 144)
+- [x] Extend `borderRadius` with xs, sm, md, lg, xl, full
+- [x] Extend `boxShadow` with low, mid, high
+- [x] Extend `fontFamily` with Inter stack (via `next/font/google` + CSS var)
+- [x] Extend `fontSize` with the type scale (caption, body, subhead, title, headline, display) including lineHeight and letterSpacing
+- [x] Extend `transitionDuration` and `transitionTimingFunction` with motion tokens
+- [x] Configure dark mode: `class` strategy (`@custom-variant dark (&:is(.dark *))`)
+- [x] Add CSS custom properties via `@layer base` in `globals.css` for both light and dark themes
 
 **Done when:** `npx tailwind` resolves all custom classes. Light and dark mode tokens switch correctly via class toggle.
 
@@ -987,7 +989,7 @@ Tasks can be marked with:
 
 | Phase | Name | Tasks | Done | Status |
 |-------|------|-------|------|--------|
-| 0 | Design System | 6 | 1 | 🟡 In progress |
+| 0 | Design System | 6 | 2 | 🟡 In progress |
 | 1 | Data Model & State | 6 | 0 | ⬜ Not started |
 | 2 | WebGPU Renderer | 6 | 0 | ⬜ Not started |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |
