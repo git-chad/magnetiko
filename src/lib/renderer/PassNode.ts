@@ -1,5 +1,6 @@
 import * as THREE from "three/webgpu";
-import { uv, vec2, float, texture as tslTexture } from "three/tsl";
+import { uv, vec2, float, texture as tslTexture, uniform } from "three/tsl";
+import { buildBlendNode } from "@/lib/utils/blendModes";
 import type { ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16,7 +17,16 @@ import type { ShaderParam } from "@/types";
  * The input texture is exposed as a mutable TSL TextureNode — updating
  * `.value` swaps the sampled texture without triggering a shader recompile.
  *
- * Phase 2.4 ships a passthrough shader. Phase 4 will override `_buildShader`
+ * **Compositing model:**
+ * ```
+ *   effect   = _buildEffectNode()          // shader output (passthrough for now)
+ *   blended  = blendFn(input, effect)      // blend mode applied to RGB
+ *   output   = mix(input, blended, opacity) // opacity mixes effect in
+ * ```
+ * Opacity updates are uniform-only (no recompile).
+ * Blend mode changes rebuild colorNode (one recompile; rare, user-driven).
+ *
+ * Phase 2.4 ships a passthrough shader. Phase 4 will override `_buildEffectNode`
  * per ShaderType to inject the real effect.
  */
 export class PassNode {
@@ -29,6 +39,13 @@ export class PassNode {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected _inputNode: any; // ShaderNodeObject<TextureNode> — value is mutable
+
+  // Compositing state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _opacityUniform: any; // ShaderNodeObject<UniformNode>
+  private _blendMode: string = "normal";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _effectNode: any; // cached output of _buildEffectNode()
 
   constructor(layerId: string) {
     this.layerId = layerId;
@@ -45,9 +62,13 @@ export class PassNode {
     const rtUV = vec2(uv().x, float(1.0).sub(uv().y));
     this._inputNode = tslTexture(placeholder, rtUV);
 
+    this._opacityUniform = uniform(1.0);
+
     this._material = new THREE.MeshBasicNodeMaterial();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this._material.colorNode = this._inputNode as any;
+
+    // Build the initial color node (normal blend, opacity 1 = passthrough)
+    this._effectNode = this._buildEffectNode();
+    this._rebuildColorNode();
 
     const geo = new THREE.PlaneGeometry(2, 2);
     const mesh = new THREE.Mesh(geo, this._material);
@@ -70,10 +91,29 @@ export class PassNode {
     _time: number,
     _delta: number,
   ): void {
-    // Swap input texture (no recompile — just a uniform update)
     this._inputNode.value = inputTex;
     renderer.setRenderTarget(outputTarget);
     renderer.render(this._scene, this._camera);
+  }
+
+  /**
+   * Update the opacity uniform — no shader recompile.
+   * Call this on every syncLayers() / slider change.
+   */
+  updateOpacity(opacity: number): void {
+    this._opacityUniform.value = opacity;
+  }
+
+  /**
+   * Switch the blend mode. Rebuilds colorNode and sets needsUpdate = true
+   * (one recompile). Safe to call on every syncLayers(); early-exits when
+   * the mode hasn't changed.
+   */
+  updateBlendMode(blendMode: string): void {
+    if (blendMode === this._blendMode) return;
+    this._blendMode = blendMode;
+    this._rebuildColorNode();
+    this._material.needsUpdate = true;
   }
 
   /**
@@ -89,6 +129,34 @@ export class PassNode {
     this._scene.clear();
     this._material.dispose();
   }
+
+  // ── Protected — override in Phase 4 subclasses ────────────────────────────
+
+  /**
+   * Build and return the TSL node that represents this pass's shader output.
+   * Called once in the constructor. Phase 4 subclasses override this to return
+   * a TSL computation graph instead of the passthrough input node.
+   *
+   * **Important:** Phase 4 subclasses must set up all uniform nodes BEFORE
+   * `super()` finishes (or call `_rebuildColorNode()` again after setup).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  protected _buildEffectNode(): any {
+    return this._inputNode; // passthrough
+  }
+
+  // ── Private ────────────────────────────────────────────────────────────────
+
+  private _rebuildColorNode(): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this._material.colorNode = buildBlendNode(
+      this._blendMode,
+      this._inputNode,
+      this._effectNode,
+      this._opacityUniform,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ) as any;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,8 +164,8 @@ export class PassNode {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Create the correct PassNode subclass for a given shader type.
- * Phase 2.4: all types return a base passthrough PassNode.
+ * Create the correct PassNode subclass for a given layer ID.
+ * Phase 2.4: all layers return a base passthrough PassNode.
  * Phase 4 will add subclasses per ShaderType.
  */
 export function createPassNode(layerId: string): PassNode {

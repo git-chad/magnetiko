@@ -369,8 +369,8 @@ This is the **core architecture** for the filter chain.
      - If `filterMode === 'filter'`: bind previous target as input texture, render shader pass to the next target
      - If `filterMode === 'mask'`: render shader independently, composite with previous target using blendMode (Phase 2.6)
   3. Final pass: render last target to screen
-- [ ] Handle layer opacity: mix pass output with input at layer's opacity level (Phase 2.6)
-- [ ] Handle blend modes in the compositing step (TSL blend mode functions) (Phase 2.6)
+- [x] Handle layer opacity: mix pass output with input at layer's opacity level (Phase 2.6)
+- [x] Handle blend modes in the compositing step (TSL blend mode functions) (Phase 2.6)
 - [x] React to layer store changes: rebuild pipeline when layers are added, removed, reordered
 - [x] React to param changes: update uniforms without rebuilding pipeline
 - [ ] **Performance:** only re-render if something changed (dirty flag system)
@@ -401,8 +401,8 @@ This is the **core architecture** for the filter chain.
 
 ### 2.6 Blend Mode Library (`src/lib/utils/blendModes.ts`)
 
-- [ ] Implement all 16 blend modes as TSL node functions
-- [ ] Each function signature: `(base: Node, blend: Node, opacity: Node) => Node`
+- [x] Implement all 16 blend modes as TSL node functions
+- [x] Each function signature: `(base: Node, blend: Node, opacity: Node) => Node`
 - [ ] Test: Apply each blend mode visually with two colored quads to confirm correctness
 
 **Done when:** All 16 blend modes produce visually correct results compared to Photoshop/CSS reference.
@@ -415,11 +415,11 @@ This is the **core architecture** for the filter chain.
 
 ### 3.1 Editor Layout (`src/app/page.tsx`)
 
-- [ ] Three-column layout: left sidebar (layer panel, ~280px), center (canvas, flexible), right sidebar (properties, ~320px)
-- [ ] Sidebars collapsible with smooth animation (GSAP)
-- [ ] Top toolbar: full width
-- [ ] Responsive: on mobile (<768px), sidebars become bottom sheet / drawer
-- [ ] Use CSS Grid for the main layout, flex within sidebars
+- [x] Three-column layout: left sidebar (layer panel, ~280px), center (canvas, flexible), right sidebar (properties, ~320px)
+- [x] Sidebars collapsible with smooth animation (GSAP)
+- [x] Top toolbar: full width
+- [x] Responsive: on mobile (<1024px), sidebars become fixed overlay panels; full bottom-sheet UX deferred to Phase 8.4
+- [x] Use flex layout, overflow:hidden sidebar wrapper + GSAP width/translateX per breakpoint
 
 **Done when:** Layout renders correctly at 375px, 768px, 1024px, 1440px. Sidebars collapse and expand. Canvas fills available space.
 
@@ -992,7 +992,7 @@ Tasks can be marked with:
 |-------|------|-------|------|--------|
 | 0 | Design System | 6 | 6 | ✅ Complete |
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
-| 2 | WebGPU Renderer | 6 | 2 | 🔵 In progress |
+| 2 | WebGPU Renderer | 6 | 5 | 🔵 In progress |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |
 | 4 | Shader Library | 9 | 0 | ⬜ Not started |
 | 5 | Controls & Sidebar | 4 | 0 | ⬜ Not started |

@@ -119,6 +119,8 @@ export class PipelineManager {
       }
       const pass = this._passMap.get(layer.id)!;
       pass.enabled = layer.visible;
+      pass.updateOpacity(layer.opacity);
+      pass.updateBlendMode(layer.blendMode);
       pass.updateUniforms(layer.params);
     }
 

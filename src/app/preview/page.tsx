@@ -70,6 +70,7 @@ import { RendererPreview } from "@/components/editor/RendererPreview";
 import { MediaTexturePreview } from "@/components/editor/MediaTexturePreview";
 import { PipelinePreview } from "@/components/editor/PipelinePreview";
 import { Canvas } from "@/components/editor/Canvas";
+import { BlendModePreview } from "@/components/editor/BlendModePreview";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore } from "@/store/historyStore";
@@ -779,6 +780,26 @@ export default function PreviewPage() {
                   </Text>
                 </div>
                 <CanvasDemo />
+              </div>
+            </Section>
+
+            {/* ── Phase 2.6 ── */}
+            <Section title="Renderer / Blend Modes">
+              <div className="space-y-xs">
+                <div className="mb-xs flex items-start gap-xs rounded-xs border-l-2 border-accent bg-[var(--color-bg)] px-xs py-3xs">
+                  <Info size={13} weight="bold" className="mt-px shrink-0 text-accent" />
+                  <Text variant="caption" color="secondary">
+                    All 16 CSS blend modes implemented as TSL node functions in{" "}
+                    <code className="font-mono">buildBlendNode(mode, base, blend, opacity)</code>.
+                    The <strong>Base</strong> and <strong>Blend</strong> swatches show the two
+                    gradient textures being composited. The <strong>Result</strong> canvas runs
+                    the blend on the GPU via WebGPU. Switch modes to verify each one — key
+                    checks: <em>difference</em> → near-black, <em>multiply</em> → darker,{" "}
+                    <em>screen</em> → lighter, <em>overlay</em> → enhanced contrast.
+                    Opacity slider updates via uniform (no shader recompile).
+                  </Text>
+                </div>
+                <BlendModePreview />
               </div>
             </Section>
 

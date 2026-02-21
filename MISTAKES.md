@@ -98,7 +98,15 @@ These are common pitfalls in this tech stack. Not mistakes yet, but things to be
 
 > Quick notes from each work session. Not full mistake entries — just context for continuity.
 
-_No sessions yet._
+### Session 2026-02-21
+- Completed: Phase 2.6 (blend mode library — all 16 TSL blend modes, opacity uniform wired into PassNode + PipelineManager)
+- Completed: Phase 3.1 (editor layout — three-column, GSAP sidebar animation, Toolbar/LayerPanel/PropertiesPanel stubs)
+- Added: BlendModePreview component at /preview for visual testing of all blend modes
+- **KEY LESSON — 🔴 ALWAYS CHECK CSS/LAYOUT FIRST:** Spent significant time deep-diving Three.js WebGPU binding internals (NodeSampledTexture, Bindings, generation tracking) convinced the renderer was broken. Root cause was a 1px canvas height — CSS issue. Before touching renderer code, verify the element has real dimensions in DevTools.
+- **MediaTexture.ts change:** Moved texture node assignment from `setTexture()` (one-shot) to `tick()` (every frame, unconditionally) — mirrors PassNode pattern. Correct and intentional.
+- **PassNode architecture for Phase 4:** `_buildEffectNode()` is protected and returns `_inputNode` (passthrough). Phase 4 subclasses override it to return the actual shader graph. The constructor calls it once; blend mode rebuilds reuse the cached `_effectNode`. Phase 4 subclasses should call `_rebuildColorNode()` after setting up their uniforms.
+- In progress: Phase 3 (next: 3.2 Toolbar, 3.3 LayerPanel)
+- Blocked on: nothing
 
 <!--
 ### Session 2025-XX-XX
