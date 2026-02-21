@@ -69,6 +69,7 @@ import {
 import { RendererPreview } from "@/components/editor/RendererPreview";
 import { MediaTexturePreview } from "@/components/editor/MediaTexturePreview";
 import { PipelinePreview } from "@/components/editor/PipelinePreview";
+import { Canvas } from "@/components/editor/Canvas";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore } from "@/store/historyStore";
@@ -133,6 +134,135 @@ function StateDisplay({ value }: { value: unknown }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Store demos
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2.5 — Canvas demo
+// ─────────────────────────────────────────────────────────────────────────────
+
+function CanvasDemo() {
+  const { toast } = useToast();
+  const addLayer = useLayerStore((s) => s.addLayer);
+  const removeLayer = useLayerStore((s) => s.removeLayer);
+  const layers = useLayerStore((s) => s.layers);
+  const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
+  const zoom = useEditorStore((s) => s.zoom);
+  const setZoom = useEditorStore((s) => s.setZoom);
+  const fps = useEditorStore((s) => s.fps);
+  const loadAsset = useMediaStore((s) => s.loadAsset);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [loadingMedia, setLoadingMedia] = React.useState(false);
+
+  // Track the current base media layer id
+  const baseLayerIdRef = React.useRef<string | null>(null);
+  // Track shader layer ids added via this demo
+  const shaderLayerIdsRef = React.useRef<string[]>([]);
+  const shaderLayerCount = layers.filter(
+    (l) => shaderLayerIdsRef.current.includes(l.id),
+  ).length;
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setLoadingMedia(true);
+    try {
+      const asset = await loadAsset(file);
+      // Remove previous base layer if any
+      if (baseLayerIdRef.current) removeLayer(baseLayerIdRef.current);
+      const id = addLayer(asset.type === "video" ? "video" : "image");
+      setLayerMedia(id, asset.url, asset.type);
+      baseLayerIdRef.current = id;
+      toast({ title: `Loaded: ${asset.name}`, description: `${asset.width}×${asset.height}` });
+    } catch (err) {
+      toast({ title: "Upload failed", description: String(err), variant: "error" });
+    } finally {
+      setLoadingMedia(false);
+    }
+  }
+
+  function addShaderPass() {
+    const id = addLayer("shader", "grain"); // grain as a placeholder — passthrough for now
+    shaderLayerIdsRef.current = [...shaderLayerIdsRef.current, id];
+    toast({ title: "Added shader pass", description: `${shaderLayerCount + 1} pass(es) in pipeline` });
+  }
+
+  function removeShaderPass() {
+    const ids = shaderLayerIdsRef.current;
+    if (ids.length === 0) return;
+    const last = ids[ids.length - 1];
+    removeLayer(last);
+    shaderLayerIdsRef.current = ids.slice(0, -1);
+    toast({ title: "Removed shader pass" });
+  }
+
+  return (
+    <div className="space-y-xs">
+      {/* Canvas */}
+      <div className="relative h-64 w-full overflow-hidden rounded-sm border border-[var(--color-border)] bg-primary">
+        <Canvas className="absolute inset-0" />
+        <div className="pointer-events-none absolute bottom-xs right-xs flex items-center gap-3xs">
+          <Badge variant="secondary" className="border-0 bg-black/40 text-white backdrop-blur-sm">
+            {shaderLayerCount} pass{shaderLayerCount !== 1 ? "es" : ""}
+          </Badge>
+          <Badge variant="secondary" className="border-0 bg-black/40 text-white backdrop-blur-sm">
+            {fps} fps
+          </Badge>
+          <Badge variant="accent" className="border-0 bg-black/40 backdrop-blur-sm">
+            WebGPU
+          </Badge>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-xs">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={loadingMedia}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <UploadSimple size={14} />
+          {loadingMedia ? "Loading…" : "Upload media"}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={addShaderPass}>
+          <Plus size={14} />
+          Add shader pass
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={shaderLayerCount === 0}
+          onClick={removeShaderPass}
+        >
+          Remove pass
+        </Button>
+
+        {/* Zoom slider */}
+        <div className="ml-auto flex items-center gap-xs">
+          <Text variant="caption" color="tertiary">Zoom</Text>
+          <Slider
+            min={0.25}
+            max={2}
+            step={0.05}
+            value={[zoom]}
+            onValueChange={([v]) => setZoom(v)}
+            className="w-24"
+          />
+          <Text variant="caption" color="secondary" className="w-8 text-right">
+            {Math.round(zoom * 100)}%
+          </Text>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 function LayerStoreDemo() {
@@ -642,6 +772,25 @@ export default function PreviewPage() {
                   </Text>
                 </div>
                 <PipelinePreview />
+              </div>
+            </Section>
+
+            {/* ── Phase 2.5 ── */}
+            <Section title="Renderer / Canvas (React integration)">
+              <div className="space-y-xs">
+                <div className="mb-xs flex items-start gap-xs rounded-xs border-l-2 border-accent bg-[var(--color-bg)] px-xs py-3xs">
+                  <Info size={13} weight="bold" className="mt-px shrink-0 text-accent" />
+                  <Text variant="caption" color="secondary">
+                    <code className="font-mono">Canvas</code> is the production component.
+                    It subscribes to <code className="font-mono">layerStore</code> —
+                    media layers (kind=image/video) drive the base quad; shader layers
+                    become pipeline passes. Zoom/pan from{" "}
+                    <code className="font-mono">editorStore</code> is applied as a CSS
+                    transform. Upload media, then add/remove passthrough shader layers and
+                    verify the canvas updates live.
+                  </Text>
+                </div>
+                <CanvasDemo />
               </div>
             </Section>
 
