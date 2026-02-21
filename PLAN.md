@@ -145,12 +145,12 @@ This creates a **sequential filter chain**, not a compositing stack of independe
 
 ### 0.3 CSS Custom Properties (`globals.css`)
 
-- [ ] Define all color tokens as `--color-*` custom properties under `:root` (light) and `.dark` (dark)
-- [ ] Define `--shadow-*`, `--radius-*`, `--space-*` custom properties
-- [ ] Import Inter font via `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap')`
-- [ ] Define `@keyframes` for: modal-enter, modal-exit, dropdown-enter, toast-enter, toast-exit, fade-in, slide-up
-- [ ] `@media (prefers-reduced-motion: reduce)` — disable all animations
-- [ ] Base resets: box-sizing border-box, smooth scroll, antialiased text
+- [x] Define all color tokens as `--color-*` custom properties under `:root` (light) and `.dark` (dark)
+- [x] Define `--shadow-*`, `--radius-*`, `--space-*` custom properties (via `@theme`)
+- [x] Inter font loaded via `next/font/google` (Next.js-optimised; no raw @import needed)
+- [x] Define `@keyframes` for: modal-enter, modal-exit, dropdown-enter, toast-enter, toast-exit, fade-in, slide-up
+- [x] `@media (prefers-reduced-motion: reduce)` — disable all animations
+- [x] Base resets: box-sizing border-box, smooth scroll, antialiased text
 
 **Done when:** Browser devtools show all custom properties. Animations play. Reduced-motion disables them.
 
@@ -989,7 +989,7 @@ Tasks can be marked with:
 
 | Phase | Name | Tasks | Done | Status |
 |-------|------|-------|------|--------|
-| 0 | Design System | 6 | 2 | 🟡 In progress |
+| 0 | Design System | 6 | 3 | 🟡 In progress |
 | 1 | Data Model & State | 6 | 0 | ⬜ Not started |
 | 2 | WebGPU Renderer | 6 | 0 | ⬜ Not started |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |
