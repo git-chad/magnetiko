@@ -112,22 +112,39 @@ export default function PreviewPage() {
             {/* ── Typography ── */}
             <Section title="Typography">
               <div className="space-y-xs">
-                <div className="flex items-baseline gap-md flex-wrap">
-                  <Text variant="display">Display</Text>
-                  <Text variant="headline">Headline</Text>
-                  <Text variant="title">Title</Text>
-                  <Text variant="subhead">Subhead</Text>
-                  <Text variant="body">Body</Text>
-                  <Text variant="caption">Caption</Text>
-                </div>
+                {/* Type scale — each variant on its own row */}
+                {(
+                  [
+                    { variant: "display",  spec: "29px / 700 / −0.015em", sample: "Shader Studio" },
+                    { variant: "headline", spec: "24px / 700 / −0.01em",  sample: "Layer Properties" },
+                    { variant: "title",    spec: "20px / 600 / −0.005em", sample: "Add a shader layer" },
+                    { variant: "subhead",  spec: "17px / 500 / 0em",      sample: "Halftone — dot grid effect" },
+                    { variant: "body",     spec: "14px / 400 / 0em",      sample: "The filter samples the input texture, pixelates it to match the dot grid, then sizes each dot proportional to luminance." },
+                    { variant: "caption",  spec: "12px / 400 / +0.01em",  sample: "Layer 3 · Visible · Filter mode" },
+                  ] as const
+                ).map(({ variant, spec, sample }) => (
+                  <div key={variant} className="flex items-baseline gap-xs border-b border-[var(--color-border)] pb-xs last:border-0 last:pb-0">
+                    <div className="w-[5rem] shrink-0">
+                      <Text variant="caption" color="tertiary" className="capitalize">{variant}</Text>
+                      <Text variant="caption" color="disabled" className="tabular-nums">{spec}</Text>
+                    </div>
+                    <Text variant={variant} color="primary" as="span">{sample}</Text>
+                  </div>
+                ))}
+
                 <Separator />
+
+                {/* Color tokens */}
                 <div className="space-y-3xs">
-                  <Text variant="body" color="primary">primary — Inter 14px/24px, the default text color</Text>
-                  <Text variant="body" color="secondary">secondary — supporting text and labels</Text>
-                  <Text variant="body" color="tertiary">tertiary — placeholders, hints, less emphasis</Text>
-                  <Text variant="body" color="disabled">disabled — inactive states</Text>
+                  <Text variant="body" color="primary">primary — the default reading color</Text>
+                  <Text variant="body" color="secondary">secondary — supporting labels and descriptions</Text>
+                  <Text variant="body" color="tertiary">tertiary — placeholders, metadata, hints</Text>
+                  <Text variant="body" color="disabled">disabled — inactive and unavailable states</Text>
                 </div>
+
                 <Separator />
+
+                {/* On-color swatches */}
                 <div className="flex gap-3xs">
                   <span className="rounded-sm bg-primary px-xs py-3xs">
                     <Text variant="caption" color="onPrimary">onPrimary</Text>

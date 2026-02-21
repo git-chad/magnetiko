@@ -18,7 +18,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: [
-          "bg-accent text-primary-50",
+          "bg-accent-400 dark:bg-accent text-primary-50",
           "hover:bg-accent-700 active:bg-accent-800",
         ].join(" "),
         secondary: [
