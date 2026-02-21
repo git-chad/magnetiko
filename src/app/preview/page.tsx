@@ -66,6 +66,7 @@ import {
   useToast,
 } from "@/components/ui";
 
+import { RendererPreview } from "@/components/editor/RendererPreview";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore } from "@/store/historyStore";
@@ -574,6 +575,34 @@ export default function PreviewPage() {
           </div>
 
           <div className="space-y-md">
+
+            {/* ══════════════════════════════════════════════════
+                Renderer preview (Phase 2.1)
+            ══════════════════════════════════════════════════ */}
+
+            <div className="space-y-3xs">
+              <Text variant="caption" color="disabled" className="font-medium uppercase tracking-widest">
+                Phase 2.1 — WebGPU renderer
+              </Text>
+              <Separator />
+            </div>
+
+            <Section title="Renderer / WebGPU Canvas">
+              <div className="space-y-xs">
+                <div className="mb-xs flex items-start gap-xs rounded-xs border-l-2 border-accent bg-[var(--color-bg)] px-xs py-3xs">
+                  <Info size={13} weight="bold" className="mt-px shrink-0 text-accent" />
+                  <Text variant="caption" color="secondary">
+                    Live WebGPU canvas — animated TSL plasma shader running on the GPU.
+                    Three waves of <code className="font-mono">sin()</code> are summed and
+                    mapped across the brand palette (dark → accent → neutral).
+                    FPS badge confirms the render loop is active. Open DevTools console
+                    to see the{" "}
+                    <code className="font-mono">[Magnetiko] WebGPU initialized ✓</code> log.
+                  </Text>
+                </div>
+                <RendererPreview />
+              </div>
+            </Section>
 
             {/* ══════════════════════════════════════════════════
                 Store demos (Phase 1)

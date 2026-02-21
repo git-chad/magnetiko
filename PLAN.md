@@ -337,13 +337,13 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
 
 ### 2.1 WebGPU Renderer Setup (`src/lib/renderer/WebGPURenderer.ts`)
 
-- [ ] Initialize `THREE.WebGPURenderer` with antialias, correct pixel ratio, alpha
-- [ ] Handle WebGPU availability check — show fallback message if not supported (link to browser requirements)
-- [ ] Create an orthographic camera for fullscreen quad rendering
-- [ ] Set up resize handling (observe container element)
-- [ ] Implement render loop using `renderer.setAnimationLoop` (not raw RAF — Three.js manages timing)
-- [ ] Expose `dispose()` for cleanup on unmount
-- [ ] Export singleton-like factory: `createRenderer(canvas, options)`
+- [x] Initialize `THREE.WebGPURenderer` with antialias, correct pixel ratio, alpha
+- [x] Handle WebGPU availability check — show fallback message if not supported (link to browser requirements)
+- [x] Create an orthographic camera for fullscreen quad rendering
+- [x] Set up resize handling (observe container element)
+- [x] Implement render loop using `renderer.setAnimationLoop` (not raw RAF — Three.js manages timing)
+- [x] Expose `dispose()` for cleanup on unmount
+- [x] Export singleton-like factory: `createRenderer(canvas, options)`
 
 **Done when:** A black canvas renders at the correct size. Resize works. Console shows "WebGPU initialized" or fallback message. No memory leaks on unmount.
 
@@ -992,7 +992,7 @@ Tasks can be marked with:
 |-------|------|-------|------|--------|
 | 0 | Design System | 6 | 6 | ✅ Complete |
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
-| 2 | WebGPU Renderer | 6 | 0 | ⬜ Not started |
+| 2 | WebGPU Renderer | 6 | 1 | 🔵 In progress |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |
 | 4 | Shader Library | 9 | 0 | ⬜ Not started |
 | 5 | Controls & Sidebar | 4 | 0 | ⬜ Not started |
