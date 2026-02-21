@@ -158,21 +158,21 @@ This creates a **sequential filter chain**, not a compositing stack of independe
 
 Build each as a thin wrapper around Radix primitives, styled with Tailwind using design tokens:
 
-- [ ] **Button** — variants: primary, secondary, ghost, destructive. Sizes: sm, md, lg. States: hover, active, disabled, focus. Icon-only variant.
-- [ ] **Input** — default, focus, error, disabled states. With optional leading/trailing icons.
-- [ ] **Select** — Radix Select with dropdown styling per spec (2px radius, mid shadow, 10px offset)
-- [ ] **Slider** — Radix Slider, accent track color, custom thumb. Displays value label.
-- [ ] **Switch** — Radix Switch, full radius, accent color when on.
-- [ ] **Checkbox** — Radix Checkbox, sm radius.
-- [ ] **Tooltip** — Radix Tooltip, 2px radius, dark bg, 60ms fade.
-- [ ] **Dialog/Modal** — Radix Dialog, backdrop blur, 12px radius, high shadow, scale+translateY enter animation.
-- [ ] **Popover** — Radix Popover, 2px radius, mid shadow, dropdown animation.
-- [ ] **DropdownMenu** — Radix DropdownMenu, same visual spec as Popover.
-- [ ] **Toast** — Radix Toast, fixed bottom-right, stack up to 3, auto-dismiss 5s, slide-up+fade enter.
-- [ ] **Tabs** — Radix Tabs for sidebar section switching.
-- [ ] **ScrollArea** — Radix ScrollArea for layer panel and properties panel.
-- [ ] **Separator** — styled `<hr>` with divider token.
-- [ ] **Badge** — full radius, caption size, for layer type indicators.
+- [x] **Button** — variants: primary, secondary, ghost, destructive. Sizes: sm, md, lg. States: hover, active, disabled, focus. Icon-only variant.
+- [x] **Input** — default, focus, error, disabled states. With optional leading/trailing icons.
+- [x] **Select** — Radix Select with dropdown styling per spec (2px radius, mid shadow, 10px offset)
+- [x] **Slider** — Radix Slider, accent track color, custom thumb. Displays value label.
+- [x] **Switch** — Radix Switch, full radius, accent color when on.
+- [x] **Checkbox** — Radix Checkbox, sm radius.
+- [x] **Tooltip** — Radix Tooltip, 2px radius, dark bg, 60ms fade.
+- [x] **Dialog/Modal** — Radix Dialog, backdrop blur, 12px radius, high shadow, scale+translateY enter animation.
+- [x] **Popover** — Radix Popover, 2px radius, mid shadow, dropdown animation.
+- [x] **DropdownMenu** — Radix DropdownMenu, same visual spec as Popover.
+- [x] **Toast** — Radix Toast, fixed bottom-right, stack up to 3, auto-dismiss 5s, slide-up+fade enter.
+- [x] **Tabs** — Radix Tabs for sidebar section switching.
+- [x] **ScrollArea** — Radix ScrollArea for layer panel and properties panel.
+- [x] **Separator** — styled `<hr>` with divider token.
+- [x] **Badge** — full radius, caption size, for layer type indicators.
 
 **Done when:** Each component renders correctly in both light and dark mode. All interactive states work. Focus indicators match spec. I confirm visually.
 
@@ -989,7 +989,7 @@ Tasks can be marked with:
 
 | Phase | Name | Tasks | Done | Status |
 |-------|------|-------|------|--------|
-| 0 | Design System | 6 | 3 | 🟡 In progress |
+| 0 | Design System | 6 | 4 | 🟡 In progress |
 | 1 | Data Model & State | 6 | 0 | ⬜ Not started |
 | 2 | WebGPU Renderer | 6 | 0 | ⬜ Not started |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |

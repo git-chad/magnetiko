@@ -1,0 +1,62 @@
+"use client";
+
+import * as SliderPrimitive from "@radix-ui/react-slider";
+import * as React from "react";
+
+import { cn } from "@/lib/utils";
+
+interface SliderProps
+  extends React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> {
+  showValue?: boolean;
+  formatValue?: (value: number) => string;
+}
+
+const Slider = React.forwardRef<
+  React.ElementRef<typeof SliderPrimitive.Root>,
+  SliderProps
+>(({ className, showValue = false, formatValue, value, defaultValue, ...props }, ref) => {
+  const currentValue = (value ?? defaultValue ?? [0]) as number[];
+  const displayValue = formatValue
+    ? formatValue(currentValue[0])
+    : String(currentValue[0]);
+
+  return (
+    <div className="flex items-center gap-3xs w-full">
+      <SliderPrimitive.Root
+        ref={ref}
+        className={cn(
+          "relative flex w-full touch-none select-none items-center",
+          className,
+        )}
+        value={value}
+        defaultValue={defaultValue}
+        {...props}
+      >
+        <SliderPrimitive.Track className="relative h-[3px] w-full grow overflow-hidden rounded-full bg-primary-200 dark:bg-primary-700">
+          <SliderPrimitive.Range className="absolute h-full bg-accent" />
+        </SliderPrimitive.Track>
+        {currentValue.map((_, i) => (
+          <SliderPrimitive.Thumb
+            key={i}
+            className={cn(
+              "block size-[14px] rounded-full bg-white shadow-mid",
+              "border border-primary-200 dark:border-primary-600",
+              "transition-colors duration-micro ease-micro",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]",
+              "disabled:pointer-events-none disabled:opacity-40",
+              "hover:bg-primary-50",
+            )}
+          />
+        ))}
+      </SliderPrimitive.Root>
+      {showValue && (
+        <span className="min-w-[2.5rem] text-right text-caption text-[var(--color-fg-secondary)] tabular-nums">
+          {displayValue}
+        </span>
+      )}
+    </div>
+  );
+});
+Slider.displayName = SliderPrimitive.Root.displayName;
+
+export { Slider };
