@@ -203,11 +203,11 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
 
 ### 1.1 Define Types (`src/types/index.ts`)
 
-- [ ] Define `BlendMode` union type (16 modes: normal, multiply, screen, overlay, darken, lighten, color-dodge, color-burn, hard-light, soft-light, difference, exclusion, hue, saturation, color, luminosity)
-- [ ] Define `LayerKind` union: `'shader' | 'image' | 'video'`
-- [ ] Define `FilterMode` union: `'filter' | 'mask'` — determines if layer processes input texture or composites independently
-- [ ] Define `ShaderType` union: `'pixelation' | 'halftone' | 'ascii' | 'dithering' | 'bloom' | 'fluted-glass' | 'progressive-blur' | 'grain' | 'interactivity'`
-- [ ] Define `ShaderParam` interface:
+- [x] Define `BlendMode` union type (16 modes: normal, multiply, screen, overlay, darken, lighten, color-dodge, color-burn, hard-light, soft-light, difference, exclusion, hue, saturation, color, luminosity)
+- [x] Define `LayerKind` union: `'shader' | 'image' | 'video'`
+- [x] Define `FilterMode` union: `'filter' | 'mask'` — determines if layer processes input texture or composites independently
+- [x] Define `ShaderType` union: `'pixelation' | 'halftone' | 'ascii' | 'dithering' | 'bloom' | 'fluted-glass' | 'progressive-blur' | 'grain' | 'interactivity'`
+- [x] Define `ShaderParam` interface:
   ```ts
   interface ShaderParam {
     key: string;
@@ -222,7 +222,7 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
     description?: string; // tooltip text
   }
   ```
-- [ ] Define `Layer` interface:
+- [x] Define `Layer` interface:
   ```ts
   interface Layer {
     id: string;
@@ -242,30 +242,30 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
     thumbnail?: string;          // base64 preview for layer panel
   }
   ```
-- [ ] Define `EditorState` interface (viewport zoom, pan, selected tool, canvas dimensions)
-- [ ] Define `HistoryEntry` interface (snapshot of layers array + metadata)
+- [x] Define `EditorState` interface (viewport zoom, pan, selected tool, canvas dimensions)
+- [x] Define `HistoryEntry` interface (snapshot of layers array + metadata)
 
 **Done when:** TypeScript compiles with no errors. Types are importable from `@/types`.
 
 ### 1.2 Default Params Registry (`src/lib/utils/defaultParams.ts`)
 
-- [ ] Create `getDefaultParams(shaderType: ShaderType): ShaderParam[]` function
-- [ ] **Pixelation** defaults: cellSize (float, 4–64, default 8), shape (enum: square/circle/diamond), preserveAspect (bool, true)
-- [ ] **Halftone** defaults: dotSize (float, 1–20, default 4), gridSpacing (float, 4–32, default 8), shape (enum: circle/square/diamond/line), angle (float, 0–360, default 45), colorMode (enum: source/monochrome/duotone), duotoneLight (color, #F5F5F0), duotoneDark (color, #1d1d1c), contrast (float, 0–2, default 1), softness (float, 0–1, default 0.1)
-- [ ] **ASCII** defaults: cellSize (float, 4–24, default 8), charset (enum: light/dense/blocks/hatching/binary/custom), customChars (string, for custom charset), colorMode (enum: source/monochrome/green-terminal), bgOpacity (float, 0–1, default 1), fontWeight (enum: thin/regular/bold), invert (bool, false)
-- [ ] **Dithering** defaults: algorithm (enum: ordered-bayer/floyd-steinberg/atkinson/blue-noise), matrixSize (enum: 2x2/4x4/8x8, for ordered), colorMode (enum: source/monochrome/palette), palette (color[], for custom palette mode), levels (int, 2–16, default 2), spread (float, 0–2, default 1)
-- [ ] **Bloom** defaults: threshold (float, 0–1, default 0.7), intensity (float, 0–3, default 1), radius (float, 0–20, default 5), softKnee (float, 0–1, default 0.5), blendWithSource (bool, true)
-- [ ] **Fluted Glass** defaults: flutes (int, 2–100, default 20), orientation (enum: vertical/horizontal/radial), distortionStrength (float, 0–2, default 0.5), refractionIndex (float, 1–2, default 1.3), tint (color, transparent), blur (float, 0–5, default 0.5)
-- [ ] **Progressive Blur** defaults: direction (enum: top-to-bottom/bottom-to-top/left-to-right/right-to-left/center-out/radial), startStrength (float, 0), endStrength (float, 0–20, default 8), falloff (enum: linear/ease-in/ease-out/ease-in-out), focusPoint (vec2, [0.5, 0.5]), focusSize (float, 0–1, default 0.3)
-- [ ] **Grain** defaults: intensity (float, 0–1, default 0.15), size (float, 0.5–3, default 1), speed (float, 0–2, default 1, for animated grain), monochrome (bool, true), blendMode (enum: overlay/soft-light/add)
-- [ ] **Interactivity** defaults: effect (enum: ripple/trail/repel/attract/glow), radius (float, 10–200, default 50), strength (float, 0–2, default 0.5), decay (float, 0–1, default 0.95), color (color, #64643a), trailLength (int, 5–50, default 20)
+- [x] Create `getDefaultParams(shaderType: ShaderType): ShaderParam[]` function
+- [x] **Pixelation** defaults: cellSize (float, 4–64, default 8), shape (enum: square/circle/diamond), preserveAspect (bool, true)
+- [x] **Halftone** defaults: dotSize (float, 1–20, default 4), gridSpacing (float, 4–32, default 8), shape (enum: circle/square/diamond/line), angle (float, 0–360, default 45), colorMode (enum: source/monochrome/duotone), duotoneLight (color, #F5F5F0), duotoneDark (color, #1d1d1c), contrast (float, 0–2, default 1), softness (float, 0–1, default 0.1)
+- [x] **ASCII** defaults: cellSize (float, 4–24, default 8), charset (enum: light/dense/blocks/hatching/binary/custom), customChars (string, for custom charset), colorMode (enum: source/monochrome/green-terminal), bgOpacity (float, 0–1, default 1), fontWeight (enum: thin/regular/bold), invert (bool, false)
+- [x] **Dithering** defaults: algorithm (enum: ordered-bayer/floyd-steinberg/atkinson/blue-noise), matrixSize (enum: 2x2/4x4/8x8, for ordered), colorMode (enum: source/monochrome/palette), palette (color[], for custom palette mode), levels (int, 2–16, default 2), spread (float, 0–2, default 1)
+- [x] **Bloom** defaults: threshold (float, 0–1, default 0.7), intensity (float, 0–3, default 1), radius (float, 0–20, default 5), softKnee (float, 0–1, default 0.5), blendWithSource (bool, true)
+- [x] **Fluted Glass** defaults: flutes (int, 2–100, default 20), orientation (enum: vertical/horizontal/radial), distortionStrength (float, 0–2, default 0.5), refractionIndex (float, 1–2, default 1.3), tint (color, transparent), blur (float, 0–5, default 0.5)
+- [x] **Progressive Blur** defaults: direction (enum: top-to-bottom/bottom-to-top/left-to-right/right-to-left/center-out/radial), startStrength (float, 0), endStrength (float, 0–20, default 8), falloff (enum: linear/ease-in/ease-out/ease-in-out), focusPoint (vec2, [0.5, 0.5]), focusSize (float, 0–1, default 0.3)
+- [x] **Grain** defaults: intensity (float, 0–1, default 0.15), size (float, 0.5–3, default 1), speed (float, 0–2, default 1, for animated grain), monochrome (bool, true), blendMode (enum: overlay/soft-light/add)
+- [x] **Interactivity** defaults: effect (enum: ripple/trail/repel/attract/glow), radius (float, 10–200, default 50), strength (float, 0–2, default 0.5), decay (float, 0–1, default 0.95), color (color, #64643a), trailLength (int, 5–50, default 20)
 
 **Done when:** Every shader type returns a complete, typed array of ShaderParam. No missing defaults.
 
 ### 1.3 Layer Store (`src/store/layerStore.ts`)
 
-- [ ] Create Zustand store with `immer` middleware for immutable updates
-- [ ] **State shape:**
+- [x] Create Zustand store with `immer` middleware for immutable updates
+- [x] **State shape:**
   ```ts
   {
     layers: Layer[];
@@ -273,59 +273,59 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
     hoveredLayerId: string | null;
   }
   ```
-- [ ] **Actions:**
-  - [ ] `addLayer(kind, shaderType?, insertIndex?)` — creates layer with UUID, default name ("Halftone 1"), default params, inserts at index or top
-  - [ ] `removeLayer(id)` — removes, selects nearest neighbor
-  - [ ] `duplicateLayer(id)` — deep clone with new ID, " copy" suffix
-  - [ ] `reorderLayers(fromIndex, toIndex)` — move layer in stack
-  - [ ] `selectLayer(id | null)`
-  - [ ] `setLayerVisibility(id, visible)`
-  - [ ] `toggleLayerSolo(id)`
-  - [ ] `setLayerOpacity(id, opacity)`
-  - [ ] `setLayerBlendMode(id, blendMode)`
-  - [ ] `setLayerFilterMode(id, filterMode)`
-  - [ ] `setLayerLocked(id, locked)`
-  - [ ] `renameLayer(id, name)`
-  - [ ] `updateParam(layerId, paramKey, value)` — update a single shader param
-  - [ ] `resetParams(layerId)` — reset to defaults for that shader type
-  - [ ] `setLayerMedia(id, url, type)`
-- [ ] **Derived/computed selectors:**
-  - [ ] `getSelectedLayer()` — returns selected Layer or null
-  - [ ] `getVisibleLayers()` — respects solo mode: if any layer is solo'd, return only solo'd layers
-  - [ ] `getLayersByOrder()` — bottom to top (render order)
+- [x] **Actions:**
+  - [x] `addLayer(kind, shaderType?, insertIndex?)` — creates layer with UUID, default name ("Halftone 1"), default params, inserts at index or top
+  - [x] `removeLayer(id)` — removes, selects nearest neighbor
+  - [x] `duplicateLayer(id)` — deep clone with new ID, " copy" suffix
+  - [x] `reorderLayers(fromIndex, toIndex)` — move layer in stack
+  - [x] `selectLayer(id | null)`
+  - [x] `setLayerVisibility(id, visible)`
+  - [x] `toggleLayerSolo(id)`
+  - [x] `setLayerOpacity(id, opacity)`
+  - [x] `setLayerBlendMode(id, blendMode)`
+  - [x] `setLayerFilterMode(id, filterMode)`
+  - [x] `setLayerLocked(id, locked)`
+  - [x] `renameLayer(id, name)`
+  - [x] `updateParam(layerId, paramKey, value)` — update a single shader param
+  - [x] `resetParams(layerId)` — reset to defaults for that shader type
+  - [x] `setLayerMedia(id, url, type)`
+- [x] **Derived/computed selectors:**
+  - [x] `getSelectedLayer()` — returns selected Layer or null
+  - [x] `getVisibleLayers()` — respects solo mode: if any layer is solo'd, return only solo'd layers
+  - [x] `getLayersByOrder()` — bottom to top (render order)
 
 **Done when:** All actions work in isolation (unit test or manual console test). Adding a halftone layer produces a Layer object with all correct default params. Reorder works. No TypeScript errors.
 
 ### 1.4 Editor Store (`src/store/editorStore.ts`)
 
-- [ ] **State:**
-  - [ ] `zoom: number` (0.1–5, default 1)
-  - [ ] `panOffset: { x: number, y: number }`
-  - [ ] `canvasSize: { width: number, height: number }`
-  - [ ] `showGrid: boolean`
-  - [ ] `theme: 'light' | 'dark'`
-  - [ ] `sidebarOpen: { left: boolean, right: boolean }`
-  - [ ] `fps: number` (updated by render loop)
-- [ ] **Actions:** setZoom, setPan, resetView, toggleGrid, toggleTheme, toggleSidebar, setFps
+- [x] **State:**
+  - [x] `zoom: number` (0.1–5, default 1)
+  - [x] `panOffset: { x: number, y: number }`
+  - [x] `canvasSize: { width: number, height: number }`
+  - [x] `showGrid: boolean`
+  - [x] `theme: 'light' | 'dark'`
+  - [x] `sidebarOpen: { left: boolean, right: boolean }`
+  - [x] `fps: number` (updated by render loop)
+- [x] **Actions:** setZoom, setPan, resetView, toggleGrid, toggleTheme, toggleSidebar, setFps
 
 **Done when:** Store creates and all getters/setters work without errors.
 
 ### 1.5 History Store (`src/store/historyStore.ts`)
 
-- [ ] Implement undo/redo as a middleware or standalone store that snapshots `layerStore` state
-- [ ] Max history depth: 50 entries
-- [ ] **Actions:** `pushState()`, `undo()`, `redo()`, `canUndo()`, `canRedo()`, `clearHistory()`
-- [ ] Subscribe to layerStore — push snapshot on every meaningful action (debounced for continuous slider changes: 300ms)
-- [ ] Keyboard shortcuts: Ctrl/Cmd+Z (undo), Ctrl/Cmd+Shift+Z (redo)
+- [x] Implement undo/redo as a middleware or standalone store that snapshots `layerStore` state
+- [x] Max history depth: 50 entries
+- [x] **Actions:** `pushState()`, `undo()`, `redo()`, `canUndo()`, `canRedo()`, `clearHistory()`
+- [x] Subscribe to layerStore — push snapshot on every meaningful action (debounced for continuous slider changes: 300ms)
+- [x] Keyboard shortcuts: Ctrl/Cmd+Z (undo), Ctrl/Cmd+Shift+Z (redo) — via `registerHistoryShortcuts()`
 
 **Done when:** Can add layers, undo to remove them, redo to restore. Slider drags produce one undo entry, not hundreds.
 
 ### 1.6 Media Store (`src/store/mediaStore.ts`)
 
-- [ ] **State:** `assets: MediaAsset[]` — loaded images/videos with metadata
-- [ ] **Actions:** `loadAsset(file: File): Promise<MediaAsset>`, `removeAsset(id)`, `getAssetById(id)`
-- [ ] `MediaAsset` type: `{ id, name, url (objectURL), type, width, height, duration? }`
-- [ ] Validate file types (png, jpg, webp, mp4, webm) and max size (50MB)
+- [x] **State:** `assets: MediaAsset[]` — loaded images/videos with metadata
+- [x] **Actions:** `loadAsset(file: File): Promise<MediaAsset>`, `removeAsset(id)`, `getAssetById(id)`
+- [x] `MediaAsset` type: `{ id, name, url (objectURL), type, width, height, duration? }`
+- [x] Validate file types (png, jpg, webp, mp4, webm) and max size (50MB)
 
 **Done when:** Can load an image file, get back an asset with dimensions. URL is usable in an `<img>` tag.
 
@@ -991,7 +991,7 @@ Tasks can be marked with:
 | Phase | Name | Tasks | Done | Status |
 |-------|------|-------|------|--------|
 | 0 | Design System | 6 | 6 | ✅ Complete |
-| 1 | Data Model & State | 6 | 0 | ⬜ Not started |
+| 1 | Data Model & State | 6 | 6 | ✅ Complete |
 | 2 | WebGPU Renderer | 6 | 0 | ⬜ Not started |
 | 3 | Layer System UI | 6 | 0 | ⬜ Not started |
 | 4 | Shader Library | 9 | 0 | ⬜ Not started |

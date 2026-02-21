@@ -1,0 +1,622 @@
+import type { ShaderParam, ShaderType } from "@/types";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Default shader parameter registry
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
+  switch (shaderType) {
+    case "pixelation":
+      return [
+        {
+          key: "cellSize",
+          label: "Cell Size",
+          type: "float",
+          value: 8,
+          min: 4,
+          max: 64,
+          step: 1,
+          group: "Grid",
+          description: "Size of each pixel cell in screen pixels",
+        },
+        {
+          key: "shape",
+          label: "Shape",
+          type: "enum",
+          value: "square",
+          options: [
+            { label: "Square", value: "square" },
+            { label: "Circle", value: "circle" },
+            { label: "Diamond", value: "diamond" },
+          ],
+          group: "Grid",
+          description: "Cell shape used to represent each pixel",
+        },
+        {
+          key: "preserveAspect",
+          label: "Preserve Aspect",
+          type: "bool",
+          value: true,
+          group: "Grid",
+          description: "Maintain square cells regardless of canvas aspect ratio",
+        },
+      ];
+
+    case "halftone":
+      return [
+        {
+          key: "dotSize",
+          label: "Dot Size",
+          type: "float",
+          value: 4,
+          min: 1,
+          max: 20,
+          step: 0.5,
+          group: "Grid",
+        },
+        {
+          key: "gridSpacing",
+          label: "Grid Spacing",
+          type: "float",
+          value: 8,
+          min: 4,
+          max: 32,
+          step: 1,
+          group: "Grid",
+        },
+        {
+          key: "shape",
+          label: "Shape",
+          type: "enum",
+          value: "circle",
+          options: [
+            { label: "Circle", value: "circle" },
+            { label: "Square", value: "square" },
+            { label: "Diamond", value: "diamond" },
+            { label: "Line", value: "line" },
+          ],
+          group: "Grid",
+        },
+        {
+          key: "angle",
+          label: "Angle",
+          type: "float",
+          value: 45,
+          min: 0,
+          max: 360,
+          step: 1,
+          group: "Grid",
+          description: "Rotation angle of the halftone grid (degrees)",
+        },
+        {
+          key: "colorMode",
+          label: "Color Mode",
+          type: "enum",
+          value: "source",
+          options: [
+            { label: "Source", value: "source" },
+            { label: "Monochrome", value: "monochrome" },
+            { label: "Duotone", value: "duotone" },
+          ],
+          group: "Color",
+        },
+        {
+          key: "duotoneLight",
+          label: "Light Color",
+          type: "color",
+          value: "#F5F5F0",
+          group: "Color",
+          description: "Light tone color (used in duotone mode)",
+        },
+        {
+          key: "duotoneDark",
+          label: "Dark Color",
+          type: "color",
+          value: "#1d1d1c",
+          group: "Color",
+          description: "Dark tone color (used in duotone mode)",
+        },
+        {
+          key: "contrast",
+          label: "Contrast",
+          type: "float",
+          value: 1,
+          min: 0,
+          max: 2,
+          step: 0.05,
+          group: "Tone",
+        },
+        {
+          key: "softness",
+          label: "Softness",
+          type: "float",
+          value: 0.1,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Tone",
+          description: "Anti-aliasing width at dot edges",
+        },
+      ];
+
+    case "ascii":
+      return [
+        {
+          key: "cellSize",
+          label: "Cell Size",
+          type: "float",
+          value: 8,
+          min: 4,
+          max: 24,
+          step: 1,
+          group: "Grid",
+        },
+        {
+          key: "charset",
+          label: "Charset",
+          type: "enum",
+          value: "light",
+          options: [
+            { label: "Light  · .:-=+*#%@", value: "light" },
+            { label: "Dense  · .',:;!|({#@", value: "dense" },
+            { label: "Blocks · ░▒▓█", value: "blocks" },
+            { label: "Hatch  · ╱╲╳░▒", value: "hatching" },
+            { label: "Binary · 01", value: "binary" },
+            { label: "Custom", value: "custom" },
+          ],
+          group: "Characters",
+        },
+        {
+          key: "customChars",
+          label: "Custom Chars",
+          type: "enum",
+          value: " .:-=+*#%@",
+          group: "Characters",
+          description: "Character sequence from light to dark (used when Charset = Custom)",
+        },
+        {
+          key: "colorMode",
+          label: "Color Mode",
+          type: "enum",
+          value: "source",
+          options: [
+            { label: "Source color", value: "source" },
+            { label: "Monochrome", value: "monochrome" },
+            { label: "Green terminal", value: "green-terminal" },
+          ],
+          group: "Color",
+        },
+        {
+          key: "bgOpacity",
+          label: "BG Opacity",
+          type: "float",
+          value: 1,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Color",
+        },
+        {
+          key: "fontWeight",
+          label: "Font Weight",
+          type: "enum",
+          value: "regular",
+          options: [
+            { label: "Thin", value: "thin" },
+            { label: "Regular", value: "regular" },
+            { label: "Bold", value: "bold" },
+          ],
+          group: "Characters",
+        },
+        {
+          key: "invert",
+          label: "Invert",
+          type: "bool",
+          value: false,
+          group: "Tone",
+          description: "Swap light and dark character mapping",
+        },
+      ];
+
+    case "dithering":
+      return [
+        {
+          key: "algorithm",
+          label: "Algorithm",
+          type: "enum",
+          value: "ordered-bayer",
+          options: [
+            { label: "Ordered (Bayer)", value: "ordered-bayer" },
+            { label: "Floyd-Steinberg", value: "floyd-steinberg" },
+            { label: "Atkinson", value: "atkinson" },
+            { label: "Blue Noise", value: "blue-noise" },
+          ],
+          group: "Method",
+        },
+        {
+          key: "matrixSize",
+          label: "Matrix Size",
+          type: "enum",
+          value: "4x4",
+          options: [
+            { label: "2×2", value: "2x2" },
+            { label: "4×4", value: "4x4" },
+            { label: "8×8", value: "8x8" },
+          ],
+          group: "Method",
+          description: "Bayer matrix size — larger = finer dither pattern",
+        },
+        {
+          key: "colorMode",
+          label: "Color Mode",
+          type: "enum",
+          value: "monochrome",
+          options: [
+            { label: "Monochrome", value: "monochrome" },
+            { label: "Source color", value: "source" },
+            { label: "Custom palette", value: "palette" },
+          ],
+          group: "Color",
+        },
+        {
+          key: "levels",
+          label: "Levels",
+          type: "int",
+          value: 2,
+          min: 2,
+          max: 16,
+          step: 1,
+          group: "Tone",
+          description: "Number of quantization levels before dithering",
+        },
+        {
+          key: "spread",
+          label: "Spread",
+          type: "float",
+          value: 1,
+          min: 0,
+          max: 2,
+          step: 0.05,
+          group: "Tone",
+          description: "Dither intensity / error diffusion amount",
+        },
+      ];
+
+    case "bloom":
+      return [
+        {
+          key: "threshold",
+          label: "Threshold",
+          type: "float",
+          value: 0.7,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Extraction",
+          description: "Luminance threshold above which pixels emit bloom",
+        },
+        {
+          key: "softKnee",
+          label: "Soft Knee",
+          type: "float",
+          value: 0.5,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Extraction",
+          description: "Smooth the threshold transition to avoid hard clipping",
+        },
+        {
+          key: "intensity",
+          label: "Intensity",
+          type: "float",
+          value: 1,
+          min: 0,
+          max: 3,
+          step: 0.05,
+          group: "Bloom",
+        },
+        {
+          key: "radius",
+          label: "Radius",
+          type: "float",
+          value: 5,
+          min: 0,
+          max: 20,
+          step: 0.5,
+          group: "Bloom",
+          description: "Blur kernel size in pixels",
+        },
+        {
+          key: "blendWithSource",
+          label: "Blend With Source",
+          type: "bool",
+          value: true,
+          group: "Bloom",
+          description: "Add bloom on top of the original image",
+        },
+      ];
+
+    case "fluted-glass":
+      return [
+        {
+          key: "flutes",
+          label: "Flutes",
+          type: "int",
+          value: 20,
+          min: 2,
+          max: 100,
+          step: 1,
+          group: "Shape",
+          description: "Number of ridges across the surface",
+        },
+        {
+          key: "orientation",
+          label: "Orientation",
+          type: "enum",
+          value: "vertical",
+          options: [
+            { label: "Vertical", value: "vertical" },
+            { label: "Horizontal", value: "horizontal" },
+            { label: "Radial", value: "radial" },
+          ],
+          group: "Shape",
+        },
+        {
+          key: "distortionStrength",
+          label: "Distortion",
+          type: "float",
+          value: 0.5,
+          min: 0,
+          max: 2,
+          step: 0.05,
+          group: "Optics",
+        },
+        {
+          key: "refractionIndex",
+          label: "Refraction Index",
+          type: "float",
+          value: 1.3,
+          min: 1,
+          max: 2,
+          step: 0.01,
+          group: "Optics",
+        },
+        {
+          key: "tint",
+          label: "Tint",
+          type: "color",
+          value: "rgba(0,0,0,0)",
+          group: "Color",
+        },
+        {
+          key: "blur",
+          label: "Blur",
+          type: "float",
+          value: 0.5,
+          min: 0,
+          max: 5,
+          step: 0.1,
+          group: "Optics",
+          description: "Directional blur along the flute axis",
+        },
+      ];
+
+    case "progressive-blur":
+      return [
+        {
+          key: "direction",
+          label: "Direction",
+          type: "enum",
+          value: "top-to-bottom",
+          options: [
+            { label: "Top → Bottom", value: "top-to-bottom" },
+            { label: "Bottom → Top", value: "bottom-to-top" },
+            { label: "Left → Right", value: "left-to-right" },
+            { label: "Right → Left", value: "right-to-left" },
+            { label: "Center out", value: "center-out" },
+            { label: "Radial", value: "radial" },
+          ],
+          group: "Shape",
+        },
+        {
+          key: "startStrength",
+          label: "Start Strength",
+          type: "float",
+          value: 0,
+          min: 0,
+          max: 20,
+          step: 0.5,
+          group: "Blur",
+        },
+        {
+          key: "endStrength",
+          label: "End Strength",
+          type: "float",
+          value: 8,
+          min: 0,
+          max: 20,
+          step: 0.5,
+          group: "Blur",
+        },
+        {
+          key: "falloff",
+          label: "Falloff",
+          type: "enum",
+          value: "ease-in-out",
+          options: [
+            { label: "Linear", value: "linear" },
+            { label: "Ease in", value: "ease-in" },
+            { label: "Ease out", value: "ease-out" },
+            { label: "Ease in-out", value: "ease-in-out" },
+          ],
+          group: "Blur",
+        },
+        {
+          key: "focusPoint",
+          label: "Focus Point",
+          type: "vec2",
+          value: [0.5, 0.5],
+          group: "Focus",
+          description: "Normalized UV position of the sharp focus region",
+        },
+        {
+          key: "focusSize",
+          label: "Focus Size",
+          type: "float",
+          value: 0.3,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Focus",
+        },
+      ];
+
+    case "grain":
+      return [
+        {
+          key: "intensity",
+          label: "Intensity",
+          type: "float",
+          value: 0.15,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Grain",
+        },
+        {
+          key: "size",
+          label: "Size",
+          type: "float",
+          value: 1,
+          min: 0.5,
+          max: 3,
+          step: 0.1,
+          group: "Grain",
+          description: "Scale of the noise pattern",
+        },
+        {
+          key: "speed",
+          label: "Speed",
+          type: "float",
+          value: 1,
+          min: 0,
+          max: 2,
+          step: 0.05,
+          group: "Animation",
+          description: "Animation rate (0 = static grain)",
+        },
+        {
+          key: "monochrome",
+          label: "Monochrome",
+          type: "bool",
+          value: true,
+          group: "Grain",
+          description: "Single-channel luminance noise vs. per-channel RGB noise",
+        },
+        {
+          key: "blendMode",
+          label: "Blend Mode",
+          type: "enum",
+          value: "overlay",
+          options: [
+            { label: "Overlay", value: "overlay" },
+            { label: "Soft Light", value: "soft-light" },
+            { label: "Add", value: "add" },
+          ],
+          group: "Grain",
+        },
+      ];
+
+    case "interactivity":
+      return [
+        {
+          key: "effect",
+          label: "Effect",
+          type: "enum",
+          value: "ripple",
+          options: [
+            { label: "Ripple", value: "ripple" },
+            { label: "Trail", value: "trail" },
+            { label: "Repel", value: "repel" },
+            { label: "Attract", value: "attract" },
+            { label: "Glow", value: "glow" },
+          ],
+          group: "Effect",
+        },
+        {
+          key: "radius",
+          label: "Radius",
+          type: "float",
+          value: 50,
+          min: 10,
+          max: 200,
+          step: 1,
+          group: "Effect",
+          description: "Interaction radius in screen pixels",
+        },
+        {
+          key: "strength",
+          label: "Strength",
+          type: "float",
+          value: 0.5,
+          min: 0,
+          max: 2,
+          step: 0.05,
+          group: "Effect",
+        },
+        {
+          key: "decay",
+          label: "Decay",
+          type: "float",
+          value: 0.95,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Effect",
+          description: "How quickly the effect fades each frame",
+        },
+        {
+          key: "color",
+          label: "Color",
+          type: "color",
+          value: "#64643a",
+          group: "Appearance",
+        },
+        {
+          key: "trailLength",
+          label: "Trail Length",
+          type: "int",
+          value: 20,
+          min: 5,
+          max: 50,
+          step: 1,
+          group: "Effect",
+          description: "Number of stored positions in the trail buffer",
+        },
+      ];
+
+    default:
+      return [];
+  }
+}
+
+/** Human-readable default name for a layer given its shader type */
+export function getDefaultLayerName(
+  shaderType: ShaderType,
+  existingCount: number,
+): string {
+  const names: Record<ShaderType, string> = {
+    pixelation: "Pixelation",
+    halftone: "Halftone",
+    ascii: "ASCII",
+    dithering: "Dithering",
+    bloom: "Bloom",
+    "fluted-glass": "Fluted Glass",
+    "progressive-blur": "Progressive Blur",
+    grain: "Grain",
+    interactivity: "Interactivity",
+  };
+  const base = names[shaderType] ?? "Layer";
+  return existingCount > 0 ? `${base} ${existingCount + 1}` : base;
+}
