@@ -155,7 +155,10 @@ export function Canvas({ className }: CanvasProps) {
   }, []);
 
   // ── Layer sync ─────────────────────────────────────────────────────────────
+  // Depends on `status` so this re-runs once the pipeline becomes ready,
+  // even if `layers` hasn't changed between mount and init completing.
   React.useEffect(() => {
+    if (status !== "ready") return;
     const pipeline = pipelineRef.current;
     if (!pipeline) return;
 
@@ -184,7 +187,7 @@ export function Canvas({ className }: CanvasProps) {
       loadedBaseUrlRef.current = mediaLayer.mediaUrl;
       _loadBaseMedia(pipeline, mediaLayer);
     }
-  }, [layers, getLayersByOrder]);
+  }, [layers, getLayersByOrder, status]);
 
   // ── Zoom / pan → CSS transform ─────────────────────────────────────────────
   // Applied on the inner wrapper so the canvas element itself is unaffected

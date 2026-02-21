@@ -144,12 +144,16 @@ function CanvasDemo() {
   const removeLayer = useLayerStore((s) => s.removeLayer);
   const layers = useLayerStore((s) => s.layers);
   const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
-  const zoom = useEditorStore((s) => s.zoom);
   const setZoom = useEditorStore((s) => s.setZoom);
   const fps = useEditorStore((s) => s.fps);
   const loadAsset = useMediaStore((s) => s.loadAsset);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [loadingMedia, setLoadingMedia] = React.useState(false);
+
+  // Reset zoom to 1 on mount so EditorStoreDemo slider pollution doesn't shrink the canvas
+  React.useEffect(() => {
+    setZoom(1);
+  }, [setZoom]);
 
   // Track the current base media layer id
   const baseLayerIdRef = React.useRef<string | null>(null);
@@ -242,22 +246,6 @@ function CanvasDemo() {
         >
           Remove pass
         </Button>
-
-        {/* Zoom slider */}
-        <div className="ml-auto flex items-center gap-xs">
-          <Text variant="caption" color="tertiary">Zoom</Text>
-          <Slider
-            min={0.25}
-            max={2}
-            step={0.05}
-            value={[zoom]}
-            onValueChange={([v]) => setZoom(v)}
-            className="w-24"
-          />
-          <Text variant="caption" color="secondary" className="w-8 text-right">
-            {Math.round(zoom * 100)}%
-          </Text>
-        </div>
       </div>
     </div>
   );
