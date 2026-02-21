@@ -106,6 +106,12 @@ export function createVideoTexture(url: string): Promise<VideoHandle> {
  * - Updates aspect ratio dynamically via GPU uniforms — no shader recompile needed
  *   on resize
  *
+ * **Key design:** The TSL shader graph is built ONCE in the constructor with a
+ * placeholder texture. Swapping media uses `texNode.value = newTex` — the same
+ * pattern as PassNode — which updates the texture binding without triggering a
+ * shader recompile. Fit-mode switches (rare, user-driven) still recompile via
+ * `needsUpdate = true`, but texture-only swaps never do.
+ *
  * Usage:
  * ```ts
  * const quad = new FullscreenQuad();
@@ -121,26 +127,73 @@ export class FullscreenQuad {
   private _currentTex: THREE.Texture | null = null;
   private _videoTex: THREE.VideoTexture | null = null;
   private _videoHandle: VideoHandle | null = null;
+  private _currentFitMode: FitMode = "cover";
 
   // Float uniforms so aspect ratio updates are uniform-only (no recompile)
   private readonly _uCanvasAspect = uniform(1.0);
   private readonly _uTextureAspect = uniform(1.0);
 
+  // Mutable TSL TextureNodes — created once, texture swapped via .value.
+  // This avoids the needsUpdate = true / shader-recompile path entirely for
+  // texture changes, which is unreliable on already-compiled materials in
+  // Three.js WebGPU.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _coverTexNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _containTexNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _containColorNode: any;
+
   constructor() {
     const geometry = new THREE.PlaneGeometry(2, 2);
     this._material = new THREE.MeshBasicNodeMaterial();
-    // Near-black default when no texture is set
-    this._material.color.set(0x0d0d0c);
     this.mesh = new THREE.Mesh(geometry, this._material);
-    // Always visible — it's fullscreen, never outside frustum
     this.mesh.frustumCulled = false;
+
+    // Shared UV helpers
+    const placeholder = new THREE.Texture();
+    const ratio = this._uTextureAspect.div(this._uCanvasAspect);
+    const centeredUV = uv().sub(0.5);
+
+    // ── Cover UV ─────────────────────────────────────────────────────────────
+    // Scale UVs so the texture fills the canvas on both axes, cropping excess.
+    const coverScaleX = max(ratio, float(1.0));
+    const coverScaleY = max(float(1.0).div(ratio), float(1.0));
+    const coverUV = vec2(
+      centeredUV.x.div(coverScaleX),
+      centeredUV.y.div(coverScaleY),
+    ).add(0.5);
+    this._coverTexNode = texture(placeholder, coverUV);
+
+    // ── Contain UV ────────────────────────────────────────────────────────────
+    // Fit entire texture; output dark bars outside the image.
+    const containScaleX = min(ratio, float(1.0));
+    const containScaleY = min(float(1.0).div(ratio), float(1.0));
+    const containUV = vec2(
+      centeredUV.x.div(containScaleX),
+      centeredUV.y.div(containScaleY),
+    ).add(0.5);
+    const containInBounds = containUV.x
+      .greaterThanEqual(0.0)
+      .and(containUV.x.lessThanEqual(1.0))
+      .and(containUV.y.greaterThanEqual(0.0))
+      .and(containUV.y.lessThanEqual(1.0));
+    const containSafeUV = clamp(containUV, vec2(0.0), vec2(1.0));
+    this._containTexNode = texture(placeholder, containSafeUV);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this._containColorNode = select(containInBounds, this._containTexNode, vec4(0.07, 0.07, 0.07, 1.0)) as any;
+
+    // Default: cover mode
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this._material.colorNode = this._coverTexNode as any;
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /**
    * Display a texture on the quad with aspect-ratio-corrected UVs.
-   * If you're swapping media, pass the new texture and the old one is disposed.
+   * Swapping the texture updates the TSL texture node's `.value` — no shader
+   * recompile. Switching fit modes triggers one recompile (rare, user-driven).
    */
   setTexture(tex: THREE.Texture, fitMode: FitMode = "cover"): void {
     this._releaseCurrentMedia();
@@ -159,7 +212,18 @@ export class FullscreenQuad {
     this._uTextureAspect.value = tw / Math.max(th, 1);
     this._currentTex = tex;
 
-    this._buildColorNode(tex, fitMode);
+    // Swap texture binding on both nodes (no recompile — same as PassNode)
+    this._coverTexNode.value = tex;
+    this._containTexNode.value = tex;
+
+    // Switch colorNode only when fit mode changes (rare — one recompile)
+    if (fitMode !== this._currentFitMode) {
+      this._currentFitMode = fitMode;
+      this._material.colorNode =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fitMode === "cover" ? (this._coverTexNode as any) : (this._containColorNode as any);
+      this._material.needsUpdate = true;
+    }
   }
 
   /** Convenience: track a VideoHandle so dispose() also cleans up the video. */
@@ -181,19 +245,22 @@ export class FullscreenQuad {
     if (this._videoTex) this._videoTex.needsUpdate = true;
   }
 
-  /** Call from ResizeObserver — updates the canvas aspect uniform every frame. */
+  /** Call from ResizeObserver — updates the canvas aspect uniform. */
   updateCanvasAspect(width: number, height: number): void {
     this._uCanvasAspect.value = width / Math.max(height, 1);
   }
 
   /**
    * Re-apply the current texture with a different fit mode.
-   * Triggers a one-time shader recompile; use sparingly (e.g., on user toggle).
+   * Swaps the colorNode; triggers one shader recompile. Use sparingly.
    */
   applyFitMode(fitMode: FitMode): void {
-    if (this._currentTex) {
-      this._buildColorNode(this._currentTex, fitMode);
-    }
+    if (fitMode === this._currentFitMode || !this._currentTex) return;
+    this._currentFitMode = fitMode;
+    this._material.colorNode =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fitMode === "cover" ? (this._coverTexNode as any) : (this._containColorNode as any);
+    this._material.needsUpdate = true;
   }
 
   dispose(): void {
@@ -210,56 +277,5 @@ export class FullscreenQuad {
     this._videoTex = null;
     this._videoHandle?.dispose();
     this._videoHandle = null;
-  }
-
-  private _buildColorNode(tex: THREE.Texture, fitMode: FitMode): void {
-    // ratio = textureAspect / canvasAspect
-    // > 1 → texture wider than canvas  → crop left/right in cover
-    // < 1 → texture taller than canvas → crop top/bottom in cover
-    const ratio = this._uTextureAspect.div(this._uCanvasAspect);
-
-    const centeredUV = uv().sub(0.5);
-
-    let correctedUV;
-
-    if (fitMode === "cover") {
-      // Scale UVs so the texture fills the canvas on both axes, cropping the excess.
-      // scaleX > 1 when texture is wider (compresses UV.x → sees less of the texture width)
-      const scaleX = max(ratio, 1.0);
-      const scaleY = max(float(1.0).div(ratio), 1.0);
-      correctedUV = vec2(
-        centeredUV.x.div(scaleX),
-        centeredUV.y.div(scaleY),
-      ).add(0.5);
-    } else {
-      // contain — fit entire texture, leaving dark bars outside.
-      const scaleX = min(ratio, 1.0);
-      const scaleY = min(float(1.0).div(ratio), 1.0);
-      correctedUV = vec2(
-        centeredUV.x.div(scaleX),
-        centeredUV.y.div(scaleY),
-      ).add(0.5);
-
-      // Detect out-of-bounds (letterbox region) and output dark bars
-      const inBounds = correctedUV.x
-        .greaterThanEqual(0.0)
-        .and(correctedUV.x.lessThanEqual(1.0))
-        .and(correctedUV.y.greaterThanEqual(0.0))
-        .and(correctedUV.y.lessThanEqual(1.0));
-
-      const safeUV = clamp(correctedUV, vec2(0.0), vec2(1.0));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this._material.colorNode = select(
-        inBounds,
-        texture(tex, safeUV),
-        vec4(0.07, 0.07, 0.07, 1.0),
-      ) as any;
-      this._material.needsUpdate = true;
-      return;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this._material.colorNode = texture(tex, correctedUV) as any;
-    this._material.needsUpdate = true;
   }
 }
