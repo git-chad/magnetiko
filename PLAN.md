@@ -361,30 +361,30 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
 
 This is the **core architecture** for the filter chain.
 
-- [ ] Maintain an ordered list of `PassNode` objects, synced with `layerStore.getLayersByOrder()`
-- [ ] Use **ping-pong render targets**: two `THREE.RenderTarget` objects. Each pass reads from one and writes to the other, alternating.
-- [ ] On each frame:
+- [x] Maintain an ordered list of `PassNode` objects, synced with `layerStore.getLayersByOrder()`
+- [x] Use **ping-pong render targets**: two `THREE.RenderTarget` objects. Each pass reads from one and writes to the other, alternating.
+- [x] On each frame:
   1. Render base media to render target A
   2. For each visible layer (bottom to top):
      - If `filterMode === 'filter'`: bind previous target as input texture, render shader pass to the next target
-     - If `filterMode === 'mask'`: render shader independently, composite with previous target using blendMode
+     - If `filterMode === 'mask'`: render shader independently, composite with previous target using blendMode (Phase 2.6)
   3. Final pass: render last target to screen
-- [ ] Handle layer opacity: mix pass output with input at layer's opacity level
-- [ ] Handle blend modes in the compositing step (TSL blend mode functions)
-- [ ] React to layer store changes: rebuild pipeline when layers are added, removed, reordered
-- [ ] React to param changes: update uniforms without rebuilding pipeline
+- [ ] Handle layer opacity: mix pass output with input at layer's opacity level (Phase 2.6)
+- [ ] Handle blend modes in the compositing step (TSL blend mode functions) (Phase 2.6)
+- [x] React to layer store changes: rebuild pipeline when layers are added, removed, reordered
+- [x] React to param changes: update uniforms without rebuilding pipeline
 - [ ] **Performance:** only re-render if something changed (dirty flag system)
 
 **Done when:** With a single passthrough layer, the media displays unchanged. Adding a second passthrough layer still shows the media unchanged. Pipeline rebuilds when layers change. Console confirms pass count.
 
 ### 2.4 Pass Node (`src/lib/renderer/PassNode.ts`)
 
-- [ ] Abstract class/interface for a single render pass
-- [ ] Properties: `inputTexture`, `outputTarget`, `uniforms` (from ShaderParam[]), `enabled`
-- [ ] Method: `render(renderer, inputTexture, outputTarget, time, delta)`
-- [ ] Method: `updateUniforms(params: ShaderParam[])` — maps params to TSL node uniforms
-- [ ] Method: `dispose()` — clean up GPU resources
-- [ ] Factory: `createPassNode(shaderType: ShaderType): PassNode` — returns the correct subclass
+- [x] Abstract class/interface for a single render pass
+- [x] Properties: `inputTexture`, `outputTarget`, `uniforms` (from ShaderParam[]), `enabled`
+- [x] Method: `render(renderer, inputTexture, outputTarget, time, delta)`
+- [x] Method: `updateUniforms(params: ShaderParam[])` — maps params to TSL node uniforms
+- [x] Method: `dispose()` — clean up GPU resources
+- [x] Factory: `createPassNode(shaderType: ShaderType): PassNode` — returns the correct subclass (passthrough for now; Phase 4 adds subclasses)
 
 **Done when:** A PassNode can be created for a shader type, receives a texture, and writes to a render target (even if the shader is just a passthrough for now).
 
