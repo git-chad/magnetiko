@@ -132,6 +132,7 @@ export class FullscreenQuad {
   // Float uniforms so aspect ratio updates are uniform-only (no recompile)
   private readonly _uCanvasAspect = uniform(1.0);
   private readonly _uTextureAspect = uniform(1.0);
+  private readonly _placeholder: THREE.Texture;
 
   // Mutable TSL TextureNodes — created once, texture swapped via .value.
   // This avoids the needsUpdate = true / shader-recompile path entirely for
@@ -151,7 +152,8 @@ export class FullscreenQuad {
     this.mesh.frustumCulled = false;
 
     // Shared UV helpers
-    const placeholder = new THREE.Texture();
+    this._placeholder = new THREE.Texture();
+    const placeholder = this._placeholder;
     const ratio = this._uTextureAspect.div(this._uCanvasAspect);
     const centeredUV = uv().sub(0.5);
 
@@ -265,8 +267,20 @@ export class FullscreenQuad {
     this._material.needsUpdate = true;
   }
 
+  /**
+   * Remove the current media and revert the quad to the blank placeholder.
+   * Call when the user deletes the media layer.
+   */
+  clearTexture(): void {
+    this._releaseCurrentMedia();
+    this._coverTexNode.value = this._placeholder;
+    this._containTexNode.value = this._placeholder;
+    this._uTextureAspect.value = 1.0;
+  }
+
   dispose(): void {
     this._releaseCurrentMedia();
+    this._placeholder.dispose();
     this.mesh.geometry.dispose();
     this._material.dispose();
   }

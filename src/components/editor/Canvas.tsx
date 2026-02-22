@@ -184,7 +184,12 @@ export function Canvas({ className }: CanvasProps) {
         (l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl,
       );
 
-      if (mediaLayer?.mediaUrl && mediaLayer.mediaUrl !== loadedBaseUrlRef.current) {
+      if (!mediaLayer?.mediaUrl) {
+        if (loadedBaseUrlRef.current !== null) {
+          loadedBaseUrlRef.current = null;
+          p.baseQuad.clearTexture();
+        }
+      } else if (mediaLayer.mediaUrl !== loadedBaseUrlRef.current) {
         loadedBaseUrlRef.current = mediaLayer.mediaUrl;
         _loadBaseMedia(p, mediaLayer);
       }
