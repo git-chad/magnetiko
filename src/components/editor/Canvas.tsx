@@ -175,6 +175,7 @@ export function Canvas({ className }: CanvasProps) {
           blendMode: l.blendMode,
           filterMode: l.filterMode,
           params: l.params,
+          shaderType: l.shaderType,
         }));
       p.syncLayers(passes);
 

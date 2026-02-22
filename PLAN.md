@@ -504,20 +504,20 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 4.1 Pixelation Shader (`src/lib/shaders/pixelation.tsl.ts`)
 
-- [ ] TSL node function that takes input texture + params
-- [ ] Floor UV to grid cells of `cellSize`
-- [ ] Sample center of each cell
-- [ ] Shape variants: square (blocky pixels), circle (dots on background), diamond
-- [ ] Preserve aspect ratio option
-- [ ] Anti-aliasing at cell edges (smoothstep)
+- [x] TSL node function that takes input texture + params
+- [x] Floor UV to grid cells of `cellSize`
+- [x] Sample center of each cell
+- [x] Shape variants: square (blocky pixels), circle (dots on background), diamond
+- [x] Preserve aspect ratio option
+- [x] Anti-aliasing at cell edges (smoothstep)
 
 **Done when:** Pixelation renders at various cell sizes. Changing cellSize updates in real-time. Shape variants work. Input texture is correctly processed.
 
 **Acceptance criteria:**
-- [ ] No visual artifacts at cell boundaries
-- [ ] Smooth parameter transitions
-- [ ] Works with both image and video input
-- [ ] No console errors or GPU warnings
+- [x] No visual artifacts at cell boundaries
+- [x] Smooth parameter transitions
+- [x] Works with both image and video input
+- [x] No console errors or GPU warnings
 
 ### 4.2 Halftone Shader (`src/lib/shaders/halftone.tsl.ts`)
 
@@ -996,7 +996,7 @@ Tasks can be marked with:
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
 | 2 | WebGPU Renderer | 6 | 5 | 🔵 In progress |
 | 3 | Layer System UI | 6 | 6 | ✅ Complete |
-| 4 | Shader Library | 9 | 0 | ⬜ Not started |
+| 4 | Shader Library | 9 | 1 | 🔵 In progress |
 | 5 | Controls & Sidebar | 4 | 0 | ⬜ Not started |
 | 6 | Media Input | 3 | 0 | ⬜ Not started |
 | 7 | Interactivity | 3 | 0 | ⬜ Not started |

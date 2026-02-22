@@ -45,7 +45,7 @@ export class PassNode {
   private readonly _opacityUniform: any; // ShaderNodeObject<UniformNode>
   private _blendMode: string = "normal";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _effectNode: any; // cached output of _buildEffectNode()
+  protected _effectNode: any; // cached output of _buildEffectNode()
 
   constructor(layerId: string) {
     this.layerId = layerId;
@@ -147,7 +147,7 @@ export class PassNode {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  private _rebuildColorNode(): void {
+  protected _rebuildColorNode(): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this._material.colorNode = buildBlendNode(
       this._blendMode,
@@ -159,15 +159,3 @@ export class PassNode {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Factory
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Create the correct PassNode subclass for a given layer ID.
- * Phase 2.4: all layers return a base passthrough PassNode.
- * Phase 4 will add subclasses per ShaderType.
- */
-export function createPassNode(layerId: string): PassNode {
-  return new PassNode(layerId);
-}

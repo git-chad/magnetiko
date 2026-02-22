@@ -1,7 +1,8 @@
 import * as THREE from "three/webgpu";
 import { uv, vec2, float, texture as tslTexture } from "three/tsl";
 import { FullscreenQuad } from "./MediaTexture";
-import { PassNode, createPassNode } from "./PassNode";
+import { PassNode } from "./PassNode";
+import { createPassNode } from "./passNodeFactory";
 import type { ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ export interface PipelineLayer {
   /** filter — processes underlying texture; mask — independent output */
   filterMode: "filter" | "mask";
   params: ShaderParam[];
+  shaderType?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -115,7 +117,7 @@ export class PipelineManager {
     // Create passes for new layers
     for (const layer of layers) {
       if (!this._passMap.has(layer.id)) {
-        this._passMap.set(layer.id, createPassNode(layer.id));
+        this._passMap.set(layer.id, createPassNode(layer.id, layer.shaderType));
       }
       const pass = this._passMap.get(layer.id)!;
       pass.enabled = layer.visible;
