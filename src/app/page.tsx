@@ -6,7 +6,9 @@ import { Toolbar } from "@/components/editor/Toolbar";
 import { LayerPanel } from "@/components/editor/LayerPanel";
 import { PropertiesPanel } from "@/components/editor/PropertiesPanel";
 import { Canvas } from "@/components/editor/Canvas";
+import { PresetBrowser } from "@/components/editor/PresetBrowser";
 import { useEditorStore } from "@/store/editorStore";
+import { useLayerStore } from "@/store/layerStore";
 import { TooltipProvider } from "@/components/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,8 +24,16 @@ const ANIM = { duration: 0.15, ease: "power2.inOut" } as const;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function EditorPage() {
-  const leftOpen = useEditorStore((s) => s.sidebarOpen.left);
+  const leftOpen  = useEditorStore((s) => s.sidebarOpen.left);
   const rightOpen = useEditorStore((s) => s.sidebarOpen.right);
+  const layers    = useLayerStore((s) => s.layers);
+
+  // Preset browser — auto-open on first load when no layers
+  const [presetOpen, setPresetOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (layers.length === 0) setPresetOpen(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const leftRef = React.useRef<HTMLElement>(null);
   const rightRef = React.useRef<HTMLElement>(null);
@@ -88,7 +98,7 @@ export default function EditorPage() {
       <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-bg)]">
 
         {/* ── Toolbar (48px) ─────────────────────────────────────────── */}
-        <Toolbar />
+        <Toolbar onBrowsePresets={() => setPresetOpen(true)} />
 
         {/* ── Main area ──────────────────────────────────────────────── */}
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
@@ -139,6 +149,9 @@ export default function EditorPage() {
           className="fixed inset-0 z-40 bg-black/40 lg:hidden"
           style={{ display: "none", opacity: 0 }}
         />
+
+        {/* Preset browser */}
+        <PresetBrowser open={presetOpen} onOpenChange={setPresetOpen} />
       </div>
     </TooltipProvider>
   );

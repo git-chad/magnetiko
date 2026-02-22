@@ -425,62 +425,64 @@ This is the **core architecture** for the filter chain.
 
 ### 3.2 Toolbar (`src/components/editor/Toolbar.tsx`)
 
-- [ ] Left section: Logo/app name, file operations (New, Import Media)
-- [ ] Center section: Undo/Redo buttons (disabled state from historyStore), Zoom controls (fit, %, +/−)
-- [ ] Right section: Theme toggle, Export button, Settings gear
-- [ ] Keyboard shortcuts displayed in tooltips
-- [ ] Height: 48px, bottom border (divider token)
+- [x] Left section: Logo/app name, file operations (New, Import Media)
+- [x] Center section: Undo/Redo buttons (disabled state from historyStore), Zoom controls (fit, %, +/−)
+- [x] Right section: Theme toggle, Export button, Settings gear
+- [x] Keyboard shortcuts displayed in tooltips
+- [x] Height: 48px, bottom border (divider token)
 
 **Done when:** All buttons render with correct states. Undo/redo disable when unavailable. Zoom percentage updates.
 
 ### 3.3 Layer Panel (`src/components/editor/LayerPanel.tsx`)
 
-- [ ] Header: "Layers" title + "Add Layer" button (opens dropdown/popover with shader type options)
-- [ ] Scrollable list of `LayerItem` components, ordered top-to-bottom (top = front = highest in stack)
-- [ ] Drag-and-drop reordering with `@dnd-kit/core` + `@dnd-kit/sortable`
-  - [ ] Drag handle on left of each layer item
-  - [ ] Smooth reorder animation
-  - [ ] Visual drop indicator
-- [ ] Bottom: Quick-add buttons for common operations
+- [x] Header: "Layers" title + "Add Layer" button (opens dropdown/popover with shader type options)
+- [x] Scrollable list of `LayerItem` components, ordered top-to-bottom (top = front = highest in stack)
+- [x] Drag-and-drop reordering with `@dnd-kit/core` + `@dnd-kit/sortable`
+  - [x] Drag handle on left of each layer item
+  - [x] Smooth reorder animation
+  - [ ] Visual drop indicator (deferred — dnd-kit overlay)
+- [ ] Bottom: Quick-add buttons for common operations (deferred to 3.5)
 
 **Done when:** Can add layers of different types. Can drag to reorder. Layer order syncs with layerStore. Scroll works with many layers.
 
 ### 3.4 Layer Item (`src/components/editor/LayerItem.tsx`)
 
-- [ ] Thumbnail (48×48): live preview of this layer's output, or shader icon if no preview
-- [ ] Layer name (editable on double-click)
-- [ ] Shader type badge
-- [ ] Visibility toggle (eye icon) — dims the row when hidden
-- [ ] Lock toggle (lock icon)
-- [ ] Filter/Mask mode toggle (small indicator)
-- [ ] Selection highlight (accent border-left)
-- [ ] Right-click context menu: Duplicate, Delete, Rename, Reset Parameters, Move to Top/Bottom
-- [ ] Solo mode: Alt+click on visibility toggles solo
-- [ ] Opacity slider: appears on hover or when selected, compact inline slider
-- [ ] Hover state: subtle background change
+- [x] Thumbnail (32×32): shader icon per kind; shows base64 thumbnail when set
+- [x] Layer name (editable on double-click)
+- [x] Shader type label (caption below name)
+- [x] Visibility toggle (eye icon) — dims the row when hidden
+- [x] Lock toggle (lock icon) — hover-only when unlocked, always visible when locked
+- [ ] Filter/Mask mode toggle (Phase 5)
+- [x] Selection highlight (accent border-left)
+- [x] Context menu (3-dot button, hover): Duplicate, Delete, Rename, Reset Parameters, Move to Top/Bottom
+- [ ] Solo mode: Alt+click (Phase 3.5+)
+- [ ] Opacity slider: compact inline (Phase 5.2)
+- [x] Hover state: subtle background change
 
 **Done when:** All interactions work. Double-click renames inline. Context menu appears with all options. Solo mode works correctly.
 
 ### 3.5 Add Layer Flow
 
-- [ ] Clicking "Add Layer" opens a popover/dropdown with categories:
-  - **Texture Effects:** Pixelation, Halftone, ASCII, Dithering, Grain
-  - **Optical Effects:** Bloom, Fluted Glass, Progressive Blur
-  - **Interactive:** Mouse Ripple, Mouse Trail, Repel/Attract
-  - **Media:** Import Image, Import Video
-- [ ] Each option shows an icon + name + one-line description
-- [ ] Selecting adds the layer at the top of the stack, selects it, and opens the properties panel
-- [ ] Optionally: hover preview on the canvas before adding (stretch goal)
+- [x] Clicking "Add Layer" opens a dropdown with categories:
+  - [x] **Texture Effects:** Pixelation, Halftone, ASCII, Dithering, Grain
+  - [x] **Optical Effects:** Bloom, Fluted Glass, Progressive Blur
+  - [ ] **Interactive:** (Phase 4.9)
+  - [x] **Media:** Import Image, Import Video (file-input, object URL)
+- [x] Each option shows an icon + name
+- [x] Selecting adds the layer at the top of the stack and selects it
+- [ ] Hover preview on canvas (stretch goal)
 
 **Done when:** Popover opens, shows all options, adding a layer creates it with correct defaults and selects it.
 
 ### 3.6 Preset Browser (`src/components/editor/PresetBrowser.tsx`)
 
-- [ ] Modal dialog for the initial "Get Started" experience
-- [ ] Sections: "Start from Scratch" (blank canvas + color picker), "Default Assets" (bundled images), "Starter Shaders" (pre-configured layer stacks)
-- [ ] Grid of cards (top-image variant) with previews
-- [ ] Selecting a preset loads the media and/or layer configuration
-- [ ] Also accessible from Toolbar → File → Browse Presets
+- [x] Modal dialog for the initial "Get Started" experience (auto-opens when layers is empty)
+- [x] Tabs: "Start fresh" (empty canvas), "Images" (gradient bitmaps), "Shader presets" (pre-configured stacks)
+- [x] Grid of cards with aspect-video CSS gradient previews
+- [x] Selecting an image preset generates a gradient bitmap and loads it as an image layer
+- [x] Selecting a shader preset builds the full Layer[] and prepends to the stack
+- [x] Accessible from Toolbar via Sparkle (⊕) button
+- [ ] Bundled real photo assets in `/public/assets/` (deferred to Phase 6.2)
 
 **Done when:** Modal opens, shows presets, selecting one loads it into the editor. Close dismisses. Keyboard accessible (Esc to close, Tab to navigate).
 
@@ -993,7 +995,7 @@ Tasks can be marked with:
 | 0 | Design System | 6 | 6 | ✅ Complete |
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
 | 2 | WebGPU Renderer | 6 | 5 | 🔵 In progress |
-| 3 | Layer System UI | 6 | 0 | ⬜ Not started |
+| 3 | Layer System UI | 6 | 6 | ✅ Complete |
 | 4 | Shader Library | 9 | 0 | ⬜ Not started |
 | 5 | Controls & Sidebar | 4 | 0 | ⬜ Not started |
 | 6 | Media Input | 3 | 0 | ⬜ Not started |

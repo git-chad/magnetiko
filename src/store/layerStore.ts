@@ -39,6 +39,8 @@ interface LayerActions {
   resetParams(layerId: string): void;
   setLayerMedia(id: string, url: string, type: "image" | "video"): void;
   setLayerThumbnail(id: string, thumbnail: string): void;
+  /** Restore a full snapshot (used by undo/redo). */
+  setLayers(layers: Layer[], selectedLayerId: string | null): void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -257,6 +259,13 @@ export const useLayerStore = create<LayerStore>()(
       set((state) => {
         const layer = state.layers.find((l) => l.id === id);
         if (layer) layer.thumbnail = thumbnail;
+      });
+    },
+
+    setLayers(layers, selectedLayerId) {
+      set((state) => {
+        state.layers = layers;
+        state.selectedLayerId = selectedLayerId;
       });
     },
 
