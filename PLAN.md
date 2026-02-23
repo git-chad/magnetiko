@@ -623,17 +623,18 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 **Done when:** Grain animates smoothly. At low intensity, adds subtle film-like texture. Monochrome vs. color grain clearly different.
 
-### 4.9 Interactivity Shader (`src/lib/shaders/interactivity.tsl.ts`)
+### 4.9 Interactivity Shader (`src/lib/shaders/interactivity.tsl.ts`) ✅
 
 > This is covered in more detail in Phase 7. Here we define the base shader.
 
-- [ ] Receives mouse position and history as uniforms
-- [ ] **Ripple**: concentric rings emanating from click/touch point, decaying over time
-- [ ] **Trail**: persistent trail that follows cursor, with adjustable decay
-- [ ] **Repel/Attract**: displaces underlying texture away from or toward cursor
-- [ ] All effects receive the input texture and distort/overlay it
-- [ ] Decay: controls how quickly the effect fades
-- [ ] Multiple concurrent effects (click multiple times for multiple ripple origins)
+- [x] Receives mouse position and velocity as uniforms (setPointer / addClick public API)
+- [x] **Ripple**: up to 8 concurrent Gaussian rings expanding from click positions, JS-side age tracking
+- [x] **Trail**: double-FBO fluid dye — advect with mouse velocity + Gaussian splat + decay (inspired by useFluid advection pattern)
+- [x] **Repel/Attract**: UV distortion with Gaussian falloff from cursor position
+- [x] **Glow**: additive colour spotlight following cursor
+- [x] All effects receive the input texture and distort/overlay it
+- [x] Decay: per-frame multiplier controls how quickly trail fades
+- [x] Multiple concurrent ripples (round-robin MAX_RIPPLES=8 slots)
 
 **Done when:** Moving the mouse over the canvas creates visible interactive effects on the shader output. Ripple emanates from click. Trail follows cursor smoothly.
 
