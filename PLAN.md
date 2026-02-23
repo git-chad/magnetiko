@@ -646,33 +646,34 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 5.1 Param Control Router (`src/components/shared/ParamControl.tsx`)
 
-- [ ] Receives a `ShaderParam` and renders the appropriate control:
+- [x] Receives a `ShaderParam` and renders the appropriate control:
   - `float` / `int` → Slider with value input
   - `bool` → Switch
-  - `color` → Color picker swatch (opens picker on click)
+  - `color` → Color picker swatch (opens picker on click) — native `<input type="color">` for now; Phase 5.3 upgrades to custom picker
   - `enum` → Select dropdown
-  - `vec2` → Two linked sliders (or XY pad for position)
-  - `vec3` → Three sliders (or color picker if contextually appropriate)
-- [ ] Fires `onChange(key, value)` on interaction
-- [ ] Debounce slider changes at 16ms (one frame) for uniform updates, 300ms for history snapshots
-- [ ] Shows label, current value, and optional description tooltip
-- [ ] Reset to default button per param (appears on hover)
+  - `vec2` → Two linked sliders (X / Y)
+  - `vec3` → Three sliders (X / Y / Z)
+- [x] Fires `onChange(key, value)` on interaction
+- [x] `onCommit` callback fires 300 ms after last change (debounced via timer ref)
+- [x] Shows label and optional description tooltip (Phosphor `Info` icon)
+- [x] Reset to default button per param (appears on hover, only when value ≠ default)
 
 **Done when:** Every param type renders the correct control. Changing a slider updates the canvas in real-time. Correct debouncing behavior.
 
 ### 5.2 Properties Panel (`src/components/editor/PropertiesPanel.tsx`)
 
-- [ ] Header: layer name + shader type icon
-- [ ] **General section** (always visible for all layers):
-  - Opacity slider (0–100%)
-  - Blend mode dropdown (16 options with preview swatches)
-  - Filter/Mask toggle
-- [ ] **Parameters section**: grouped by `param.group`, each group collapsible
-  - Renders `ParamControl` for each param
-- [ ] **Actions section**: Reset All Parameters, Delete Layer
-- [ ] Empty state: "Select a layer to edit its properties"
-- [ ] Scrollable when content exceeds viewport
-- [ ] Responsive: on mobile, this is a bottom sheet that slides up
+- [x] Header: layer name (inline editable, click to rename) + kind icon + lock toggle
+- [x] **General section** (always visible for all layers):
+  - Opacity slider (0–100%, debounced history push)
+  - Blend mode dropdown (16 options, grouped by category with SelectGroup/SelectLabel)
+  - Filter/Mask toggle buttons
+- [x] **Parameters section** (shader layers only): grouped by `param.group`, each group collapsible (CaretDown/CaretRight toggle)
+  - Renders `ParamControl` for each param; `onCommit` pushes to historyStore
+  - Default params map built from `getDefaultParams()` for reset buttons
+- [x] **Actions section**: Reset All Parameters, Delete Layer (both push history snapshot before mutating)
+- [x] Empty state: "Select a layer to edit its properties"
+- [x] Scrollable via `ScrollArea` — header stays fixed
+- [ ] Responsive bottom sheet on mobile — deferred to Phase 8 (GSAP animation already handles sliding in from right)
 
 **Done when:** Selecting a halftone layer shows all halftone controls grouped logically. Changing any param updates the canvas. Blend mode dropdown works.
 

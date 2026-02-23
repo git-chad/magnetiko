@@ -148,6 +148,48 @@ export class PipelineManager {
   }
 
   /**
+   * Forward pointer state to all InteractivityPass instances in the pipeline.
+   * Call once per animation frame (or on every pointermove event).
+   *
+   * @param uvX     Normalised X — 0 = left edge, 1 = right edge
+   * @param uvY     Normalised Y — 0 = top  edge, 1 = bottom edge (browser coords)
+   * @param duvX    X delta since last call (UV units)
+   * @param duvY    Y delta since last call (UV units)
+   * @param isActive  true while the pointer is over the canvas
+   */
+  setPointerForInteractivity(
+    uvX: number,
+    uvY: number,
+    duvX: number,
+    duvY: number,
+    isActive: boolean,
+  ): void {
+    for (const pass of this._passMap.values()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (typeof (pass as any).setPointer === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pass as any).setPointer(uvX, uvY, duvX, duvY, isActive);
+      }
+    }
+  }
+
+  /**
+   * Spawn a click/tap event (ripple ring) on all InteractivityPass instances.
+   *
+   * @param uvX  Normalised X — 0 = left edge
+   * @param uvY  Normalised Y — 0 = top  edge (browser coords)
+   */
+  addClickForInteractivity(uvX: number, uvY: number): void {
+    for (const pass of this._passMap.values()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (typeof (pass as any).addClick === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pass as any).addClick(uvX, uvY);
+      }
+    }
+  }
+
+  /**
    * Main render entry point — call from the animation loop.
    *
    * With 0 visible passes: renders base media directly to screen (fast path).

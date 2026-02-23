@@ -71,6 +71,8 @@ import { MediaTexturePreview } from "@/components/editor/MediaTexturePreview";
 import { PipelinePreview } from "@/components/editor/PipelinePreview";
 import { Canvas } from "@/components/editor/Canvas";
 import { BlendModePreview } from "@/components/editor/BlendModePreview";
+import { TrailPreview } from "@/components/editor/TrailPreview";
+import { ParamControl } from "@/components/shared/ParamControl";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore } from "@/store/historyStore";
@@ -679,6 +681,25 @@ export default function PreviewPage() {
   const [checked, setChecked] = React.useState(false);
   const [visible, setVisible] = React.useState(true);
 
+  // ── ParamControl demo state ─────────────────────────────────────────────
+  const [demoParams, setDemoParams] = React.useState<import("@/types").ShaderParam[]>([
+    { key: "cellSize",  label: "Cell Size",        type: "float",  value: 8,      min: 4,  max: 64,  step: 1,    description: "Size of each pixel cell in screen pixels" },
+    { key: "invert",    label: "Invert",            type: "bool",   value: false },
+    { key: "color",     label: "Tint",              type: "color",  value: "#64643a" },
+    { key: "shape",     label: "Shape",             type: "enum",   value: "circle",
+      options: [{ label: "Square", value: "square" }, { label: "Circle", value: "circle" }, { label: "Diamond", value: "diamond" }] },
+    { key: "focusPoint", label: "Focus Point",      type: "vec2",   value: [0.5, 0.5], min: 0, max: 1, step: 0.01, description: "Normalised position of the focus centre" },
+  ]);
+  const demoDefaults = React.useRef(demoParams);
+  const [lastCommit, setLastCommit] = React.useState<string | null>(null);
+
+  function handleDemoChange(key: string, value: import("@/types").ShaderParam["value"]) {
+    setDemoParams((prev) => prev.map((p) => p.key === key ? { ...p, value } : p));
+  }
+  function handleDemoCommit(key: string, value: import("@/types").ShaderParam["value"]) {
+    setLastCommit(`onCommit: ${key} = ${JSON.stringify(value)}`);
+  }
+
   return (
     <TooltipProvider delayDuration={300}>
       <div className="min-h-screen bg-[var(--color-bg)] px-md py-lg">
@@ -800,6 +821,26 @@ export default function PreviewPage() {
                   </Text>
                 </div>
                 <BlendModePreview />
+              </div>
+            </Section>
+
+            {/* ── Phase 4.9 ── */}
+            <Section title="Shader / Interactivity">
+              <div className="space-y-xs">
+                <div className="mb-xs flex items-start gap-xs rounded-xs border-l-2 border-accent bg-[var(--color-bg)] px-xs py-3xs">
+                  <Info size={13} weight="bold" className="mt-px shrink-0 text-accent" />
+                  <Text variant="caption" color="secondary">
+                    <code className="font-mono">InteractivityPass</code> is a WebGPU shader pass that
+                    responds to mouse/pointer input without any external textures.
+                    Three modes are shown:{" "}
+                    <strong>Trail</strong> — fluid ink that smears with cursor velocity
+                    (double-FBO advect + Gaussian splat);{" "}
+                    <strong>Ripple</strong> — concentric Gaussian rings expanding from each click;{" "}
+                    <strong>Glow</strong> — additive colour spotlight that follows the cursor.
+                    Switch modes with the buttons below the canvas.
+                  </Text>
+                </div>
+                <TrailPreview />
               </div>
             </Section>
 
@@ -1218,6 +1259,54 @@ export default function PreviewPage() {
                   <Text variant="body" color="secondary" as="span">Right</Text>
                 </div>
               </div>
+            </Section>
+
+            {/* ══════════════════════════════════════════════════
+                Phase 5.1 — ParamControl
+            ══════════════════════════════════════════════════ */}
+
+            <div className="space-y-3xs pt-xs">
+              <Text variant="caption" color="disabled" className="font-medium uppercase tracking-widest">
+                Phase 5.1 — Param Controls
+              </Text>
+              <Separator />
+            </div>
+
+            <Section title="Shared / ParamControl">
+              <Instruction>
+                <code className="font-mono">ParamControl</code> routes a{" "}
+                <code className="font-mono">ShaderParam</code> to the correct control
+                ({" "}
+                <code className="font-mono">float/int → Slider</code>,{" "}
+                <code className="font-mono">bool → Switch</code>,{" "}
+                <code className="font-mono">color → swatch</code>,{" "}
+                <code className="font-mono">enum → Select</code>,{" "}
+                <code className="font-mono">vec2/vec3 → labelled sliders</code>).{" "}
+                <code className="font-mono">onChange</code> fires immediately (uniform updates).
+                Hover a control to reveal the reset button; it appears only when the value
+                differs from the default. The last <code className="font-mono">onCommit</code> call
+                (300 ms debounce) is shown below.
+              </Instruction>
+
+              <div className="divide-y divide-[var(--color-border)]">
+                {demoParams.map((p) => (
+                  <ParamControl
+                    key={p.key}
+                    param={p}
+                    defaultParam={demoDefaults.current.find((d) => d.key === p.key)}
+                    onChange={handleDemoChange}
+                    onCommit={handleDemoCommit}
+                  />
+                ))}
+              </div>
+
+              {lastCommit && (
+                <div className="mt-xs rounded-xs border border-[var(--color-border)] bg-[var(--color-bg)] p-xs">
+                  <code className="font-mono text-caption text-[var(--color-fg-secondary)]">
+                    {lastCommit}
+                  </code>
+                </div>
+              )}
             </Section>
 
           </div>
