@@ -158,7 +158,8 @@ export class BloomSubPass {
       const sUV = vec2(rtUV.x.add(float(off).mul(stepX)), rtUV.y);
       return tslTexture(new THREE.Texture(), sUV);
     });
-    let blurHAcc = vec4(0, 0, 0, 0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let blurHAcc: any = vec4(0, 0, 0, 0);
     for (let i = 0; i < 9; i++) {
       blurHAcc = blurHAcc.add(this._blurHSamples[i].mul(float(WEIGHTS[i])));
     }
@@ -170,7 +171,8 @@ export class BloomSubPass {
       const sUV = vec2(rtUV.x, rtUV.y.add(float(off).mul(stepY)));
       return tslTexture(new THREE.Texture(), sUV);
     });
-    let blurVAcc = vec4(0, 0, 0, 0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let blurVAcc: any = vec4(0, 0, 0, 0);
     for (let i = 0; i < 9; i++) {
       blurVAcc = blurVAcc.add(this._blurVSamples[i].mul(float(WEIGHTS[i])));
     }
