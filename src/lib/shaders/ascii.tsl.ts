@@ -64,7 +64,7 @@ export class AsciiPass extends PassNode {
   private _currentCharset     = "light";
   private _currentCustomChars = " .:-=+*#%@";
   private _currentFontWeight: FontWeight = "regular";
-  private _currentCellSize    = 8;
+  private _currentCellSize    = 16;
 
   constructor(layerId: string) {
     super(layerId);
@@ -72,14 +72,14 @@ export class AsciiPass extends PassNode {
     // Guard: super() already called _buildEffectNode() once, but the guard
     // returned the passthrough _inputNode because these uniforms didn't exist
     // yet. Initialise them now, then rebuild the real effect.
-    this._cellSizeU  = uniform(8.0);
+    this._cellSizeU  = uniform(16.0);
     this._numCharsU  = uniform(CHARSETS["light"].length);  // plain number, not a TSL node
     this._colorModeU = uniform(1.0);  // 1=monochrome (white glyphs on black bg)
     this._bgOpacityU = uniform(1.0);
     this._invertU    = uniform(0.0);
 
     // Build atlas sized to match the default cellSize — 1:1 pixel mapping.
-    this._atlasTexture = buildAsciiAtlas(CHARSETS["light"], "regular", 8);
+    this._atlasTexture = buildAsciiAtlas(CHARSETS["light"], "regular", 16);
 
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();

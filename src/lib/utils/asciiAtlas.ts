@@ -58,9 +58,10 @@ export function buildAsciiAtlas(
     bold:    "700",
   };
 
-  const fontSize = Math.max(Math.floor(px * 0.85), 4);
+  // Use full cell size for the font — matches the reference implementation.
+  // textBaseline="middle" centres the glyph so it won't clip at small sizes.
   ctx.fillStyle    = "#ffffff";
-  ctx.font         = `${weightMap[fontWeight]} ${fontSize}px monospace`;
+  ctx.font         = `${weightMap[fontWeight]} ${px}px monospace`;
   ctx.textAlign    = "center";
   ctx.textBaseline = "middle";
 
