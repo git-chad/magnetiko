@@ -1,6 +1,85 @@
 import type { BlendMode, ShaderType } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Static assets — bundled in /public/assets/
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface StaticAsset {
+  id: string;
+  label: string;
+  description: string;
+  /** Path relative to origin — served from /public, e.g. "/assets/nature-01.jpeg" */
+  path: string;
+  type: "image" | "video";
+}
+
+export const STATIC_ASSETS: StaticAsset[] = [
+  {
+    id: "nature-01",
+    label: "Forest",
+    description: "Dense foliage — rich greens for halftone & dithering",
+    path: "/assets/nature-01.jpeg",
+    type: "image",
+  },
+  {
+    id: "nature-02",
+    label: "Landscape",
+    description: "Open natural terrain with strong horizon",
+    path: "/assets/nature-02.jpeg",
+    type: "image",
+  },
+  {
+    id: "nature-03",
+    label: "Scenery",
+    description: "Organic forms and natural light",
+    path: "/assets/nature-03.jpeg",
+    type: "image",
+  },
+  {
+    id: "portrait-01",
+    label: "Portrait I",
+    description: "Close-up face — ideal for halftone & ASCII",
+    path: "/assets/portrait-01.jpg",
+    type: "image",
+  },
+  {
+    id: "portrait-02",
+    label: "Portrait II",
+    description: "Studio lighting with soft contrast",
+    path: "/assets/portrait-02.jpeg",
+    type: "image",
+  },
+  {
+    id: "art-01",
+    label: "Abstract Art",
+    description: "Bold shapes and vivid color fields",
+    path: "/assets/art-01.jpeg",
+    type: "image",
+  },
+  {
+    id: "japan-02",
+    label: "Japan Street",
+    description: "Urban architecture with graphic geometry",
+    path: "/assets/japan-02.jpg",
+    type: "image",
+  },
+  {
+    id: "anime-01",
+    label: "Anime Clip",
+    description: "Animated characters — great for grain & ASCII",
+    path: "/assets/anime-01.mp4",
+    type: "video",
+  },
+  {
+    id: "japan-01",
+    label: "Japan City",
+    description: "Street-level urban footage",
+    path: "/assets/japan-01.mp4",
+    type: "video",
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Image presets — gradient bitmaps generated on the client
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -17,8 +17,8 @@ import {
 import { useLayerStore } from "@/store/layerStore";
 import { getDefaultParams } from "@/lib/utils/defaultParams";
 import { cn } from "@/lib/utils";
-import { IMAGE_PRESETS, SHADER_PRESETS } from "@/config/presets";
-import type { ImagePreset, ShaderPreset } from "@/config/presets";
+import { IMAGE_PRESETS, SHADER_PRESETS, STATIC_ASSETS } from "@/config/presets";
+import type { ImagePreset, ShaderPreset, StaticAsset } from "@/config/presets";
 import type { Layer } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,10 +129,27 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
     onOpenChange(false);
   }
 
+  function handleSolidColor(hex: string) {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = hex;
+    ctx.fillRect(0, 0, 64, 64);
+    const id = addLayer("image");
+    setLayerMedia(id, canvas.toDataURL("image/png"), "image");
+    onOpenChange(false);
+  }
+
   function handleImagePreset(preset: ImagePreset) {
     const dataUrl = gradientToDataUrl(preset);
     const id      = addLayer("image");
     setLayerMedia(id, dataUrl, "image");
+    onOpenChange(false);
+  }
+
+  function handleStaticAsset(asset: StaticAsset) {
+    const id = addLayer(asset.type);
+    setLayerMedia(id, asset.path, asset.type);
     onOpenChange(false);
   }
 
@@ -153,16 +170,17 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
           <DialogTitle>Get Started</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="shaders">
+        <Tabs defaultValue="photos">
           <TabsList>
             <TabsTrigger value="fresh">Start fresh</TabsTrigger>
-            <TabsTrigger value="images">Images</TabsTrigger>
+            <TabsTrigger value="photos">Photos & Video</TabsTrigger>
+            <TabsTrigger value="images">Gradients</TabsTrigger>
             <TabsTrigger value="shaders">Shader presets</TabsTrigger>
           </TabsList>
 
           {/* ── Start fresh ──────────────────────────────────────────── */}
           <TabsContent value="fresh">
-            <div className="grid grid-cols-2 gap-xs">
+            <div className="grid grid-cols-2 gap-xs sm:grid-cols-4">
               <PresetCard
                 label="Empty Canvas"
                 description="Start blank — add layers and media manually"
@@ -173,6 +191,19 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
                 }
                 onSelect={handleBlankCanvas}
               />
+              {[
+                { hex: "#f5f5f0", label: "Off White",    description: "Neutral warm white" },
+                { hex: "#111110", label: "Near Black",   description: "Deep neutral dark" },
+                { hex: "#64643a", label: "Olive",        description: "App accent color" },
+              ].map(({ hex, label, description }) => (
+                <PresetCard
+                  key={hex}
+                  label={label}
+                  description={description}
+                  preview={<div className="h-full w-full" style={{ background: hex }} />}
+                  onSelect={() => handleSolidColor(hex)}
+                />
+              ))}
             </div>
             <Text variant="caption" color="tertiary" className="mt-xs block">
               Use the <span className="font-medium text-[var(--color-fg-secondary)]">+</span> button
@@ -180,7 +211,42 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
             </Text>
           </TabsContent>
 
-          {/* ── Images ───────────────────────────────────────────────── */}
+          {/* ── Photos & Video ───────────────────────────────────────── */}
+          <TabsContent value="photos">
+            <div className="grid grid-cols-3 gap-xs sm:grid-cols-4">
+              {STATIC_ASSETS.map((asset) => (
+                <PresetCard
+                  key={asset.id}
+                  label={asset.label}
+                  description={asset.description}
+                  preview={
+                    asset.type === "video" ? (
+                      <video
+                        src={asset.path}
+                        className="h-full w-full object-cover"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={asset.path}
+                        alt={asset.label}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    )
+                  }
+                  onSelect={() => handleStaticAsset(asset)}
+                />
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* ── Gradients ────────────────────────────────────────────── */}
           <TabsContent value="images">
             <div className="grid grid-cols-3 gap-xs sm:grid-cols-4">
               {IMAGE_PRESETS.map((preset) => (
