@@ -18,10 +18,6 @@ export const CHARSETS: Record<string, string> = {
 
 export type FontWeight = "thin" | "regular" | "bold";
 
-// Each character cell in the atlas is this many pixels square.
-// Higher = more detail in the glyph, but larger GPU texture.
-const ATLAS_CELL_PX = 32;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Atlas builder
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,23 +25,28 @@ const ATLAS_CELL_PX = 32;
 /**
  * Build a THREE.CanvasTexture font atlas for a charset string.
  *
- * Layout: one row of characters, each occupying ATLAS_CELL_PX × ATLAS_CELL_PX
- * pixels. White glyph on black background (red channel carries the mask).
+ * cellPx should match the shader's cellSize in physical pixels so that the
+ * atlas maps 1:1 to screen cells. Combined with NearestFilter this gives
+ * pixel-perfect, blur-free characters.
  *
- * Shader UV conventions (with flipY = true default):
- *   atlasUV.x = (charIndex + cellUV.x) / numChars
- *   atlasUV.y = cellUV.y  — no extra flip needed
+ * Layout: one row of characters, each occupying cellPx × cellPx pixels.
+ * White glyph on black background (red channel carries the mask).
+ *
+ * Shader UV conventions (flipY = true default):
+ *   atlasUV.x = (charIndex + cellFract.x) / numChars
+ *   atlasUV.y = cellFract.y   — no extra flip needed
  */
 export function buildAsciiAtlas(
   chars: string,
   fontWeight: FontWeight = "regular",
+  cellPx: number = 32,
 ): THREE.CanvasTexture {
   const n = Math.max(chars.length, 1);
-  const cellPx = ATLAS_CELL_PX;
+  const px = Math.max(Math.round(cellPx), 4);  // never smaller than 4px
 
   const canvas = document.createElement("canvas");
-  canvas.width  = n * cellPx;
-  canvas.height = cellPx;
+  canvas.width  = n * px;
+  canvas.height = px;
 
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#000000";
@@ -57,19 +58,21 @@ export function buildAsciiAtlas(
     bold:    "700",
   };
 
-  const fontSize = Math.floor(cellPx * 0.85);
-  ctx.fillStyle  = "#ffffff";
-  ctx.font       = `${weightMap[fontWeight]} ${fontSize}px monospace`;
-  ctx.textAlign  = "center";
+  const fontSize = Math.max(Math.floor(px * 0.85), 4);
+  ctx.fillStyle    = "#ffffff";
+  ctx.font         = `${weightMap[fontWeight]} ${fontSize}px monospace`;
+  ctx.textAlign    = "center";
   ctx.textBaseline = "middle";
 
   for (let i = 0; i < n; i++) {
-    ctx.fillText(chars[i], (i + 0.5) * cellPx, cellPx * 0.5);
+    ctx.fillText(chars[i], (i + 0.5) * px, px * 0.5);
   }
 
   const tex = new THREE.CanvasTexture(canvas);
-  tex.magFilter  = THREE.LinearFilter;
-  tex.minFilter  = THREE.LinearFilter;
+  // NearestFilter is critical: atlas cells are built to match the screen cell
+  // size exactly (1:1 pixel mapping). Linear filtering would blur the glyphs.
+  tex.magFilter   = THREE.NearestFilter;
+  tex.minFilter   = THREE.NearestFilter;
   tex.needsUpdate = true;
   return tex;
 }

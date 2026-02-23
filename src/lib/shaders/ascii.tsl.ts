@@ -57,13 +57,14 @@ export class AsciiPass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _atlasSampledNode: any;
 
-  // Font atlas — rebuilt when charset or fontWeight changes.
+  // Font atlas — rebuilt when charset, fontWeight, or cellSize changes.
   private _atlasTexture: THREE.CanvasTexture | null = null;
 
   // Track current settings to detect changes that require atlas rebuild.
-  private _currentCharset    = "light";
+  private _currentCharset     = "light";
   private _currentCustomChars = " .:-=+*#%@";
   private _currentFontWeight: FontWeight = "regular";
+  private _currentCellSize    = 8;
 
   constructor(layerId: string) {
     super(layerId);
@@ -77,7 +78,8 @@ export class AsciiPass extends PassNode {
     this._bgOpacityU = uniform(1.0);
     this._invertU    = uniform(0.0);
 
-    this._atlasTexture = buildAsciiAtlas(CHARSETS["light"], "regular");
+    // Build atlas sized to match the default cellSize — 1:1 pixel mapping.
+    this._atlasTexture = buildAsciiAtlas(CHARSETS["light"], "regular", 8);
 
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
@@ -200,9 +202,16 @@ export class AsciiPass extends PassNode {
 
     for (const p of params) {
       switch (p.key) {
-        case "cellSize":
-          this._cellSizeU.value = typeof p.value === "number" ? p.value : 8;
+        case "cellSize": {
+          const val = typeof p.value === "number" ? p.value : 8;
+          this._cellSizeU.value = val;
+          // Rebuild atlas when cell size changes so atlas px = screen cell px (1:1 mapping).
+          if (Math.round(val) !== this._currentCellSize) {
+            this._currentCellSize = Math.round(val);
+            needsAtlasRebuild = true;
+          }
           break;
+        }
 
         case "charset": {
           const val = p.value as string;
@@ -267,7 +276,7 @@ export class AsciiPass extends PassNode {
         : (CHARSETS[this._currentCharset] ?? CHARSETS["light"]);
 
     this._atlasTexture?.dispose();
-    this._atlasTexture = buildAsciiAtlas(chars, this._currentFontWeight);
+    this._atlasTexture = buildAsciiAtlas(chars, this._currentFontWeight, this._currentCellSize);
 
     // Swap the live texture reference — takes effect on the next render() call.
     if (this._atlasSampledNode) {
