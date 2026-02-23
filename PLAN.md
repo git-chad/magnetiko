@@ -559,14 +559,14 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 4.4 Dithering Shader (`src/lib/shaders/dithering.tsl.ts`)
 
-- [ ] **Ordered Bayer dithering**: Implement 2×2, 4×4, 8×8 Bayer matrices as uniforms/constants
-  - [ ] Threshold input luminance against matrix value at tiled UV position
-- [ ] **Floyd-Steinberg** (approximation for GPU): Since F-S is inherently sequential, implement a close approximation using blue noise or pre-computed error diffusion texture
-- [ ] **Atkinson dithering**: Similar GPU approximation approach
-- [ ] **Blue noise dithering**: Use a pre-computed blue noise texture as threshold map
-- [ ] Color modes: monochrome (B&W), source color (per-channel dithering), custom palette (map to nearest N colors then dither)
-- [ ] Levels control: quantize to N levels before dithering
-- [ ] Spread: controls dithering intensity/spread
+- [x] **Ordered Bayer dithering**: Implement 2×2, 4×4, 8×8 Bayer matrices as DataTextures (`ditherTextures.ts`)
+  - [x] Threshold input luminance against matrix value at tiled UV position
+- [x] **Floyd-Steinberg** (approximation for GPU): IGN blue-noise texture as threshold map
+- [x] **Atkinson dithering**: IGN blue-noise texture (same approximation, different spread range)
+- [x] **Blue noise dithering**: 64×64 Interleaved-Gradient-Noise DataTexture as threshold map
+- [x] Color modes: monochrome (B&W), source color (per-channel dithering), palette (alias of mono for now)
+- [x] Levels control: quantize to N levels before dithering — formula `floor(x*(N-1)+t*spread)/(N-1)`
+- [x] Spread: controls dithering intensity
 
 **Done when:** All 4 algorithms produce visually distinct dithering. Bayer is crisp and grid-like, blue noise is organic. Color palette mode maps correctly.
 
