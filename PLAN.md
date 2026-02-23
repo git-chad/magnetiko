@@ -588,15 +588,15 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 **Done when:** Enabling bloom on ASCII glows bright/saturated characters. Radius and intensity are tweakable. Other shaders can opt in by instantiating BloomSubPass and handling bloom params.
 
-### 4.6 Fluted Glass Shader (`src/lib/shaders/flutedGlass.tsl.ts`)
+### 4.6 Fluted Glass Shader (`src/lib/shaders/flutedGlass.tsl.ts`) ✅
 
-- [ ] Create parallel ridges (flutes) that distort the UV lookup
-- [ ] Distortion via sinusoidal UV offset perpendicular to flute direction
-- [ ] Orientations: vertical, horizontal, radial (emanating from center)
-- [ ] Refraction simulation: offset UVs based on a fake refraction index
-- [ ] Optional color tint applied to result
-- [ ] Optional blur along the flute axis (directional blur)
-- [ ] Flute count controls frequency
+- [x] Create parallel ridges (flutes) that distort the UV lookup
+- [x] Distortion via sinusoidal UV offset perpendicular to flute direction
+- [x] Orientations: vertical, horizontal, radial (emanating from center)
+- [x] Refraction simulation: offset UVs based on a fake refraction index
+- [x] Optional color tint applied to result
+- [x] Optional blur along the flute axis (directional blur)
+- [x] Flute count controls frequency
 
 **Done when:** Image behind looks like it's viewed through ribbed glass. Changing orientation rotates the effect. Refraction index creates visible distortion differences.
 
