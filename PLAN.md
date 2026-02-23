@@ -600,16 +600,14 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 **Done when:** Image behind looks like it's viewed through ribbed glass. Changing orientation rotates the effect. Refraction index creates visible distortion differences.
 
-### 4.7 Progressive Blur Shader (`src/lib/shaders/progressiveBlur.tsl.ts`)
+### 4.7 Progressive Blur Shader (`src/lib/shaders/progressiveBlur.tsl.ts`) ✅
 
-- [ ] Compute blur strength per pixel based on distance from focus point/line
-- [ ] Directions: top-to-bottom, bottom-to-top, left-to-right, right-to-left, center-out, radial
-- [ ] Focus point (vec2) and focus size (defines sharp region)
-- [ ] Falloff curves: linear, ease-in, ease-out, ease-in-out
-- [ ] Implementation: variable-radius blur. Options:
-  - Multiple blur passes at different strengths, blended by gradient mask
-  - Or mip-map sampling at different LODs based on gradient (more performant)
-- [ ] Start/end strength define the range of blur
+- [x] Compute blur strength per pixel based on distance from focus point/line
+- [x] Directions: top-to-bottom, bottom-to-top, left-to-right, right-to-left, center-out, radial
+- [x] Focus point (vec2) and focus size (defines sharp region)
+- [x] Falloff curves: linear, ease-in, ease-out, ease-in-out
+- [x] Implementation: two-pass separable Gaussian with per-pixel variable step size
+- [x] Start/end strength define the range of blur
 
 **Done when:** Sharp focus area transitions smoothly to blurred edges. Direction options all work. Tilt-shift look achievable with bottom-to-top direction.
 
