@@ -539,19 +539,21 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 4.3 ASCII Shader (`src/lib/shaders/ascii.tsl.ts`)
 
-- [ ] Pre-pixelate input to match character grid
-- [ ] Sample luminance per cell
-- [ ] Map luminance to character index from selected charset
-- [ ] Charsets (shipped as small SDF or bitmap font textures):
-  - Light: ` .:-=+*#%@`
-  - Dense: ` .',:;!|({[#@`
-  - Blocks: ` ░▒▓█`
-  - Hatching: ` ╱╲╳░▒`
-  - Binary: `01`
-- [ ] Render character by sampling a font texture atlas at the correct glyph position
-- [ ] Color modes: source color, monochrome, green-terminal (classic CRT green on black)
-- [ ] Background opacity control
-- [ ] Font weight variants: change the font texture atlas
+- [x] Pre-pixelate input to match character grid (cell-center UV sampling)
+- [x] Sample luminance per cell (Rec. 709)
+- [x] Map luminance to character index from selected charset
+- [x] Charsets (generated at runtime as CanvasTexture atlas via `asciiAtlas.ts`):
+  - [x] Light: ` .:-=+*#%@`
+  - [x] Dense: ` .',:;!|({#@`
+  - [x] Blocks: ` ░▒▓█`
+  - [x] Hatching: ` ╱╲╳░▒`
+  - [x] Binary: `01`
+  - [x] Custom: user-supplied string
+- [x] Render character by sampling a font texture atlas at the correct glyph position
+- [x] Color modes: source color, monochrome, green-terminal (classic CRT green on black)
+- [x] Background opacity control (source mode: bg = source * bgOpacity)
+- [x] Font weight variants: thin/regular/bold (CSS weight applied at atlas build time)
+- [x] Invert: swap light/dark character mapping
 
 **Done when:** ASCII art clearly represents the underlying image. Changing charset changes the visual character. Green-terminal mode looks like a retro CRT.
 
@@ -1000,7 +1002,7 @@ Tasks can be marked with:
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
 | 2 | WebGPU Renderer | 6 | 5 | 🔵 In progress |
 | 3 | Layer System UI | 6 | 6 | ✅ Complete |
-| 4 | Shader Library | 9 | 2 | 🔵 In progress |
+| 4 | Shader Library | 9 | 3 | 🔵 In progress |
 | 5 | Controls & Sidebar | 4 | 0 | ⬜ Not started |
 | 6 | Media Input | 3 | 0 | ⬜ Not started |
 | 7 | Interactivity | 3 | 0 | ⬜ Not started |
