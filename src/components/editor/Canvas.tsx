@@ -221,9 +221,13 @@ export function Canvas({ className }: CanvasProps) {
         }));
       p.syncLayers(passes);
 
-      // Base media: lowest media layer with a URL drives the base quad
-      const mediaLayer = ordered.find(
-        (l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl,
+      // Base media: topmost visible media layer drives the base quad.
+      // New uploads go to the top of the stack, so searching top-to-bottom
+      // (i.e. reversing the bottom-to-top `ordered` array) ensures the most
+      // recently added visible layer is always what the user sees.
+      // Visibility must be checked so hiding a layer actually clears/swaps it.
+      const mediaLayer = [...ordered].reverse().find(
+        (l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl && l.visible,
       );
 
       if (!mediaLayer?.mediaUrl) {
