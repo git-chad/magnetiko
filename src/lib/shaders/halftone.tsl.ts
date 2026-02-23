@@ -33,6 +33,10 @@ import type { ShaderParam } from "@/types";
  * texture once at each cell center, then renders a shaped dot whose radius
  * is proportional to the cell's luminance (bright → large dot).
  *
+ * Each pixel checks its own cell plus the 8 immediate neighbours (3×3 grid)
+ * and takes the maximum coverage — this lets large dots overflow their cell
+ * boundary naturally.
+ *
  * Shape variants (_shapeU):
  *   0 = circle   — smooth circular dot (default)
  *   1 = square   — axis-aligned square dot
@@ -65,11 +69,14 @@ export class HalftonePass extends PassNode {
   private readonly _duotoneLightU: any; // vec3
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _duotoneDarkU: any;  // vec3
-
-  // Mutable texture node for the cell-center sample — updated each frame
-  // in render() without triggering a shader recompile.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _sampledNode: any;
+  private readonly _invertU: any;       // 0 = normal, 1 = invert luma
+
+  // Texture nodes for the 3×3 neighbourhood cell-center samples.
+  // All 9 point at the same input texture; updated each frame in render()
+  // without triggering a shader recompile.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _sampleNodes: any[] = [];
 
   constructor(layerId: string) {
     super(layerId);
@@ -88,6 +95,7 @@ export class HalftonePass extends PassNode {
     this._colorModeU    = uniform(1.0);  // 0=source 1=mono 2=duotone
     this._contrastU     = uniform(1.0);
     this._softnessU     = uniform(0.1);
+    this._invertU       = uniform(0.0);  // 0=normal 1=invert
     this._duotoneLightU = uniform(
       new THREE.Vector3(lightCol.r, lightCol.g, lightCol.b),
     );
@@ -109,8 +117,10 @@ export class HalftonePass extends PassNode {
     time: number,
     delta: number,
   ): void {
-    // Keep the cell-center sample node pointing at the current input texture.
-    if (this._sampledNode) this._sampledNode.value = inputTex;
+    // Keep all 3×3 cell-center sample nodes pointing at the current input.
+    for (const node of this._sampleNodes) {
+      node.value = inputTex;
+    }
     super.render(renderer, inputTex, outputTarget, time, delta);
   }
 
@@ -120,27 +130,23 @@ export class HalftonePass extends PassNode {
     // Guard: called once by super() before uniforms are initialised.
     if (!this._gridSpacingU) return this._inputNode;
 
+    // Reset sample-node registry each (re)build.
+    this._sampleNodes = [];
+
     // Y-flipped UV — WebGPU render-target textures have V=0 at the top,
     // opposite to PlaneGeometry UVs (V=0=bottom).
     const rtUV     = vec2(uv().x, float(1.0).sub(uv().y));
     const pixCoord = rtUV.mul(screenSize); // pixel-space position
 
     // ── Rotation ──────────────────────────────────────────────────────────────
-    // Rotating the grid by angle A is equivalent to rotating the coordinate
-    // system by A and placing an axis-aligned grid in that space.
-    // Wrap in float() so TypeScript knows these are Node<"float"> despite the
-    // uniform being typed as `any`.
     const cosA = float(cos(this._angleU));
     const sinA = float(sin(this._angleU));
 
     // Forward rotation — screen space → rotated grid space:
-    //   rotX =  cos·px + sin·py
-    //   rotY = -sin·px + cos·py   (= cos·py − sin·px)
     const rotX = float(cosA.mul(pixCoord.x).add(sinA.mul(pixCoord.y)));
     const rotY = float(cosA.mul(pixCoord.y).sub(sinA.mul(pixCoord.x)));
 
-    // ── Grid cell ─────────────────────────────────────────────────────────────
-    // Cell center in rotated space (nearest grid vertex).
+    // ── Current cell center (in rotated grid space) ───────────────────────────
     const ccrX = float(
       floor(float(rotX.div(this._gridSpacingU)).add(float(0.5)))
         .mul(this._gridSpacingU),
@@ -150,77 +156,100 @@ export class HalftonePass extends PassNode {
         .mul(this._gridSpacingU),
     );
 
-    // Inverse rotation — rotated grid space → screen space:
-    //   px = cos·rotX − sin·rotY
-    //   py = sin·rotX + cos·rotY
-    const ccSX = float(cosA.mul(ccrX).sub(sinA.mul(ccrY)));
-    const ccSY = float(sinA.mul(ccrX).add(cosA.mul(ccrY)));
-
-    // UV of this cell's center in the render target.
-    const cellCenterUV = vec2(ccSX, ccSY).div(screenSize);
-
-    // ── Sample input at cell center ───────────────────────────────────────────
-    // _sampledNode.value is updated every frame in render() to track the
-    // current input texture without triggering a shader recompile.
-    this._sampledNode = tslTexture(this._inputNode.value, cellCenterUV);
-    const sampledColor = this._sampledNode;
-
-    // ── Luminance (Rec. 709) ──────────────────────────────────────────────────
-    // Manual channel weighting + float() wrappers to keep TypeScript types
-    // as Node<"float"> throughout (avoids any → Node<"vec3"> mis-inference).
-    const luma = float(sampledColor.r)
-      .mul(float(0.2126))
-      .add(float(sampledColor.g).mul(float(0.7152)))
-      .add(float(sampledColor.b).mul(float(0.0722)));
-    const adjustedLuma = float(
-      min(max(float(luma.mul(this._contrastU)), float(0.0)), float(1.0)),
-    );
-
-    // ── Dot radius in pixels ──────────────────────────────────────────────────
-    // radius = minRadius + luma * dotSize
-    // dotMin keeps dots visible in dark areas (matches reference's minDot param).
-    const radius = float(float(this._dotMinU).add(adjustedLuma.mul(this._dotSizeU)));
-
-    // ── Distance from this pixel to the dot center (in rotated space) ─────────
-    // Rotation preserves distances, so grid-space distance = screen-space
-    // distance.  Working in grid space keeps the shapes axis-aligned.
-    const dx = float(rotX.sub(ccrX));
-    const dy = float(rotY.sub(ccrY));
-
-    const dCircle  = length(vec2(dx, dy));
-    const dSquare  = max(abs(dx), abs(dy));
-    const dDiamond = abs(dx).add(abs(dy)); // Manhattan; boundary at radius
-    const dLine    = abs(dy);              // horizontal bands in grid space
-
     // ── Anti-aliasing width ───────────────────────────────────────────────────
-    // Scale with cell size so softness=1 gives ~30% of a cell worth of blur.
     const aa = float(
       max(float(0.5), float(this._softnessU.mul(this._gridSpacingU)).mul(float(0.3))),
     );
 
-    // ── Shape masks (1 inside dot, 0 outside) ─────────────────────────────────
-    const mCircle  = smoothstep(radius.add(aa), radius.sub(aa), dCircle);
-    const mSquare  = smoothstep(radius.add(aa), radius.sub(aa), dSquare);
-    const mDiamond = smoothstep(radius.add(aa), radius.sub(aa), dDiamond);
-    const mLine    = smoothstep(radius.add(aa), radius.sub(aa), dLine);
+    // ── 3×3 neighbourhood fold (pure functional — no mutable vars / If) ────────
+    // JS variables below are TSL node references, not runtime values.
+    // Each iteration wraps the previous result in a select/max node,
+    // building a static DAG that the GPU evaluates per-pixel.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let accCov:  any = float(0.0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let accR:    any = float(0.0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let accG:    any = float(0.0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let accB:    any = float(0.0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let accLuma: any = float(0.0);
 
-    const mask = select(
-      this._shapeU.lessThan(float(0.5)),
-      mCircle,
-      select(
-        this._shapeU.lessThan(float(1.5)),
-        mSquare,
-        select(
-          this._shapeU.lessThan(float(2.5)),
-          mDiamond,
-          mLine,
-        ),
-      ),
-    );
+    for (let dj = -1; dj <= 1; dj++) {
+      for (let di = -1; di <= 1; di++) {
+        // Cell center in rotated space
+        const cellRX = di === 0
+          ? ccrX
+          : float(ccrX.add(this._gridSpacingU.mul(float(di))));
+        const cellRY = dj === 0
+          ? ccrY
+          : float(ccrY.add(this._gridSpacingU.mul(float(dj))));
+
+        // Inverse rotation → screen-space UV of this cell's center
+        const cellSX = float(cosA.mul(cellRX).sub(sinA.mul(cellRY)));
+        const cellSY = float(sinA.mul(cellRX).add(cosA.mul(cellRY)));
+        const cellUV = vec2(cellSX, cellSY).div(screenSize);
+
+        // Sample input at this cell center
+        const sNode = tslTexture(this._inputNode.value, cellUV);
+        this._sampleNodes.push(sNode);
+
+        // ── Luminance (Rec. 709) ──────────────────────────────────────────────
+        const luma = float(sNode.r)
+          .mul(float(0.2126))
+          .add(float(sNode.g).mul(float(0.7152)))
+          .add(float(sNode.b).mul(float(0.0722)));
+        const clampedLuma = float(
+          min(max(float(luma.mul(this._contrastU)), float(0.0)), float(1.0)),
+        );
+
+        // Optional luma inversion: dark areas → large dots, light → small
+        const effectiveLuma = select(
+          this._invertU.greaterThan(float(0.5)),
+          float(1.0).sub(clampedLuma),
+          clampedLuma,
+        );
+
+        // ── Dot radius ────────────────────────────────────────────────────────
+        const radius = float(float(this._dotMinU).add(effectiveLuma.mul(this._dotSizeU)));
+
+        // ── Distance from this pixel to this cell's dot center (rotated space)
+        const dx = float(rotX.sub(cellRX));
+        const dy = float(rotY.sub(cellRY));
+
+        const dCircle  = length(vec2(dx, dy));
+        const dSquare  = max(abs(dx), abs(dy));
+        const dDiamond = abs(dx).add(abs(dy));
+        const dLine    = abs(dy);
+
+        const dist = select(
+          this._shapeU.lessThan(float(0.5)),
+          dCircle,
+          select(
+            this._shapeU.lessThan(float(1.5)),
+            dSquare,
+            select(
+              this._shapeU.lessThan(float(2.5)),
+              dDiamond,
+              dLine,
+            ),
+          ),
+        );
+
+        const cellCov = smoothstep(radius.add(aa), radius.sub(aa), dist);
+
+        // Fold: if this cell has higher coverage, it wins
+        const isNew = cellCov.greaterThan(accCov);
+        accR    = select(isNew, float(sNode.r),    accR);
+        accG    = select(isNew, float(sNode.g),    accG);
+        accB    = select(isNew, float(sNode.b),    accB);
+        accLuma = select(isNew, effectiveLuma,      accLuma);
+        accCov  = max(cellCov, accCov);
+      }
+    }
 
     // ── Typed duotone vec3 helpers ────────────────────────────────────────────
-    // Reconstruct vec3 nodes from component accessors so TypeScript sees
-    // Node<"vec3"> rather than inferring any uniform node as Node<"float">.
     const darkVec = vec3(
       float(this._duotoneDarkU.x),
       float(this._duotoneDarkU.y),
@@ -231,25 +260,23 @@ export class HalftonePass extends PassNode {
       float(this._duotoneLightU.y),
       float(this._duotoneLightU.z),
     );
-    // ── Dot color ─────────────────────────────────────────────────────────────
-    const srcColor     = vec3(float(sampledColor.r), float(sampledColor.g), float(sampledColor.b));
-    const monoColor    = vec3(adjustedLuma, adjustedLuma, adjustedLuma);
-    const duotoneColor = mix(darkVec, lightVec, adjustedLuma);
+
+    // ── Dot color (derived from winning cell) ─────────────────────────────────
+    const srcColor     = vec3(accR, accG, accB);
+    const monoColor    = vec3(accLuma, accLuma, accLuma);
+    const duotoneColor = mix(darkVec, lightVec, accLuma);
 
     const dotColor = select(
       this._colorModeU.lessThan(float(0.5)),
-      srcColor,          // source: cell-center color
+      srcColor,
       select(
         this._colorModeU.lessThan(float(1.5)),
-        monoColor,         // monochrome: grayscale
-        duotoneColor,      // duotone: interpolated between two tones
+        monoColor,
+        duotoneColor,
       ),
     );
 
     // ── Background color (shown between dots) ─────────────────────────────────
-    // source  → white, so colored dots are always clearly visible (ref. pattern)
-    // mono    → black
-    // duotone → dark tone
     const bgColor = select(
       this._colorModeU.lessThan(float(0.5)),
       vec3(1.0, 1.0, 1.0),
@@ -260,9 +287,7 @@ export class HalftonePass extends PassNode {
       ),
     );
 
-    // Return vec4 (alpha = 1) — matches pixelation's output type and ensures
-    // buildBlendNode's blend.rgb accessor works correctly.
-    return vec4(mix(bgColor, dotColor, mask), float(1.0));
+    return vec4(mix(bgColor, dotColor, accCov), float(1.0));
   }
 
   // ── Uniforms ───────────────────────────────────────────────────────────────
@@ -302,6 +327,9 @@ export class HalftonePass extends PassNode {
           break;
         case "softness":
           this._softnessU.value = typeof p.value === "number" ? p.value : 0.1;
+          break;
+        case "invertLuma":
+          this._invertU.value = p.value === true ? 1.0 : 0.0;
           break;
         case "duotoneLight": {
           const col = new THREE.Color(p.value as string);

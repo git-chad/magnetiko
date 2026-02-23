@@ -11,6 +11,7 @@ const ACCEPTED_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
+  "image/gif",
   "video/mp4",
   "video/webm",
 ]);
@@ -41,7 +42,7 @@ type MediaStore = MediaState & MediaActions;
 function validateFile(file: File): void {
   if (!ACCEPTED_TYPES.has(file.type)) {
     throw new Error(
-      `Unsupported file type "${file.type}". Accepted types: PNG, JPG, WebP, MP4, WebM.`,
+      `Unsupported file type "${file.type}". Accepted: PNG, JPG, WebP, GIF, MP4, WebM.`,
     );
   }
   if (file.size > MAX_SIZE_BYTES) {

@@ -36,6 +36,7 @@ Prefix titles with severity:
 - ALWAYS return `vec4` (not `vec3`) from `_buildEffectNode()` — `buildBlendNode` accesses `.rgb` which works on vec4; vec3 causes type-inference issues in TSL.
 - ALWAYS add a minimum radius/size param to halftone/dot effects — without `dotMin`, dark areas produce zero-size dots (invisible), giving the incorrect appearance of "random dots not everywhere".
 - NEVER use per-pixel input texture as the halftone background in source mode — for smooth images dotColor ≈ bgColor → invisible effect. Use a solid background (white for source mode) so dots are always visible against it.
+- NEVER call TSL `If()` or `.toVar()` outside a `Fn()` shader function context — they are null at build time and crash with "Cannot read properties of null". Instead, build a pure functional DAG: JS-time `for` loop + `select(cond, a, b)` + `max(a, b)` to fold results statically.
 
 <!-- 
 Example of what this section will look like:
@@ -89,6 +90,27 @@ Example of what this section will look like:
 **The fix:** Changed return to `vec4(mix(bgColor, dotColor, mask), float(1.0))`. This matches the established pattern and keeps the blend node's `.rgb` accessor working correctly.
 **Rule:** ALWAYS return `vec4` from `_buildEffectNode()` subclass overrides.
 
+### 🔴 [4.2] TSL `If()` / `.toVar()` crash outside `Fn()` context
+**Date:** 2026-02-23
+**Task:** Halftone 3×3 neighborhood loop for dot overflow
+**What went wrong:** Added a `checkCell()` helper inside `_buildEffectNode()` that used `.toVar()` and `If()` to accumulate the max-coverage cell across a 3×3 grid. Crashed at runtime with: `TypeError: Cannot read properties of null (reading 'If')`.
+**Why it happened:** TSL control-flow constructs (`If`, `Else`, `.toVar()`, `Loop`) are only defined inside a `Fn()` closure — they bind to the currently-building shader function. Called at JS module/class build time (outside `Fn()`), the underlying runtime reference is null.
+**The fix:** Replaced the mutable accumulator + `If` pattern with a pure functional fold built at JS time:
+```ts
+let accCov = float(0.0);
+let accR = float(0.0);
+for (let dj = -1; dj <= 1; dj++) {
+  for (let di = -1; di <= 1; di++) {
+    // compute cellCov (smoothstep coverage for this neighbor)
+    const isNew = cellCov.greaterThan(accCov);
+    accR = select(isNew, cellR, accR);
+    accCov = max(cellCov, accCov);
+  }
+}
+```
+Each iteration builds a new static DAG node via `select`/`max` — no mutation, no `If`, no `Fn()` required.
+**Rule:** NEVER call `If()` or `.toVar()` outside a `Fn()` shader function context. Build pure functional `select`/`max` DAGs at JS time instead.
+
 <!--
 ### 🟡 [2.1] WebGPURenderer failed to initialize on Firefox
 **Date:** 2025-XX-XX  
@@ -132,6 +154,15 @@ These are common pitfalls in this tech stack. Not mistakes yet, but things to be
 ## Session Notes
 
 > Quick notes from each work session. Not full mistake entries — just context for continuity.
+
+### Session 2026-02-23
+- Completed: Halftone enhancements — invert luma toggle + 3×3 dot overflow (neighbor cells)
+- Completed: Phase 5.3 — custom HSV ColorPicker (Radix Popover, SL pad, hue bar, hex/RGB inputs, recent colors)
+- Completed: Phase 5.4 — XY Pad for vec2 params (square pad + crosshair + handle + two SliderRow inputs + numeric readout)
+- Completed: Phase 6.1 — Upload Flow (useMediaUpload hook, drag-drop canvas with counter pattern, empty state, drop overlay, loading overlay, Toolbar wired to hook)
+- **KEY LESSON — TSL If/toVar outside Fn() crash:** `If()` and `.toVar()` are TSL control-flow constructs that only work *inside* a `Fn()` shader function context. Called outside one (e.g. in a PassNode constructor or `_buildEffectNode()`), they are null at JS build time → crash: "Cannot read properties of null (reading 'If')". Fix: build a pure functional DAG at JS time using a `for` loop + nested `select(isNew, newVal, accVal)` + `max(cov, accCov)` nodes — no mutation, no `If`, no `.toVar()`.
+- **KEY LESSON — Drag-leave counter pattern:** React's synthetic `onDragLeave` fires when the cursor moves onto a *child element*, not just when leaving the outer div. Use a `dragCountRef` integer (increment on `dragenter`, decrement on `dragleave`, only clear overlay when counter reaches 0) to reliably detect a true drag-leave.
+- Blocked on: nothing
 
 ### Session 2026-02-22
 - Completed: Phase 4.2 Halftone shader — full TSL implementation with grid rotation, 4 dot shapes, 3 color modes, contrast, softness, dotMin

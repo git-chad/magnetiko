@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui";
 import type { ShaderParam } from "@/types";
+import { ColorPicker } from "@/components/shared/ColorPicker";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -45,34 +46,6 @@ export interface ParamControlProps {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Convert any CSS colour string to a 6-digit hex string for <input type="color">. */
-function toHexColor(css: string): string {
-  if (/^#[0-9a-f]{6}$/i.test(css)) return css;
-  if (/^#[0-9a-f]{3}$/i.test(css)) {
-    const [, r, g, b] = css.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i)!;
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  // Fall back to Canvas 2D API for any other CSS colour (rgb(), hsl(), named…)
-  if (typeof document !== "undefined") {
-    try {
-      const cv = document.createElement("canvas");
-      cv.width = cv.height = 1;
-      const ctx = cv.getContext("2d")!;
-      ctx.fillStyle = css;
-      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-      return (
-        "#" +
-        r.toString(16).padStart(2, "0") +
-        g.toString(16).padStart(2, "0") +
-        b.toString(16).padStart(2, "0")
-      );
-    } catch {
-      /* ignore */
-    }
-  }
-  return "#000000";
-}
 
 function valuesEqual(a: ShaderParam["value"], b: ShaderParam["value"]): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
@@ -217,7 +190,12 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
       );
 
     case "color":
-      return <_ColorControl value={param.value as string} emit={emit} />;
+      return (
+        <ColorPicker
+          value={param.value as string}
+          onChange={(hex) => emit(hex)}
+        />
+      );
 
     case "enum":
       return (
@@ -241,24 +219,13 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
     case "vec2": {
       const [x, y] = param.value as number[];
       return (
-        <div className="space-y-3xs">
-          <_SliderRow
-            label="X"
-            value={x}
-            min={param.min ?? 0}
-            max={param.max ?? 1}
-            step={param.step ?? 0.01}
-            emit={(v) => emit([v, y])}
-          />
-          <_SliderRow
-            label="Y"
-            value={y}
-            min={param.min ?? 0}
-            max={param.max ?? 1}
-            step={param.step ?? 0.01}
-            emit={(v) => emit([x, v])}
-          />
-        </div>
+        <_XYPadControl
+          value={[x, y]}
+          min={param.min ?? 0}
+          max={param.max ?? 1}
+          step={param.step ?? 0.01}
+          emit={(v) => emit(v)}
+        />
       );
     }
 
@@ -385,41 +352,136 @@ function _SliderRow({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _ColorControl — colour swatch that opens a native colour picker
+// _XYPadControl — 2D click/drag pad for vec2 params (Phase 5.4)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function _ColorControl({
+function _XYPadControl({
   value,
+  min,
+  max,
+  step,
   emit,
 }: {
-  value: string;
-  emit: (v: string) => void;
+  value: [number, number];
+  min: number;
+  max: number;
+  step: number;
+  emit: (v: number[]) => void;
 }) {
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const hex      = toHexColor(value);
+  const [x, y] = value;
+  const padRef  = React.useRef<HTMLDivElement>(null);
+  const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+
+  // Normalize value → 0-1 for display, denormalize back for emit
+  const norm   = (val: number) => (val - min) / (max - min);
+  const denorm = (n: number) => min + n * (max - min);
+  const snap   = (val: number) =>
+    Math.round(val / step) * step;
+  const clamp  = (val: number) => Math.max(min, Math.min(max, val));
+
+  const applyDrag = React.useCallback(
+    (clientX: number, clientY: number) => {
+      if (!padRef.current) return;
+      const rect = padRef.current.getBoundingClientRect();
+      const nx = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const ny = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+      emit([
+        clamp(snap(denorm(nx))),
+        clamp(snap(denorm(ny))),
+      ]);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [min, max, step, emit],
+  );
 
   return (
-    <div className="flex items-center gap-xs">
-      {/* Swatch — click to open native colour picker */}
-      <button
-        type="button"
-        aria-label="Pick colour"
-        className="h-6 w-10 flex-shrink-0 cursor-pointer rounded-xs border border-[var(--color-border)] shadow-inner transition-opacity hover:opacity-80"
-        style={{ backgroundColor: hex }}
-        onClick={() => inputRef.current?.click()}
+    <div className="flex flex-col gap-3xs">
+      {/* ── 2D pad ── */}
+      <div
+        ref={padRef}
+        role="presentation"
+        aria-label="XY control pad"
+        className="relative w-full select-none cursor-crosshair rounded-xs border border-[var(--color-border)] overflow-hidden"
+        style={{ aspectRatio: "1 / 1" }}
+        onPointerDown={(e) => {
+          (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+          applyDrag(e.clientX, e.clientY);
+        }}
+        onPointerMove={(e) => {
+          if (!(e.currentTarget as HTMLDivElement).hasPointerCapture(e.pointerId)) return;
+          applyDrag(e.clientX, e.clientY);
+        }}
+      >
+        {/* Subtle grid */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: [
+              "linear-gradient(var(--color-border) 1px, transparent 1px)",
+              "linear-gradient(90deg, var(--color-border) 1px, transparent 1px)",
+            ].join(", "),
+            backgroundSize: "25% 25%",
+            opacity: 0.4,
+          }}
+        />
+
+        {/* Crosshair lines */}
+        <div
+          className="pointer-events-none absolute top-0 bottom-0 w-px"
+          style={{
+            left: `${norm(x) * 100}%`,
+            backgroundColor: "var(--color-accent)",
+            opacity: 0.35,
+          }}
+        />
+        <div
+          className="pointer-events-none absolute left-0 right-0 h-px"
+          style={{
+            top: `${norm(y) * 100}%`,
+            backgroundColor: "var(--color-accent)",
+            opacity: 0.35,
+          }}
+        />
+
+        {/* Handle dot */}
+        <div
+          className="pointer-events-none absolute rounded-full border-2 border-white"
+          style={{
+            width: 12,
+            height: 12,
+            left: `${norm(x) * 100}%`,
+            top: `${norm(y) * 100}%`,
+            transform: "translate(-50%, -50%)",
+            backgroundColor: "var(--color-accent)",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+          }}
+        />
+      </div>
+
+      {/* ── Precise sliders ── */}
+      <_SliderRow
+        label="X"
+        value={x}
+        min={min}
+        max={max}
+        step={step}
+        emit={(val) => emit([val, y])}
       />
-      {/* Native colour input (hidden; triggered by swatch click) */}
-      <input
-        ref={inputRef}
-        type="color"
-        className="sr-only"
-        value={hex}
-        onChange={(e) => emit(e.target.value)}
+      <_SliderRow
+        label="Y"
+        value={y}
+        min={min}
+        max={max}
+        step={step}
+        emit={(val) => emit([x, val])}
       />
-      {/* Hex readout */}
-      <span className="font-mono text-caption text-[var(--color-fg-tertiary)] uppercase">
-        {hex}
-      </span>
+
+      {/* Numeric readout */}
+      <div className="flex justify-end gap-xs">
+        <span className="font-mono text-caption text-[var(--color-fg-disabled)] tabular-nums">
+          {x.toFixed(decimals)}, {y.toFixed(decimals)}
+        </span>
+      </div>
     </div>
   );
 }

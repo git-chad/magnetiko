@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import * as THREE from "three/webgpu";
+import { ArrowSquareIn, ImageSquare } from "@phosphor-icons/react";
 import { isWebGPUSupported } from "@/lib/renderer/WebGPURenderer";
 import { loadImageTexture, createVideoTexture } from "@/lib/renderer/MediaTexture";
 import { PipelineManager } from "@/lib/renderer/PipelineManager";
 import type { PipelineLayer } from "@/lib/renderer/PipelineManager";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
+import { useMediaUpload } from "@/hooks/useMediaUpload";
 import type { Layer } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,12 +69,52 @@ export function Canvas({ className }: CanvasProps) {
   );
 
   // ── Store subscriptions ────────────────────────────────────────────────────
-  const zoom = useEditorStore((s) => s.zoom);
+  const zoom      = useEditorStore((s) => s.zoom);
   const panOffset = useEditorStore((s) => s.panOffset);
-  const setFps = useEditorStore((s) => s.setFps);
+  const setFps    = useEditorStore((s) => s.setFps);
+
+  // True when at least one image/video layer exists (drives empty-state display)
+  const hasMediaLayers = useLayerStore(
+    (s) => s.layers.some((l) => l.kind === "image" || l.kind === "video"),
+  );
 
   // Track which media URL is currently loaded into the base quad
   const loadedBaseUrlRef = React.useRef<string | null>(null);
+
+  // ── Drag-and-drop ──────────────────────────────────────────────────────────
+  const { upload, isLoading: uploadLoading } = useMediaUpload();
+  const [isDragOver, setIsDragOver] = React.useState(false);
+  const dragCountRef = React.useRef(0);
+
+  const handleDragEnter = React.useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (!e.dataTransfer.types.includes("Files")) return;
+    dragCountRef.current++;
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragOver = React.useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const handleDragLeave = React.useCallback(() => {
+    if (--dragCountRef.current <= 0) {
+      dragCountRef.current = 0;
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = React.useCallback(
+    async (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      dragCountRef.current = 0;
+      setIsDragOver(false);
+      const file = e.dataTransfer.files[0];
+      if (file) await upload(file);
+    },
+    [upload],
+  );
 
   // ── WebGPU init (once) ─────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -214,7 +256,14 @@ export function Canvas({ className }: CanvasProps) {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div ref={outerRef} className={`relative overflow-hidden ${className ?? ""}`}>
+    <div
+      ref={outerRef}
+      className={`relative overflow-hidden ${className ?? ""}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div ref={innerRef} className="absolute inset-0" style={{ transformOrigin: "center center" }}>
         <canvas
           ref={canvasRef}
@@ -224,6 +273,17 @@ export function Canvas({ className }: CanvasProps) {
       </div>
 
       {status !== "ready" && <CanvasFallback status={status} />}
+
+      {/* Empty state — shown when canvas is ready but no media is loaded */}
+      {status === "ready" && !hasMediaLayers && !isDragOver && (
+        <_EmptyState />
+      )}
+
+      {/* Drag-over overlay */}
+      {isDragOver && <_DropOverlay />}
+
+      {/* Upload progress overlay */}
+      {uploadLoading && <_LoadingOverlay />}
 
       {/* FPS badge — dev only */}
       {process.env.NODE_ENV === "development" && status === "ready" && (
@@ -257,6 +317,82 @@ function _FpsBadge() {
   return (
     <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-black/40 px-1.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-sm">
       {fps} fps
+    </div>
+  );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function _EmptyState() {
+  return (
+    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-xs select-none">
+      <div className="flex flex-col items-center gap-xs rounded-md border border-dashed border-[var(--color-border-hover)] px-xl py-lg text-center">
+        <ImageSquare
+          size={32}
+          weight="thin"
+          className="text-[var(--color-fg-disabled)]"
+        />
+        <div className="flex flex-col gap-[3px]">
+          <p className="text-sm font-medium text-[var(--color-fg-secondary)]">
+            Drop media to get started
+          </p>
+          <p className="text-xs text-[var(--color-fg-disabled)]">
+            PNG · JPG · WebP · GIF · MP4 · WebM
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Drop overlay ──────────────────────────────────────────────────────────────
+
+function _DropOverlay() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-xs">
+      {/* Tinted backdrop */}
+      <div className="absolute inset-0 bg-[var(--color-accent)] opacity-[0.06]" />
+      {/* Dashed border inset */}
+      <div className="absolute inset-3 rounded-md border-2 border-dashed border-[var(--color-accent)] opacity-60" />
+      {/* Label */}
+      <div className="relative flex items-center gap-xs rounded-sm bg-[var(--color-bg-raised)] px-sm py-xs shadow-mid">
+        <ArrowSquareIn size={16} className="text-[var(--color-accent)]" />
+        <span className="text-sm font-medium text-[var(--color-fg-primary)]">
+          Drop to import
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Loading overlay ───────────────────────────────────────────────────────────
+
+function _LoadingOverlay() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+      <div className="absolute inset-0 bg-[var(--color-bg)] opacity-40" />
+      <div className="relative flex items-center gap-xs rounded-sm bg-[var(--color-bg-raised)] px-sm py-xs shadow-mid">
+        <svg
+          className="h-4 w-4 animate-spin text-[var(--color-accent)]"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="3"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+          />
+        </svg>
+        <span className="text-sm text-[var(--color-fg-secondary)]">Loading…</span>
+      </div>
     </div>
   );
 }

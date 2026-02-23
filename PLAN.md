@@ -531,6 +531,8 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 - [x] Contrast control: clamp(luma * contrast, 0, 1)
 - [x] Softness: anti-aliased dot edges (smoothstep with aa width scaled to gridSpacing)
 - [x] dotMin param: minimum dot radius so dots are visible even in dark areas
+- [x] Invert luma toggle (`invertLuma` bool param — swaps bright/dark dot sizing)
+- [x] Dots overflow their cell: 3×3 neighborhood loop, pure functional fold (select/max DAG — no TSL If/toVar outside Fn())
 - [ ] CMYK mode (stretch): separate halftone per channel at different angles
 
 **Done when:** Halftone produces rich microtextures that reflect the underlying image. Changing an image changes the halftone pattern. All shape and color modes work.
@@ -679,27 +681,29 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 5.3 Color Picker (`src/components/shared/ColorPicker.tsx`)
 
-- [ ] HSL color picker with:
-  - Saturation/Lightness 2D area
+- [x] HSV color picker with:
+  - Saturation/Value 2D area (click/drag with pointer capture)
   - Hue slider bar
-  - Alpha slider bar (when applicable)
   - Hex input field
   - RGB input fields
-- [ ] Popover positioning (doesn't overflow viewport)
-- [ ] Swatch shows current color, opens picker on click
-- [ ] Recent colors row (kept in component state, not persisted)
+- [x] Popover trigger = color swatch + hex label
+- [x] Swatch shows current color, opens picker on click
+- [x] Recent colors row (max 8, recorded on popover close, kept in component state)
+- [x] Color math: hexToRgb, rgbToHex, rgbToHsv, hsvToRgb helpers
 
-**Done when:** Can pick any color. Hex input syncs with picker. Alpha works. Popover positions correctly.
+**Done when:** Can pick any color. Hex input syncs with picker. Popover positions correctly. ✅
 
 ### 5.4 XY Pad Control
 
-- [ ] For `vec2` params like `focusPoint`
-- [ ] Small 2D area where you can click/drag to set X/Y
-- [ ] Shows crosshair at current position
-- [ ] Displays numeric X/Y values
-- [ ] Bounded to 0–1 range (normalized)
+- [x] For `vec2` params like `focusPoint`
+- [x] Square aspect-ratio 2D area where you can click/drag to set X/Y (pointer capture)
+- [x] Subtle grid background + crosshair lines at current position
+- [x] Handle dot at current position (accent color)
+- [x] Two precise SliderRow inputs below the pad for fine control
+- [x] Numeric readout (X, Y values)
+- [x] Bounded to param min/max range (normalized for display)
 
-**Done when:** Dragging the pad updates the vec2 param. Canvas responds in real-time.
+**Done when:** Dragging the pad updates the vec2 param. Canvas responds in real-time. ✅
 
 ---
 
@@ -709,14 +713,18 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 6.1 Upload Flow
 
-- [ ] Drag-and-drop zone on canvas (when no media loaded) + file input button
-- [ ] Accept: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.mp4`, `.webm`
-- [ ] File validation: type check, size limit (50MB), dimension check
-- [ ] Progress indicator during load
-- [ ] On success: create `MediaAsset` in mediaStore, set as base texture in renderer
-- [ ] Error toast on invalid file
+- [x] Drag-and-drop zone on canvas (when no media loaded) + file input button
+- [x] Accept: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.mp4`, `.webm`
+- [x] File validation: type check, size limit (50MB) via mediaStore
+- [x] Progress indicator during load (`_LoadingOverlay` with spinner)
+- [x] On success: create `MediaAsset` in mediaStore, add image/video layer, set as base texture in renderer
+- [x] Error toast on invalid file
+- [x] Empty canvas state: dashed card with `ImageSquare` icon + format hints (shown when ready + no media)
+- [x] Drop overlay: accent tinted backdrop + dashed border + "Drop to import" pill
+- [x] `useMediaUpload` hook: shared logic for toolbar file picker + canvas drag-drop
+- [x] Counter-based drag detection (`dragCountRef`) to handle child-element drag-leave correctly
 
-**Done when:** Can drag an image onto the canvas and it appears. Same with video. Invalid files show error toast.
+**Done when:** Can drag an image onto the canvas and it appears. Same with video. Invalid files show error toast. ✅
 
 ### 6.2 Default Assets
 
@@ -1007,9 +1015,9 @@ Tasks can be marked with:
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
 | 2 | WebGPU Renderer | 6 | 5 | 🔵 In progress |
 | 3 | Layer System UI | 6 | 6 | ✅ Complete |
-| 4 | Shader Library | 9 | 3 | 🔵 In progress |
-| 5 | Controls & Sidebar | 4 | 0 | ⬜ Not started |
-| 6 | Media Input | 3 | 0 | ⬜ Not started |
+| 4 | Shader Library | 9 | 9 | ✅ Complete |
+| 5 | Controls & Sidebar | 4 | 4 | ✅ Complete |
+| 6 | Media Input | 3 | 1 | 🔵 In progress |
 | 7 | Interactivity | 3 | 0 | ⬜ Not started |
 | 8 | Polish & Perf | 5 | 0 | ⬜ Not started |
 | 9 | Export | 3 | 0 | ⬜ Not started |

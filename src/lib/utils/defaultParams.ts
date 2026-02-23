@@ -150,6 +150,14 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           group: "Tone",
           description: "Anti-aliasing width at dot edges",
         },
+        {
+          key: "invertLuma",
+          label: "Invert Luma",
+          type: "bool",
+          value: false,
+          group: "Tone",
+          description: "Invert luminance so dark areas produce large dots",
+        },
       ];
 
     case "ascii":

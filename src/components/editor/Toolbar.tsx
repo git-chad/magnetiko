@@ -25,6 +25,7 @@ import {
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore, registerHistoryShortcuts } from "@/store/historyStore";
 import { useLayerStore } from "@/store/layerStore";
+import { useMediaUpload } from "@/hooks/useMediaUpload";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -53,21 +54,17 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
   const redo    = useHistoryStore((s) => s.redo);
 
   // Layer actions
-  const setLayers    = useLayerStore((s) => s.setLayers);
-  const addLayer     = useLayerStore((s) => s.addLayer);
-  const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
+  const setLayers = useLayerStore((s) => s.setLayers);
 
   // ── File import ──────────────────────────────────────────────────────────
+  const { upload, isLoading: uploadLoading } = useMediaUpload();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url     = URL.createObjectURL(file);
-    const isVideo = file.type.startsWith("video/");
-    const id      = addLayer(isVideo ? "video" : "image");
-    setLayerMedia(id, url, isVideo ? "video" : "image");
     e.target.value = ""; // allow re-selecting same file
+    await upload(file);
   }
 
   // ── Undo / redo ──────────────────────────────────────────────────────────
@@ -137,9 +134,13 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
               size="icon-sm"
               variant="ghost"
               aria-label="Import media"
+              disabled={uploadLoading}
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload size={15} />
+              <Upload
+                size={15}
+                className={uploadLoading ? "animate-spin opacity-50" : ""}
+              />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Import media</TooltipContent>
@@ -148,7 +149,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
           className="hidden"
           onChange={handleFileChange}
         />
