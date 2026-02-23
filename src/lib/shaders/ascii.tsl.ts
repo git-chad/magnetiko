@@ -72,8 +72,8 @@ export class AsciiPass extends PassNode {
     // returned the passthrough _inputNode because these uniforms didn't exist
     // yet. Initialise them now, then rebuild the real effect.
     this._cellSizeU  = uniform(8.0);
-    this._numCharsU  = uniform(float(CHARSETS["light"].length));
-    this._colorModeU = uniform(0.0);  // 0=source
+    this._numCharsU  = uniform(CHARSETS["light"].length);  // plain number, not a TSL node
+    this._colorModeU = uniform(1.0);  // 1=monochrome (white glyphs on black bg)
     this._bgOpacityU = uniform(1.0);
     this._invertU    = uniform(0.0);
 
