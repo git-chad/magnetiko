@@ -32,6 +32,10 @@ Prefix titles with severity:
 > This section grows as mistakes are logged. Extract the **Rule** from each entry and add it here for fast scanning.
 
 - NEVER use named spacing tokens (`sm`, `md`, `lg`, `xl`, `2xl`, `3xl`, `4xl`) with `max-w-*` — our `--spacing-*` tokens override Tailwind's default `max-w-{name}` values. Use arbitrary values (`max-w-[32rem]`) instead.
+- ALWAYS add a `clearTexture()` method when designing media-holding objects — callers need a way to reset back to blank state when the media layer is deleted.
+- ALWAYS return `vec4` (not `vec3`) from `_buildEffectNode()` — `buildBlendNode` accesses `.rgb` which works on vec4; vec3 causes type-inference issues in TSL.
+- ALWAYS add a minimum radius/size param to halftone/dot effects — without `dotMin`, dark areas produce zero-size dots (invisible), giving the incorrect appearance of "random dots not everywhere".
+- NEVER use per-pixel input texture as the halftone background in source mode — for smooth images dotColor ≈ bgColor → invisible effect. Use a solid background (white for source mode) so dots are always visible against it.
 
 <!-- 
 Example of what this section will look like:
@@ -53,6 +57,37 @@ Example of what this section will look like:
 **Why it happened:** In Tailwind v4, `--spacing-*` variables in `@theme` generate ALL sizing utilities — including `max-w-*`, `min-w-*`, `w-*`, `h-*`, etc. Our tokens `--spacing-sm: 1.125rem`, `--spacing-3xl: 6rem`, etc. silently replaced Tailwind's default `max-w-sm` (24rem) and `max-w-3xl` (48rem) values.
 **The fix:** Replace all `max-w-{spacing-name}` with arbitrary values: `max-w-[32rem]`, `max-w-[48rem]`, etc. Affected: `dialog.tsx` (`max-w-lg` → `max-w-[32rem]`), preview page (`max-w-3xl` → `max-w-[48rem]`, `max-w-sm` → `max-w-[20rem]`, `max-w-xs` → `max-w-[16rem]`).
 **Rule:** NEVER use named spacing tokens with `max-w-*` — always use arbitrary pixel/rem values for max-widths.
+
+### 🟡 [4.2] Delete-media-layer left stale texture on canvas
+**Date:** 2026-02-22
+**Task:** Phase 4.2 — Halftone + canvas media sync
+**What went wrong:** Deleting a media (image/video) layer from the stack did not clear the canvas — the stale texture kept rendering.
+**Why it happened:** `Canvas.tsx` `sync()` only loaded new media (when `mediaLayer.mediaUrl !== loadedBaseUrlRef.current`), but had no branch for the case where `mediaLayer` was undefined (layer deleted). `FullscreenQuad` also had no `clearTexture()` method.
+**The fix:** Added `clearTexture()` to `FullscreenQuad` (resets both `_coverTexNode`/`_containTexNode` to `_placeholder`, resets `_uTextureAspect`). Updated `sync()` to call `p.baseQuad.clearTexture()` when no media layer exists.
+**Rule:** ALWAYS add a `clearTexture()` / reset method when designing media-holding GPU objects — callers need a way to revert to blank state.
+
+### 🔴 [4.2] Halftone source mode invisible — bgColor ≈ dotColor for smooth images
+**Date:** 2026-02-22
+**Task:** Phase 4.2 — Halftone shader source color mode
+**What went wrong:** Source color mode produced near-invisible halftone. Appeared as a barely-there dot pattern on smooth images, and completely invisible on uniform-color areas.
+**Why it happened:** The original code sampled the input texture per-pixel for both the dot color AND the background. For smooth images, the per-pixel background color and the cell-center dot color are essentially the same value → contrast ≈ 0 → invisible.
+**The fix:** Changed the source mode background from per-pixel input to solid white `vec3(1.0, 1.0, 1.0)`. This matches how reference halftone implementations work: colored dots (cell-center color) always appear against a solid neutral background.
+**Rule:** NEVER use per-pixel input texture as the halftone background in source mode. Always use a solid background so dots have visible contrast.
+
+### 🟡 [4.2] Halftone "random dots not everywhere" — zero radius in dark areas
+**Date:** 2026-02-22
+**Task:** Phase 4.2 — Halftone dot sizing
+**What went wrong:** After fixing source mode visibility, halftone still showed dots only in bright/mid regions. Dark areas had no dots at all, making the effect look sparse and "random."
+**Why it happened:** Dot radius formula was `luma * dotSize`. In dark areas `luma ≈ 0`, so `radius ≈ 0` — dots are mathematically zero-size and thus invisible.
+**The fix:** Added a `dotMin` parameter (minimum dot radius). New formula: `radius = dotMin + adjustedLuma * dotSize`. This ensures a minimum-size dot is always present in every cell, even in black areas. Default `dotMin = 2px`.
+**Rule:** ALWAYS add a minimum radius/size param to halftone and dot-grid effects. Without it, dark regions produce invisible dots, breaking the illusion of a full halftone grid.
+
+### 🟢 [4.2] _buildEffectNode should return vec4, not vec3
+**Date:** 2026-02-22
+**Task:** Phase 4.2 — Halftone PassNode subclass
+**What went wrong:** Initial halftone `_buildEffectNode()` returned a `vec3`. While `buildBlendNode` can sometimes handle this, it caused TypeScript type inference issues and was inconsistent with the pixelation pass (which returns `vec4`).
+**The fix:** Changed return to `vec4(mix(bgColor, dotColor, mask), float(1.0))`. This matches the established pattern and keeps the blend node's `.rgb` accessor working correctly.
+**Rule:** ALWAYS return `vec4` from `_buildEffectNode()` subclass overrides.
 
 <!--
 ### 🟡 [2.1] WebGPURenderer failed to initialize on Firefox
@@ -97,6 +132,15 @@ These are common pitfalls in this tech stack. Not mistakes yet, but things to be
 ## Session Notes
 
 > Quick notes from each work session. Not full mistake entries — just context for continuity.
+
+### Session 2026-02-22
+- Completed: Phase 4.2 Halftone shader — full TSL implementation with grid rotation, 4 dot shapes, 3 color modes, contrast, softness, dotMin
+- Fixed: delete-media-layer bug — Canvas.tsx sync() wasn't calling `clearTexture()` when the media layer was removed, so the quad kept showing stale media
+- Fixed: halftone source mode "random dots not everywhere" — root cause was zero dotRadius in dark areas AND bgColor ≈ dotColor for smooth images in source mode
+- **KEY LESSON — Source mode halftone design:** In source mode the dot color comes from the cell-center sample. If the background is also sampled from the input texture (per-pixel), then on smooth images `dotColor ≈ bgColor` and the effect is invisible. Always use a solid background (white) so dots are always visible.
+- **KEY LESSON — dotMin:** A minimum radius param is essential for halftone/dot effects. Without it, dark areas produce zero-radius dots (completely invisible), making the effect look sparse or "random."
+- **KEY LESSON — vec4 return from _buildEffectNode:** Return `vec4(rgb, 1.0)` not `vec3`. The `buildBlendNode` accesses `.rgb` which works on vec4; returning vec3 is inconsistent with the pixelation pattern and causes edge-case type issues.
+- Blocked on: nothing
 
 ### Session 2026-02-21
 - Completed: Phase 2.6 (blend mode library — all 16 TSL blend modes, opacity uniform wired into PassNode + PipelineManager)

@@ -58,6 +58,8 @@ export class HalftonePass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _contrastU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _dotMinU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _softnessU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _duotoneLightU: any; // vec3
@@ -79,7 +81,8 @@ export class HalftonePass extends PassNode {
     const darkCol  = new THREE.Color("#1d1d1c");
 
     this._gridSpacingU  = uniform(20.0);
-    this._dotSizeU      = uniform(10.0);
+    this._dotSizeU      = uniform(8.0);
+    this._dotMinU       = uniform(2.0);
     this._shapeU        = uniform(0.0);  // 0=circle 1=square 2=diamond 3=line
     this._angleU        = uniform((45.0 * Math.PI) / 180.0);
     this._colorModeU    = uniform(1.0);  // 0=source 1=mono 2=duotone
@@ -173,8 +176,10 @@ export class HalftonePass extends PassNode {
       min(max(float(luma.mul(this._contrastU)), float(0.0)), float(1.0)),
     );
 
-    // ── Dot radius in pixels — bright areas produce larger dots ───────────────
-    const radius = float(adjustedLuma.mul(this._dotSizeU));
+    // ── Dot radius in pixels ──────────────────────────────────────────────────
+    // radius = minRadius + luma * dotSize
+    // dotMin keeps dots visible in dark areas (matches reference's minDot param).
+    const radius = float(float(this._dotMinU).add(adjustedLuma.mul(this._dotSizeU)));
 
     // ── Distance from this pixel to the dot center (in rotated space) ─────────
     // Rotation preserves distances, so grid-space distance = screen-space
@@ -226,12 +231,6 @@ export class HalftonePass extends PassNode {
       float(this._duotoneLightU.y),
       float(this._duotoneLightU.z),
     );
-    const inputVec = vec3(
-      float(this._inputNode.r),
-      float(this._inputNode.g),
-      float(this._inputNode.b),
-    );
-
     // ── Dot color ─────────────────────────────────────────────────────────────
     const srcColor     = vec3(float(sampledColor.r), float(sampledColor.g), float(sampledColor.b));
     const monoColor    = vec3(adjustedLuma, adjustedLuma, adjustedLuma);
@@ -248,12 +247,12 @@ export class HalftonePass extends PassNode {
     );
 
     // ── Background color (shown between dots) ─────────────────────────────────
-    // source  → pass original input through (non-destructive background)
+    // source  → white, so colored dots are always clearly visible (ref. pattern)
     // mono    → black
     // duotone → dark tone
     const bgColor = select(
       this._colorModeU.lessThan(float(0.5)),
-      inputVec,
+      vec3(1.0, 1.0, 1.0),
       select(
         this._colorModeU.lessThan(float(1.5)),
         vec3(0.0, 0.0, 0.0),
@@ -275,7 +274,10 @@ export class HalftonePass extends PassNode {
           this._gridSpacingU.value = typeof p.value === "number" ? p.value : 8;
           break;
         case "dotSize":
-          this._dotSizeU.value = typeof p.value === "number" ? p.value : 4;
+          this._dotSizeU.value = typeof p.value === "number" ? p.value : 8;
+          break;
+        case "dotMin":
+          this._dotMinU.value = typeof p.value === "number" ? p.value : 2;
           break;
         case "shape": {
           const shapeMap: Record<string, number> = {

@@ -521,17 +521,21 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 4.2 Halftone Shader (`src/lib/shaders/halftone.tsl.ts`)
 
-- [ ] Sample input texture, pre-pixelate to match dot grid (1:1 grid alignment — this is the key insight)
-- [ ] Compute luminance from sampled pixel
-- [ ] Size each dot proportional to luminance (dark = large dot, light = small dot, or inverted)
-- [ ] Grid patterns: regular, rotated (angle param), staggered
-- [ ] Dot shapes: circle, square, diamond, line (creates line-based halftone)
-- [ ] Color modes: source color per dot, monochrome, duotone (light/dark color params)
-- [ ] Contrast control: remap luminance curve before sizing dots
-- [ ] Softness: anti-aliased dot edges (smoothstep width)
+- [x] Sample input texture at cell center (rotated grid → inverse-rotate cell center → UV sample)
+- [x] Compute luminance (Rec. 709) from sampled cell-center pixel
+- [x] Size each dot proportional to luminance: `radius = dotMin + luma * dotSize` (bright = larger dot)
+- [x] Grid patterns: regular, rotated (angle param in degrees → radians uniform)
+- [ ] Staggered grid (not yet implemented)
+- [x] Dot shapes: circle, square, diamond, line (select() branching on shape uniform)
+- [x] Color modes: source color per dot (white background), monochrome, duotone (light/dark color params)
+- [x] Contrast control: clamp(luma * contrast, 0, 1)
+- [x] Softness: anti-aliased dot edges (smoothstep with aa width scaled to gridSpacing)
+- [x] dotMin param: minimum dot radius so dots are visible even in dark areas
 - [ ] CMYK mode (stretch): separate halftone per channel at different angles
 
 **Done when:** Halftone produces rich microtextures that reflect the underlying image. Changing an image changes the halftone pattern. All shape and color modes work.
+
+**Status:** Core implementation complete and working. Source/mono/duotone color modes verified. Staggered grid and CMYK deferred.
 
 ### 4.3 ASCII Shader (`src/lib/shaders/ascii.tsl.ts`)
 
@@ -996,7 +1000,7 @@ Tasks can be marked with:
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
 | 2 | WebGPU Renderer | 6 | 5 | 🔵 In progress |
 | 3 | Layer System UI | 6 | 6 | ✅ Complete |
-| 4 | Shader Library | 9 | 1 | 🔵 In progress |
+| 4 | Shader Library | 9 | 2 | 🔵 In progress |
 | 5 | Controls & Sidebar | 4 | 0 | ⬜ Not started |
 | 6 | Media Input | 3 | 0 | ⬜ Not started |
 | 7 | Interactivity | 3 | 0 | ⬜ Not started |
