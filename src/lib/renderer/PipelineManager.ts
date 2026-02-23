@@ -2,6 +2,7 @@ import * as THREE from "three/webgpu";
 import { uv, vec2, float, texture as tslTexture } from "three/tsl";
 import { FullscreenQuad } from "./MediaTexture";
 import { PassNode } from "./PassNode";
+import { MediaPass } from "./MediaPass";
 import { createPassNode } from "./passNodeFactory";
 import type { ShaderParam } from "@/types";
 
@@ -12,14 +13,16 @@ import type { ShaderParam } from "@/types";
 /** Minimal layer descriptor the pipeline needs per frame. */
 export interface PipelineLayer {
   id: string;
+  /** Determines which PassNode subclass to create for this layer. */
+  kind: "shader" | "image" | "video";
   visible: boolean;
   opacity: number;
-  /** Phase 4: blend mode applied in mask mode */
   blendMode: string;
-  /** filter — processes underlying texture; mask — independent output */
   filterMode: "filter" | "mask";
   params: ShaderParam[];
   shaderType?: string;
+  /** Image or video URL — only set for kind='image'|'video' layers. */
+  mediaUrl?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,15 +39,14 @@ export interface PipelineLayer {
  *
  * Mask-mode layers are composited (Phase 2.6 / Phase 4).
  *
- * The `baseQuad` is public so the owning component can call
- * `setTexture` / `setVideoHandle` to inject media.
+ * Media layers are fully first-class passes in the chain — a `MediaPass`
+ * node is created for each image/video layer and composited in stack order.
  */
 export class PipelineManager {
   private readonly _renderer: THREE.WebGPURenderer;
 
-  // ── Base media (bottom of the stack) ─────────────────────────────────────
-  /** Set media on this quad to inject image / video into the pipeline. */
-  readonly baseQuad: FullscreenQuad;
+  // ── Black base — used to initialise RT A to a clean frame each render ─────
+  private readonly _baseQuad: FullscreenQuad;
   private readonly _baseScene: THREE.Scene;
   private readonly _baseCamera: THREE.OrthographicCamera;
 
@@ -75,11 +77,13 @@ export class PipelineManager {
     this._width    = width;
     this._height   = height;
 
-    // Base media scene
+    // Black-base scene — renders an untextured quad to clear RT A each frame.
+    // Media layers are now full PassNode passes in the chain; this just gives
+    // the first pass a clean black input to composite over.
     this._baseScene = new THREE.Scene();
     this._baseCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    this.baseQuad = new FullscreenQuad();
-    this._baseScene.add(this.baseQuad.mesh);
+    this._baseQuad = new FullscreenQuad();
+    this._baseScene.add(this._baseQuad.mesh);
 
     // Ping-pong RTs
     this._rtA = this._makeRT(width, height);
@@ -120,18 +124,32 @@ export class PipelineManager {
       }
     }
 
-    // Create passes for new layers
+    // Create passes for new layers (media or shader)
     for (const layer of layers) {
       if (!this._passMap.has(layer.id)) {
-        const pass = createPassNode(layer.id, layer.shaderType);
+        let pass: PassNode;
+        if (layer.kind === "image" || layer.kind === "video") {
+          pass = new MediaPass(layer.id);
+        } else {
+          pass = createPassNode(layer.id, layer.shaderType);
+        }
         pass.resize(this._width, this._height);
         this._passMap.set(layer.id, pass);
       }
+
       const pass = this._passMap.get(layer.id)!;
       pass.enabled = layer.visible;
       pass.updateOpacity(layer.opacity);
       pass.updateBlendMode(layer.blendMode);
       pass.updateUniforms(layer.params);
+
+      // Trigger async media load when URL changes (no-op if already loaded)
+      if ((layer.kind === "image" || layer.kind === "video") && layer.mediaUrl) {
+        const mediaPass = pass as MediaPass;
+        if (mediaPass.loadedUrl !== layer.mediaUrl) {
+          mediaPass.setMedia(layer.mediaUrl, layer.kind);
+        }
+      }
     }
 
     // Re-order to match layer stack (bottom → top)
@@ -198,9 +216,6 @@ export class PipelineManager {
   render(time: number, delta: number): void {
     const renderer = this._renderer;
 
-    // Mark video texture dirty so WebGPU re-uploads the current frame
-    this.baseQuad.tick();
-
     const activePasses = this._passes.filter((p) => p.enabled);
 
     if (activePasses.length === 0) {
@@ -241,7 +256,7 @@ export class PipelineManager {
     this._height = height;
     this._rtA.setSize(width, height);
     this._rtB.setSize(width, height);
-    this.baseQuad.updateCanvasAspect(width, height);
+    this._baseQuad.updateCanvasAspect(width, height);
     for (const pass of this._passMap.values()) {
       pass.resize(width, height);
     }
@@ -250,7 +265,7 @@ export class PipelineManager {
   dispose(): void {
     this._rtA.dispose();
     this._rtB.dispose();
-    this.baseQuad.dispose();
+    this._baseQuad.dispose();
     for (const pass of this._passMap.values()) {
       pass.dispose();
     }

@@ -4,7 +4,6 @@ import * as React from "react";
 import * as THREE from "three/webgpu";
 import { ArrowSquareIn, ImageSquare } from "@phosphor-icons/react";
 import { isWebGPUSupported } from "@/lib/renderer/WebGPURenderer";
-import { loadImageTexture, createVideoTexture } from "@/lib/renderer/MediaTexture";
 import { PipelineManager } from "@/lib/renderer/PipelineManager";
 import type { PipelineLayer } from "@/lib/renderer/PipelineManager";
 import { useLayerStore } from "@/store/layerStore";
@@ -73,13 +72,10 @@ export function Canvas({ className }: CanvasProps) {
   const panOffset = useEditorStore((s) => s.panOffset);
   const setFps    = useEditorStore((s) => s.setFps);
 
-  // True when at least one image/video layer exists (drives empty-state display)
+  // True when at least one media layer with a loaded URL exists
   const hasMediaLayers = useLayerStore(
-    (s) => s.layers.some((l) => l.kind === "image" || l.kind === "video"),
+    (s) => s.layers.some((l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl),
   );
-
-  // Track which media URL is currently loaded into the base quad
-  const loadedBaseUrlRef = React.useRef<string | null>(null);
 
   // ── Drag-and-drop ──────────────────────────────────────────────────────────
   const { upload, isLoading: uploadLoading } = useMediaUpload();
@@ -148,7 +144,6 @@ export function Canvas({ className }: CanvasProps) {
         rendererRef.current = renderer;
         pipeline = new PipelineManager(renderer, w, h);
         pipelineRef.current = pipeline;
-        pipeline.baseQuad.updateCanvasAspect(w, h);
 
         // Animation loop
         let frames = 0, lastFpsSec = 0, prevTimeSec = 0;
@@ -196,57 +191,33 @@ export function Canvas({ className }: CanvasProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Layer / media sync via direct Zustand subscription ───────────────────
+  // ── Layer sync via direct Zustand subscription ────────────────────────────
   React.useEffect(() => {
     if (status !== "ready") return;
 
     function sync(layers: Layer[]) {
-      // Always read the current pipeline — avoids stale closure + fixes TS null narrowing
       const p = pipelineRef.current;
       if (!p) return;
 
-      const ordered = [...layers].reverse(); // bottom → top
+      // All layers — both media and shader — become passes in the pipeline,
+      // ordered bottom → top so the render chain composites correctly.
+      const passes: PipelineLayer[] = [...layers].reverse().map((l) => ({
+        id:         l.id,
+        kind:       l.kind,
+        visible:    l.visible,
+        opacity:    l.opacity,
+        blendMode:  l.blendMode,
+        filterMode: l.filterMode,
+        params:     l.params,
+        shaderType: l.shaderType,
+        mediaUrl:   l.mediaUrl,
+      }));
 
-      // Shader layers → pipeline passes
-      const passes: PipelineLayer[] = ordered
-        .filter((l) => l.kind === "shader")
-        .map((l) => ({
-          id: l.id,
-          visible: l.visible,
-          opacity: l.opacity,
-          blendMode: l.blendMode,
-          filterMode: l.filterMode,
-          params: l.params,
-          shaderType: l.shaderType,
-        }));
       p.syncLayers(passes);
-
-      // Base media: topmost visible media layer drives the base quad.
-      // New uploads go to the top of the stack, so searching top-to-bottom
-      // (i.e. reversing the bottom-to-top `ordered` array) ensures the most
-      // recently added visible layer is always what the user sees.
-      // Visibility must be checked so hiding a layer actually clears/swaps it.
-      const mediaLayer = [...ordered].reverse().find(
-        (l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl && l.visible,
-      );
-
-      if (!mediaLayer?.mediaUrl) {
-        if (loadedBaseUrlRef.current !== null) {
-          loadedBaseUrlRef.current = null;
-          p.baseQuad.clearTexture();
-        }
-      } else if (mediaLayer.mediaUrl !== loadedBaseUrlRef.current) {
-        loadedBaseUrlRef.current = mediaLayer.mediaUrl;
-        _loadBaseMedia(p, mediaLayer);
-      }
     }
 
-    // Sync immediately with current store state (handles pre-existing layers)
     sync(useLayerStore.getState().layers);
-
-    // Subscribe to all future store changes — fires synchronously on every set()
     const unsub = useLayerStore.subscribe((state) => sync(state.layers));
-
     return unsub;
   }, [status]);
 
@@ -300,21 +271,6 @@ export function Canvas({ className }: CanvasProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-async function _loadBaseMedia(pipeline: PipelineManager, layer: Layer): Promise<void> {
-  if (!layer.mediaUrl) return;
-  try {
-    if (layer.kind === "image") {
-      const tex = await loadImageTexture(layer.mediaUrl);
-      pipeline.baseQuad.setTexture(tex, "cover");
-    } else {
-      const handle = await createVideoTexture(layer.mediaUrl);
-      pipeline.baseQuad.setVideoHandle(handle, "cover");
-    }
-  } catch (err) {
-    console.error("[Canvas] failed to load base media:", err);
-  }
-}
 
 function _FpsBadge() {
   const fps = useEditorStore((s) => s.fps);

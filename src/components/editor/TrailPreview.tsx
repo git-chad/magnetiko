@@ -80,11 +80,11 @@ export function TrailPreview() {
 
         pipeline = new PipelineManager(renderer, w, h);
         pipelineRef.current = pipeline;
-        pipeline.baseQuad.updateCanvasAspect(w, h);
 
         // Seed the pipeline with a single interactivity pass (trail mode by default).
         pipeline.syncLayers([{
           id:           "trail-demo",
+          kind:         "shader",
           shaderType:   "interactivity",
           visible:      true,
           opacity:      1,

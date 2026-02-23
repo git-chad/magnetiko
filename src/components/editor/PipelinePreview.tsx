@@ -5,7 +5,6 @@ import * as THREE from "three/webgpu";
 import { Badge, Button, Text } from "@/components/ui";
 import { UploadSimple, Plus, Minus } from "@phosphor-icons/react";
 import { isWebGPUSupported } from "@/lib/renderer/WebGPURenderer";
-import { loadImageTexture, createVideoTexture } from "@/lib/renderer/MediaTexture";
 import { PipelineManager } from "@/lib/renderer/PipelineManager";
 import type { PipelineLayer } from "@/lib/renderer/PipelineManager";
 import { useMediaStore } from "@/store/mediaStore";
@@ -64,9 +63,6 @@ export function PipelinePreview() {
         pipeline = new PipelineManager(threeRenderer, w, h);
         pipelineRef.current = pipeline;
 
-        // Seed canvas aspect
-        pipeline.baseQuad.updateCanvasAspect(w, h);
-
         // Animation loop
         let frames = 0, lastFpsSec = 0, prevTimeSec = 0;
         threeRenderer.setAnimationLoop((timeMs: number) => {
@@ -122,19 +118,24 @@ export function PipelinePreview() {
     if (!file) return;
     e.target.value = "";
 
-    const pipeline = pipelineRef.current;
-    if (!pipeline) return;
-
     setLoadingMedia(true);
     try {
       const asset = await loadAsset(file);
-      if (asset.type === "image") {
-        const tex = await loadImageTexture(asset.url);
-        pipeline.baseQuad.setTexture(tex, "cover");
-      } else {
-        const handle = await createVideoTexture(asset.url);
-        pipeline.baseQuad.setVideoHandle(handle, "cover");
-      }
+      // Add media as the bottom layer so shader passes composite over it
+      const mediaLayer: PipelineLayer = {
+        id:         "preview-media",
+        kind:       asset.type === "video" ? "video" : "image",
+        visible:    true,
+        opacity:    1,
+        blendMode:  "normal",
+        filterMode: "filter",
+        params:     [],
+        mediaUrl:   asset.url,
+      };
+      setLayers((prev) => [
+        mediaLayer,
+        ...prev.filter((l) => l.id !== "preview-media"),
+      ]);
       setHasMedia(true);
     } catch (err) {
       console.error("[PipelinePreview] upload error:", err);
@@ -146,12 +147,13 @@ export function PipelinePreview() {
   // ── Layer management (demo controls) ─────────────────────────────────────
   function addPass() {
     const newLayer: PipelineLayer = {
-      id: `pass-${Date.now()}`,
-      visible: true,
-      opacity: 1,
-      blendMode: "normal",
+      id:         `pass-${Date.now()}`,
+      kind:       "shader",
+      visible:    true,
+      opacity:    1,
+      blendMode:  "normal",
       filterMode: "filter",
-      params: [],
+      params:     [],
     };
     setLayers((prev) => [...prev, newLayer]);
   }
