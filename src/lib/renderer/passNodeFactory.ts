@@ -5,6 +5,7 @@ import { AsciiPass } from "@/lib/shaders/ascii.tsl";
 import { DitheringPass } from "@/lib/shaders/dithering.tsl";
 import { FlutedGlassPass } from "@/lib/shaders/flutedGlass.tsl";
 import { ProgressiveBlurPass } from "@/lib/shaders/progressiveBlur.tsl";
+import { GrainPass } from "@/lib/shaders/grain.tsl";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Factory
@@ -22,6 +23,7 @@ export function createPassNode(layerId: string, shaderType?: string): PassNode {
     case "dithering":     return new DitheringPass(layerId);
     case "fluted-glass":      return new FlutedGlassPass(layerId);
     case "progressive-blur":  return new ProgressiveBlurPass(layerId);
+    case "grain":             return new GrainPass(layerId);
     default:                  return new PassNode(layerId);
   }
 }

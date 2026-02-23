@@ -611,15 +611,15 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 **Done when:** Sharp focus area transitions smoothly to blurred edges. Direction options all work. Tilt-shift look achievable with bottom-to-top direction.
 
-### 4.8 Grain Shader (`src/lib/shaders/grain.tsl.ts`)
+### 4.8 Grain Shader (`src/lib/shaders/grain.tsl.ts`) ✅
 
-- [ ] Animated noise pattern (time-based hash or noise texture)
-- [ ] Intensity: how visible the grain is
-- [ ] Size: scale of the noise pattern
-- [ ] Speed: animation rate
-- [ ] Monochrome: single channel noise vs. per-channel (RGB) noise for color grain
-- [ ] Blend via overlay, soft-light, or additive
-- [ ] Subtle: should feel like film grain, not static
+- [x] Animated noise pattern (time-based hash, no texture required)
+- [x] Intensity: how visible the grain is
+- [x] Size: scale of the noise pattern (quantizes pixel blocks)
+- [x] Speed: animation rate (seeds hash with time × speed)
+- [x] Monochrome: single channel noise vs. per-channel (RGB) noise for color grain
+- [x] Blend via overlay, soft-light, or additive
+- [x] Subtle: intensity=0 → neutral (grain=0.5, identity for all blend modes)
 
 **Done when:** Grain animates smoothly. At low intensity, adds subtle film-like texture. Monochrome vs. color grain clearly different.
 
