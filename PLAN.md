@@ -570,18 +570,23 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 **Done when:** All 4 algorithms produce visually distinct dithering. Bayer is crisp and grid-like, blue noise is organic. Color palette mode maps correctly.
 
-### 4.5 Bloom Shader (`src/lib/shaders/bloom.tsl.ts`)
+### 4.5 Bloom — per-shader enhancement (`src/lib/renderer/BloomSubPass.ts`)
 
-- [ ] **Multi-pass approach** (may need internal ping-pong within this single layer's pass):
-  1. Brightness extraction: threshold filter isolates bright areas
-  2. Downsample + blur: iterative Gaussian blur at progressively lower resolutions (3-5 mip levels)
-  3. Upsample + combine: add blurred bright areas back to original
-- [ ] Soft knee: smooth threshold transition
-- [ ] Intensity: multiplier on bloom contribution
-- [ ] Radius: blur kernel size
-- [ ] Option to blend with source or replace
+> **Architecture note:** Bloom is not a standalone layer type. It is a reusable
+> sub-pass that compatible shaders opt into. Controls appear inside the shader's
+> own property panel (e.g. "Bloom" group in ASCII settings), not as a layer.
 
-**Done when:** Bright areas glow convincingly. Performance is good (watch for GPU stalls on large radius). Threshold clearly controls what glows.
+- [x] `BloomSubPass` — 5-pass pipeline: extract → blur H → blur V → composite → blit
+  - [x] Brightness extraction via `max(R,G,B)` — catches saturated colours AND bright whites
+  - [x] Soft-knee `smoothstep` threshold for smooth falloff
+  - [x] 9-tap separable Gaussian blur (σ≈1.5), radius controlled by uniform
+  - [x] Composite: `source + intensity × blurred` or bloom-only mode
+  - [x] Safe in-place use: all writes go to internal RTs before final blit to outputTarget
+- [x] `PassNode.resize()` hook + `PipelineManager` propagates resize to all passes
+- [x] Integrated into `AsciiPass` as first bloom-capable shader
+  - [x] Bloom params in ASCII `defaultParams`: enabled, threshold, softKnee, intensity, radius, blendWithSource
+
+**Done when:** Enabling bloom on ASCII glows bright/saturated characters. Radius and intensity are tweakable. Other shaders can opt in by instantiating BloomSubPass and handling bloom params.
 
 ### 4.6 Fluted Glass Shader (`src/lib/shaders/flutedGlass.tsl.ts`)
 

@@ -125,6 +125,14 @@ export class PassNode {
     // Phase 4: implement per-shader param → uniform mapping
   }
 
+  /**
+   * Called by PipelineManager when the canvas is resized.
+   * Base implementation is a no-op; subclasses with internal RTs (e.g. bloom)
+   * override this to resize them.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  resize(_width: number, _height: number): void {}
+
   dispose(): void {
     this._scene.clear();
     this._material.dispose();

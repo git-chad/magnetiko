@@ -64,10 +64,16 @@ export class PipelineManager {
   private _passes: PassNode[] = [];
   private _passMap = new Map<string, PassNode>();
 
+  // ── Current canvas dimensions (needed to size new passes) ─────────────────
+  private _width: number;
+  private _height: number;
+
   // ─────────────────────────────────────────────────────────────────────────
 
   constructor(renderer: THREE.WebGPURenderer, width: number, height: number) {
     this._renderer = renderer;
+    this._width    = width;
+    this._height   = height;
 
     // Base media scene
     this._baseScene = new THREE.Scene();
@@ -117,7 +123,9 @@ export class PipelineManager {
     // Create passes for new layers
     for (const layer of layers) {
       if (!this._passMap.has(layer.id)) {
-        this._passMap.set(layer.id, createPassNode(layer.id, layer.shaderType));
+        const pass = createPassNode(layer.id, layer.shaderType);
+        pass.resize(this._width, this._height);
+        this._passMap.set(layer.id, pass);
       }
       const pass = this._passMap.get(layer.id)!;
       pass.enabled = layer.visible;
@@ -187,9 +195,14 @@ export class PipelineManager {
    * Resizes render targets and updates the base quad's canvas-aspect uniform.
    */
   resize(width: number, height: number): void {
+    this._width  = width;
+    this._height = height;
     this._rtA.setSize(width, height);
     this._rtB.setSize(width, height);
     this.baseQuad.updateCanvasAspect(width, height);
+    for (const pass of this._passMap.values()) {
+      pass.resize(width, height);
+    }
   }
 
   dispose(): void {

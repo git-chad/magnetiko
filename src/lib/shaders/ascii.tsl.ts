@@ -15,6 +15,7 @@ import {
   texture as tslTexture,
 } from "three/tsl";
 import { PassNode } from "@/lib/renderer/PassNode";
+import { BloomSubPass } from "@/lib/renderer/BloomSubPass";
 import type { ShaderParam } from "@/types";
 import { buildAsciiAtlas, CHARSETS } from "@/lib/utils/asciiAtlas";
 import type { FontWeight } from "@/lib/utils/asciiAtlas";
@@ -66,6 +67,10 @@ export class AsciiPass extends PassNode {
   private _currentFontWeight: FontWeight = "regular";
   private _currentCellSize    = 16;
 
+  // Bloom sub-pass (optional, per-shader enhancement).
+  private readonly _bloom: BloomSubPass;
+  private _bloomEnabled = false;
+
   constructor(layerId: string) {
     super(layerId);
 
@@ -84,6 +89,9 @@ export class AsciiPass extends PassNode {
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
     this._material.needsUpdate = true;
+
+    // Bloom starts at 1×1; PipelineManager will call resize() with the real size.
+    this._bloom = new BloomSubPass(1, 1);
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -99,7 +107,18 @@ export class AsciiPass extends PassNode {
     if (this._atlasSampledNode && this._atlasTexture) {
       this._atlasSampledNode.value = this._atlasTexture;
     }
+    // Render main ASCII effect into outputTarget.
     super.render(renderer, inputTex, outputTarget, time, delta);
+
+    // If bloom is enabled, apply it on top of the ASCII output.
+    // process() reads outputTarget.texture, writes composited result back.
+    if (this._bloomEnabled) {
+      this._bloom.process(renderer, outputTarget.texture, outputTarget);
+    }
+  }
+
+  override resize(width: number, height: number): void {
+    this._bloom.resize(width, height);
   }
 
   // ── Effect node ────────────────────────────────────────────────────────────
@@ -259,6 +278,26 @@ export class AsciiPass extends PassNode {
         case "invert":
           this._invertU.value = p.value === true ? 1.0 : 0.0;
           break;
+
+        // ── Bloom params ──────────────────────────────────────────────────
+        case "bloomEnabled":
+          this._bloomEnabled = p.value === true;
+          break;
+        case "bloomThreshold":
+          this._bloom.setThreshold(typeof p.value === "number" ? p.value : 0.7);
+          break;
+        case "bloomSoftKnee":
+          this._bloom.setSoftKnee(typeof p.value === "number" ? p.value : 0.5);
+          break;
+        case "bloomIntensity":
+          this._bloom.setIntensity(typeof p.value === "number" ? p.value : 1.0);
+          break;
+        case "bloomRadius":
+          this._bloom.setRadius(typeof p.value === "number" ? p.value : 5.0);
+          break;
+        case "bloomBlendWithSource":
+          this._bloom.setBlendWithSource(p.value === true);
+          break;
       }
     }
 
@@ -291,6 +330,7 @@ export class AsciiPass extends PassNode {
 
   override dispose(): void {
     this._atlasTexture?.dispose();
+    this._bloom.dispose();
     super.dispose();
   }
 }
