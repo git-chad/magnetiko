@@ -630,6 +630,73 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
         },
       ];
 
+    case "noise-generator":
+      return [
+        {
+          key: "algorithm",
+          label: "Algorithm",
+          type: "enum",
+          value: "perlin",
+          options: [
+            { label: "Perlin", value: "perlin" },
+            { label: "Simplex", value: "simplex" },
+            { label: "Voronoi", value: "voronoi" },
+          ],
+          group: "Noise",
+        },
+        {
+          key: "scale",
+          label: "Scale",
+          type: "float",
+          value: 8,
+          min: 1,
+          max: 64,
+          step: 0.1,
+          group: "Noise",
+          description: "Frequency of the procedural pattern",
+        },
+        {
+          key: "intensity",
+          label: "Intensity",
+          type: "float",
+          value: 1,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Tone",
+          description: "Blend amount between source and generated noise",
+        },
+        {
+          key: "contrast",
+          label: "Contrast",
+          type: "float",
+          value: 1,
+          min: 0,
+          max: 2.5,
+          step: 0.01,
+          group: "Tone",
+          description: "Noise contrast around mid-gray",
+        },
+        {
+          key: "invert",
+          label: "Invert",
+          type: "bool",
+          value: false,
+          group: "Tone",
+        },
+        {
+          key: "speed",
+          label: "Speed",
+          type: "float",
+          value: 0.35,
+          min: -6,
+          max: 6,
+          step: 0.05,
+          group: "Animation",
+          description: "Animation speed (0 = static)",
+        },
+      ];
+
     case "grain":
       return [
         {
@@ -844,6 +911,7 @@ export function getDefaultLayerName(
     "fluted-glass": "Fluted Glass",
     "progressive-blur": "Progressive Blur",
     "warp-distortion": "Warp Distortion",
+    "noise-generator": "Noise Generator",
     grain: "Grain",
     interactivity: "Interactivity",
     masonry: "Masonry",

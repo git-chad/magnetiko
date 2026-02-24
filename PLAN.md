@@ -922,7 +922,7 @@ These are not in the initial scope but designed to be easy to add given the arch
 - [ ] **Layer groups**: nest layers in folders, collapsed/expanded
 - [ ] **Masking**: draw masks per layer (brush tool on a mask texture)
 - [ ] **LUT/Color grading layer**: upload a LUT file, apply as a filter
-- [ ] **Noise generators**: Perlin, Simplex, Voronoi as standalone shader layers
+- [x] **Noise generators**: Perlin, Simplex, Voronoi as standalone shader layers
 - [ ] **SDF shapes**: Basic 3D Shapes (Sphere, Torus, Cube, Prism...), change their size, material, select animation (rotation, float, etc.) or Orbit Controls
 - [ ] **SDF shapes**: 2D/3D SDF primitives as layers
 - [x] **Warp/Distortion layer**: UV displacement maps, swirl, bulge, wave
@@ -1058,6 +1058,6 @@ Tasks can be marked with:
 | 7     | Interactivity      | 3     | 3    | ✅ Complete (scope-adjusted) |
 | 8     | Polish & Perf      | 6     | 4    | 🔵 In progress               |
 | 9     | Export             | 3     | 3    | ✅ Complete                  |
-| 10    | Stretch            | —     | 1    | 🔵 In progress               |
+| 10    | Stretch            | —     | 2    | 🔵 In progress               |
 
 **Total: 53 tasks across 10 phases**

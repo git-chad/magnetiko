@@ -58,6 +58,7 @@ const SHADER_SECTIONS: Array<{
       { type: "dithering", label: "Dithering" },
       { type: "masonry", label: "Masonry" },
       { type: "grain", label: "Grain" },
+      { type: "noise-generator", label: "Noise Generator" },
     ],
   },
   {
