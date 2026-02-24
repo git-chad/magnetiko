@@ -49,6 +49,7 @@ export type ShaderType =
   | "noise-generator"
   | "mesh-gradient"
   | "guilloche"
+  | "sdf-shapes"
   | "grain"
   | "interactivity"
   | "masonry";

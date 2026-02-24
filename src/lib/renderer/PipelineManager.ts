@@ -337,6 +337,7 @@ export class PipelineManager {
         pass.enabled = layer.visible;
         pass.updateOpacity(layer.opacity);
         const blendChanged = pass.updateBlendMode(layer.blendMode);
+        const filterModeChanged = pass.updateFilterMode(layer.filterMode);
         pass.updateUniforms(layer.params);
         const materialVersionAfter = pass.getMaterialVersion();
 
@@ -344,6 +345,7 @@ export class PipelineManager {
           process.env.NODE_ENV === "development" &&
           materialVersionAfter !== materialVersionBefore &&
           !blendChanged &&
+          !filterModeChanged &&
           !this._uniformRecompileWarned.has(layer.id)
         ) {
           this._uniformRecompileWarned.add(layer.id);

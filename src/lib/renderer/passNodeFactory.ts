@@ -9,6 +9,7 @@ import { WarpDistortionPass } from "@/lib/shaders/warpDistortion.tsl";
 import { NoiseGeneratorPass } from "@/lib/shaders/noiseGenerator.tsl";
 import { MeshGradientPass } from "@/lib/shaders/meshGradient.tsl";
 import { GuillochePass } from "@/lib/shaders/guilloche.tsl";
+import { SdfShapesPass } from "@/lib/shaders/sdfShapes.tsl";
 import { GrainPass } from "@/lib/shaders/grain.tsl";
 import { InteractivityPass } from "@/lib/shaders/interactivity.tsl";
 import { MasonryPass } from "@/lib/shaders/masonry.tsl";
@@ -33,6 +34,7 @@ export function createPassNode(layerId: string, shaderType?: string): PassNode {
     case "noise-generator":   return new NoiseGeneratorPass(layerId);
     case "mesh-gradient":     return new MeshGradientPass(layerId);
     case "guilloche":         return new GuillochePass(layerId);
+    case "sdf-shapes":        return new SdfShapesPass(layerId);
     case "grain":             return new GrainPass(layerId);
     case "interactivity":     return new InteractivityPass(layerId);
     case "masonry":           return new MasonryPass(layerId);

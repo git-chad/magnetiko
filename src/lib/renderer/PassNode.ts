@@ -44,6 +44,7 @@ export class PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _opacityUniform: any; // ShaderNodeObject<UniformNode>
   private _blendMode: string = "normal";
+  private _filterMode: "filter" | "mask" = "filter";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected _effectNode: any; // cached output of _buildEffectNode()
 
@@ -118,6 +119,18 @@ export class PassNode {
   }
 
   /**
+   * Switch filter/mask compositing behavior.
+   * Rebuilds colorNode and triggers one material recompile.
+   */
+  updateFilterMode(filterMode: "filter" | "mask"): boolean {
+    if (filterMode === this._filterMode) return false;
+    this._filterMode = filterMode;
+    this._rebuildColorNode();
+    this._material.needsUpdate = true;
+    return true;
+  }
+
+  /**
    * Update TSL uniforms from ShaderParam values.
    * Phase 2.4: no-op (passthrough). Phase 4 will map params → uniforms.
    */
@@ -175,6 +188,7 @@ export class PassNode {
       this._inputNode,
       this._effectNode,
       this._opacityUniform,
+      this._filterMode,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ) as any;
   }

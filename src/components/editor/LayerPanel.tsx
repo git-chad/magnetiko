@@ -69,6 +69,7 @@ const SHADER_SECTIONS: Array<{
       { type: "masonry", label: "Masonry" },
       { type: "grain", label: "Grain" },
       { type: "noise-generator", label: "Noise Generator" },
+      { type: "sdf-shapes", label: "SDF Shapes" },
     ],
   },
   {

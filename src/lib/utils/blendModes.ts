@@ -204,6 +204,7 @@ export function buildBlendNode(
   base: Node,
   blend: Node,
   opacity: Node,
+  filterMode: "filter" | "mask" = "filter",
 ): Node {
   const b = base.rgb;
   const e = blend.rgb;
@@ -229,6 +230,15 @@ export function buildBlendNode(
     default:            composited = _normal(b, e);      break;
   }
 
-  // opacity mixes: 0 = show original, 1 = fully apply effect
-  return vec4(mix(b, composited, opacity), float(1.0));
+  // Filter mode: regular opacity mix.
+  if (filterMode === "filter") {
+    return vec4(mix(b, composited, opacity), float(1.0));
+  }
+
+  // Mask mode: use effect luminance as per-pixel mask weight.
+  // This gives a distinct masking behavior while still allowing any shader
+  // output to drive reveal/attenuation.
+  const maskLuma = float(dot(e, vec3(0.2126, 0.7152, 0.0722)));
+  const maskedOpacity = float(clamp(maskLuma.mul(opacity), float(0.0), float(1.0)));
+  return vec4(mix(b, composited, maskedOpacity), float(1.0));
 }

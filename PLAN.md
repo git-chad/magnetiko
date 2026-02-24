@@ -920,11 +920,11 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 These are not in the initial scope but designed to be easy to add given the architecture.
 
 - [x] **Layer groups**: nest layers in folders, collapsed/expanded
-- [ ] **Masking**: draw masks per layer (brush tool on a mask texture)
+- [~] **Masking**: draw masks per layer (brush tool on a mask texture) _(mask/filter compositing path fixed; brush painting still pending)_
 - [ ] **LUT/Color grading layer**: upload a LUT file, apply as a filter
 - [x] **Noise generators**: Perlin, Simplex, Voronoi as standalone shader layers
 - [ ] **3D Shapes**: Basic 3D Shapes (Sphere, Torus, Cube, Prism...), change their size, material, select animation (rotation, float, etc.) or Orbit Controls
-- [ ] **SDF shapes**: 2D/3D SDF primitives as layers
+- [x] **SDF shapes**: 2D/3D SDF primitives as layers
 - [x] **Warp/Distortion layer**: UV displacement maps, swirl, bulge, wave
 - [x] **Mesh gradient layer**: configurable gradient with control points
 - [x] **Guilloche patterns**: parametric engraving-style patterns _(needs visual revisit)_
@@ -1057,6 +1057,6 @@ Tasks can be marked with:
 | 7     | Interactivity      | 3     | 3    | ✅ Complete (scope-adjusted) |
 | 8     | Polish & Perf      | 6     | 4    | 🔵 In progress               |
 | 9     | Export             | 3     | 3    | ✅ Complete                  |
-| 10    | Stretch            | —     | 5    | 🔵 In progress               |
+| 10    | Stretch            | —     | 6    | 🔵 In progress               |
 
 **Total: 53 tasks across 10 phases**

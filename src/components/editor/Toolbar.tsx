@@ -95,6 +95,7 @@ const VALID_SHADER_TYPES = new Set<ShaderType>([
   "noise-generator",
   "mesh-gradient",
   "guilloche",
+  "sdf-shapes",
   "grain",
   "interactivity",
   "masonry",
