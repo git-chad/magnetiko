@@ -49,6 +49,7 @@ export function buildAsciiAtlas(
   canvas.height = px;
 
   const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -68,6 +69,19 @@ export function buildAsciiAtlas(
   for (let i = 0; i < n; i++) {
     ctx.fillText(chars[i], (i + 0.5) * px, px * 0.5);
   }
+
+  // Convert anti-aliased glyph coverage to a binary mask so tiny cell sizes
+  // stay crisp (avoids blurry gray fringes when zooming the canvas).
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = img.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const mask = data[i] > 96 ? 255 : 0;
+    data[i] = mask;
+    data[i + 1] = mask;
+    data[i + 2] = mask;
+    data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
 
   const tex = new THREE.CanvasTexture(canvas);
   // NearestFilter is critical: atlas cells are built to match the screen cell

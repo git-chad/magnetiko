@@ -22,14 +22,34 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui";
+import { useToast } from "@/components/ui/toast";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore, registerHistoryShortcuts } from "@/store/historyStore";
 import { useLayerStore } from "@/store/layerStore";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 
 // ─────────────────────────────────────────────────────────────────────────────
+declare global {
+  interface Window {
+    __magnetikoExportPng?: () => Promise<Blob>;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const ZOOM_STEP = 1.25;
+const RENDER_SCALE_OPTIONS: Array<1 | 0.75 | 0.5> = [1, 0.75, 0.5];
+
+function _isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tag === "input" ||
+    tag === "textarea" ||
+    tag === "select"
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -46,6 +66,8 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
   const setZoom       = useEditorStore((s) => s.setZoom);
   const resetView     = useEditorStore((s) => s.resetView);
   const fps           = useEditorStore((s) => s.fps);
+  const renderScale   = useEditorStore((s) => s.renderScale);
+  const setRenderScale = useEditorStore((s) => s.setRenderScale);
 
   // History state
   const canUndo = useHistoryStore((s) => s.past.length > 0);
@@ -55,6 +77,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
 
   // Layer actions
   const setLayers = useLayerStore((s) => s.setLayers);
+  const { toast } = useToast();
 
   // ── File import ──────────────────────────────────────────────────────────
   const { upload, isLoading: uploadLoading } = useMediaUpload();
@@ -87,6 +110,54 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
   function handleZoomIn()  { setZoom(zoom * ZOOM_STEP); }
   function handleZoomOut() { setZoom(zoom / ZOOM_STEP); }
 
+  const handleExport = React.useCallback(async () => {
+    const exportPng = window.__magnetikoExportPng;
+    if (!exportPng) {
+      toast({
+        variant: "error",
+        title: "Export failed",
+        description: "Renderer is not ready yet.",
+      });
+      return;
+    }
+
+    try {
+      const blob = await exportPng();
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.download = `magnetiko-${stamp}.png`;
+      link.href = url;
+      link.click();
+      queueMicrotask(() => URL.revokeObjectURL(url));
+
+      toast({
+        variant: "success",
+        title: "Exported PNG",
+        description: "Saved current canvas frame.",
+      });
+    } catch (err) {
+      toast({
+        variant: "error",
+        title: "Export failed",
+        description: err instanceof Error ? err.message : "Could not export image.",
+      });
+    }
+  }, [toast]);
+
+  React.useEffect(() => {
+    function handleSaveShortcut(event: KeyboardEvent) {
+      const isMac = navigator.platform.toLowerCase().includes("mac");
+      const mod = isMac ? event.metaKey : event.ctrlKey;
+      if (!mod || event.shiftKey || event.altKey || event.key.toLowerCase() !== "s") return;
+      if (_isEditableTarget(event.target)) return;
+      event.preventDefault();
+      handleExport();
+    }
+    window.addEventListener("keydown", handleSaveShortcut);
+    return () => window.removeEventListener("keydown", handleSaveShortcut);
+  }, [handleExport]);
+
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
@@ -100,6 +171,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
               size="icon-sm"
               variant="ghost"
               aria-label="Toggle layer panel"
+              aria-expanded={leftOpen}
               onClick={() => toggleSidebar("left")}
             >
               <ArrowLineLeft size={15} className={leftOpen ? "opacity-100" : "opacity-40"} />
@@ -236,13 +308,39 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
           <span className="font-mono text-xs text-[var(--color-fg-disabled)]">{fps} fps</span>
         )}
 
+        <div
+          className="hidden items-center gap-[2px] rounded-xs border border-[var(--color-border)] bg-[var(--color-bg)] p-[2px] lg:flex"
+          role="group"
+          aria-label="Render quality"
+        >
+          {RENDER_SCALE_OPTIONS.map((scale) => {
+            const active = renderScale === scale;
+            return (
+              <button
+                key={scale}
+                type="button"
+                onClick={() => setRenderScale(scale)}
+                aria-pressed={active}
+                className={[
+                  "rounded-[2px] px-[6px] py-[2px] text-[10px] font-mono transition-colors",
+                  active
+                    ? "bg-[var(--color-accent)] text-[var(--color-fg-on-accent)]"
+                    : "text-[var(--color-fg-secondary)] hover:bg-[var(--color-hover-bg)]",
+                ].join(" ")}
+              >
+                {scale}x
+              </button>
+            );
+          })}
+        </div>
+
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button size="icon-sm" variant="ghost" aria-label="Export" disabled>
+            <Button size="icon-sm" variant="ghost" aria-label="Export PNG" onClick={handleExport}>
               <Export size={15} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Export (coming soon)</TooltipContent>
+          <TooltipContent>Export PNG (⌘/Ctrl+S)</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -262,6 +360,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
               size="icon-sm"
               variant="ghost"
               aria-label="Toggle properties panel"
+              aria-expanded={rightOpen}
               onClick={() => toggleSidebar("right")}
             >
               <ArrowLineRight size={15} className={rightOpen ? "opacity-100" : "opacity-40"} />

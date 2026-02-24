@@ -14,11 +14,44 @@ interface SliderProps
 const Slider = React.forwardRef<
   React.ElementRef<typeof SliderPrimitive.Root>,
   SliderProps
->(({ className, showValue = false, formatValue, value, defaultValue, ...props }, ref) => {
+>(
+  (
+    {
+      className,
+      showValue = false,
+      formatValue,
+      value,
+      defaultValue,
+      onKeyDown,
+      onValueChange,
+      min = 0,
+      max = 100,
+      step = 1,
+      ...props
+    },
+    ref,
+  ) => {
   const currentValue = (value ?? defaultValue ?? [0]) as number[];
   const displayValue = formatValue
     ? formatValue(currentValue[0])
     : String(currentValue[0]);
+  const handleKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      onKeyDown?.(event as React.KeyboardEvent<HTMLDivElement>);
+      if (event.defaultPrevented || !event.shiftKey || !onValueChange) return;
+
+      const incKeys = new Set(["ArrowRight", "ArrowUp", "PageUp"]);
+      const decKeys = new Set(["ArrowLeft", "ArrowDown", "PageDown"]);
+      if (!incKeys.has(event.key) && !decKeys.has(event.key)) return;
+
+      event.preventDefault();
+      const dir = incKeys.has(event.key) ? 1 : -1;
+      const base = currentValue[0] ?? min;
+      const next = Math.min(max, Math.max(min, base + step * 10 * dir));
+      onValueChange([next]);
+    },
+    [currentValue, max, min, onKeyDown, onValueChange, step],
+  );
 
   return (
     <div className="flex items-center gap-3xs w-full">
@@ -28,8 +61,13 @@ const Slider = React.forwardRef<
           "relative flex w-full touch-none select-none items-center",
           className,
         )}
+        min={min}
+        max={max}
+        step={step}
         value={value}
         defaultValue={defaultValue}
+        onValueChange={onValueChange}
+        onKeyDown={handleKeyDown}
         {...props}
       >
         <SliderPrimitive.Track className="relative h-[3px] w-full grow overflow-hidden rounded-full bg-primary-200 dark:bg-primary-700">
@@ -56,7 +94,8 @@ const Slider = React.forwardRef<
       )}
     </div>
   );
-});
+},
+);
 Slider.displayName = SliderPrimitive.Root.displayName;
 
 export { Slider };

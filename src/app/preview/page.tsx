@@ -176,6 +176,10 @@ function CanvasDemo() {
       // Remove previous base layer if any
       if (baseLayerIdRef.current) removeLayer(baseLayerIdRef.current);
       const id = addLayer(asset.type === "video" ? "video" : "image");
+      if (!id) {
+        toast({ title: "Layer limit reached", variant: "warning" });
+        return;
+      }
       setLayerMedia(id, asset.url, asset.type);
       baseLayerIdRef.current = id;
       toast({ title: `Loaded: ${asset.name}`, description: `${asset.width}×${asset.height}` });
@@ -188,6 +192,10 @@ function CanvasDemo() {
 
   function addShaderPass() {
     const id = addLayer("shader", "grain"); // grain as a placeholder — passthrough for now
+    if (!id) {
+      toast({ title: "Layer limit reached", variant: "warning" });
+      return;
+    }
     shaderLayerIdsRef.current = [...shaderLayerIdsRef.current, id];
     toast({ title: "Added shader pass", description: `${shaderLayerCount + 1} pass(es) in pipeline` });
   }
@@ -272,7 +280,11 @@ function LayerStoreDemo() {
   ];
 
   function handleAdd(shaderType: ShaderType, label: string) {
-    addLayer("shader", shaderType);
+    const id = addLayer("shader", shaderType);
+    if (!id) {
+      toast({ title: "Layer limit reached", variant: "warning" });
+      return;
+    }
     toast({ title: `${label} layer added`, variant: "success" });
   }
 

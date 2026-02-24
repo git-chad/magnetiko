@@ -10,6 +10,7 @@ import {
   screenSize,
   texture as tslTexture,
 } from "three/tsl";
+import { sharedRenderTargetPool } from "./RenderTargetPool";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -20,17 +21,15 @@ const WEIGHTS = [0.0076, 0.0361, 0.1096, 0.2135, 0.2666, 0.2135, 0.1096, 0.0361,
 /** Tap offsets in pixels (scaled by radius uniform). */
 const OFFSETS = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function makeRT(w: number, h: number): THREE.WebGLRenderTarget {
-  return new THREE.WebGLRenderTarget(Math.max(w, 1), Math.max(h, 1), {
-    minFilter: THREE.LinearFilter,
-    magFilter: THREE.LinearFilter,
-    type: THREE.UnsignedByteType,
-  });
-}
+const BLOOM_RT_OPTIONS = {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat,
+  type: THREE.UnsignedByteType,
+  depthBuffer: false,
+  stencilBuffer: false,
+  generateMipmaps: false,
+} as const;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeScene(colorNode: any): { scene: THREE.Scene; mat: THREE.MeshBasicNodeMaterial } {
@@ -116,10 +115,10 @@ export class BloomSubPass {
   // ─────────────────────────────────────────────────────────────────────────
 
   constructor(width: number, height: number) {
-    this._extractRT   = makeRT(width, height);
-    this._blurHRT     = makeRT(width, height);
-    this._blurVRT     = makeRT(width, height);
-    this._compositeRT = makeRT(width, height);
+    this._extractRT = sharedRenderTargetPool.acquire(width, height, BLOOM_RT_OPTIONS);
+    this._blurHRT = sharedRenderTargetPool.acquire(width, height, BLOOM_RT_OPTIONS);
+    this._blurVRT = sharedRenderTargetPool.acquire(width, height, BLOOM_RT_OPTIONS);
+    this._compositeRT = sharedRenderTargetPool.acquire(width, height, BLOOM_RT_OPTIONS);
 
     this._camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
@@ -270,10 +269,10 @@ export class BloomSubPass {
   setBlendWithSource(v: boolean): void { this._blendWithSourceU.value = v ? 1.0 : 0.0; }
 
   dispose(): void {
-    this._extractRT.dispose();
-    this._blurHRT.dispose();
-    this._blurVRT.dispose();
-    this._compositeRT.dispose();
+    sharedRenderTargetPool.release(this._extractRT);
+    sharedRenderTargetPool.release(this._blurHRT);
+    sharedRenderTargetPool.release(this._blurVRT);
+    sharedRenderTargetPool.release(this._compositeRT);
     this._extractMat.dispose();
     this._blurHMat.dispose();
     this._blurVMat.dispose();

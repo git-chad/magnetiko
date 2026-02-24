@@ -4,6 +4,7 @@ import { FullscreenQuad } from "./MediaTexture";
 import { PassNode } from "./PassNode";
 import { MediaPass } from "./MediaPass";
 import { createPassNode } from "./passNodeFactory";
+import { sharedRenderTargetPool } from "./RenderTargetPool";
 import type { ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,6 +24,97 @@ export interface PipelineLayer {
   shaderType?: string;
   /** Image or video URL — only set for kind='image'|'video' layers. Webcam layers don't use this. */
   mediaUrl?: string;
+  /** Increment to force media reload retry without changing URL. */
+  mediaVersion?: number;
+}
+
+export interface PipelineManagerCallbacks {
+  onShaderError?: (layerId: string, error: Error) => void;
+  onMediaStatus?: (
+    layerId: string,
+    status: "loading" | "ready" | "error",
+    error?: string,
+  ) => void;
+  onOutOfMemory?: (error: Error) => void;
+}
+
+const PIPELINE_RT_OPTIONS = {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  type: THREE.UnsignedByteType,
+  format: THREE.RGBAFormat,
+  depthBuffer: false,
+  stencilBuffer: false,
+  generateMipmaps: false,
+} as const;
+
+function toError(value: unknown): Error {
+  if (value instanceof Error) return value;
+  return new Error(typeof value === "string" ? value : "Unknown renderer error");
+}
+
+function toUint8ClampedArray(data: THREE.TypedArray): Uint8ClampedArray {
+  if (data instanceof Uint8ClampedArray || data instanceof Uint8Array) {
+    return new Uint8ClampedArray(data);
+  }
+  const converted = new Uint8ClampedArray(data.length);
+  for (let i = 0; i < data.length; i++) {
+    converted[i] = Math.max(0, Math.min(255, Number(data[i])));
+  }
+  return converted;
+}
+
+function unpackReadbackRgba8(
+  data: THREE.TypedArray,
+  width: number,
+  height: number,
+): Uint8ClampedArray {
+  const expected = width * height * 4;
+  const bytes =
+    data instanceof Uint8Array || data instanceof Uint8ClampedArray
+      ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+      : null;
+
+  if (!bytes) {
+    const converted = toUint8ClampedArray(data);
+    if (converted.length === expected) return converted;
+    const out = new Uint8ClampedArray(expected);
+    out.set(converted.subarray(0, Math.min(expected, converted.length)));
+    return out;
+  }
+
+  if (bytes.length === expected) {
+    return new Uint8ClampedArray(bytes);
+  }
+
+  const rowBytes = width * 4;
+  const stride = Math.ceil(rowBytes / 256) * 256;
+  const minimumPaddedLength = (height - 1) * stride + rowBytes;
+  const out = new Uint8ClampedArray(expected);
+
+  if (bytes.length >= minimumPaddedLength && stride >= rowBytes) {
+    for (let row = 0; row < height; row++) {
+      const srcStart = row * stride;
+      const srcEnd = srcStart + rowBytes;
+      const dstStart = row * rowBytes;
+      out.set(bytes.subarray(srcStart, srcEnd), dstStart);
+    }
+    return out;
+  }
+
+  out.set(bytes.subarray(0, Math.min(expected, bytes.length)));
+  return out;
+}
+
+function isLikelyOutOfMemoryError(error: Error): boolean {
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes("out of memory") ||
+    msg.includes("oom") ||
+    msg.includes("device lost") ||
+    msg.includes("gpu memory") ||
+    msg.includes("allocation failed")
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,6 +136,7 @@ export interface PipelineLayer {
  */
 export class PipelineManager {
   private readonly _renderer: THREE.WebGPURenderer;
+  private readonly _callbacks: PipelineManagerCallbacks;
 
   // ── Black base — used to initialise RT A to a clean frame each render ─────
   private readonly _baseQuad: FullscreenQuad;
@@ -65,6 +158,8 @@ export class PipelineManager {
   /** Ordered bottom → top (render order matches the filter chain). */
   private _passes: PassNode[] = [];
   private _passMap = new Map<string, PassNode>();
+  private readonly _layerKindById = new Map<string, PipelineLayer["kind"]>();
+  private readonly _mediaRequestVersion = new Map<string, number>();
 
   // ── Current canvas dimensions (needed to size new passes) ─────────────────
   private _width: number;
@@ -73,13 +168,21 @@ export class PipelineManager {
   private _lastPointerActive = false;
   private _lastPointerX = 0.5;
   private _lastPointerY = 0.5;
+  private readonly _uniformRecompileWarned = new Set<string>();
+  private readonly _shaderErrorNotified = new Set<string>();
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  constructor(renderer: THREE.WebGPURenderer, width: number, height: number) {
+  constructor(
+    renderer: THREE.WebGPURenderer,
+    width: number,
+    height: number,
+    callbacks: PipelineManagerCallbacks = {},
+  ) {
     this._renderer = renderer;
-    this._width    = width;
-    this._height   = height;
+    this._width = width;
+    this._height = height;
+    this._callbacks = callbacks;
 
     // Black-base scene — renders an untextured quad to clear RT A each frame.
     // Media layers are now full PassNode passes in the chain; this just gives
@@ -90,8 +193,8 @@ export class PipelineManager {
     this._baseScene.add(this._baseQuad.mesh);
 
     // Ping-pong RTs
-    this._rtA = this._makeRT(width, height);
-    this._rtB = this._makeRT(width, height);
+    this._rtA = sharedRenderTargetPool.acquire(width, height, PIPELINE_RT_OPTIONS);
+    this._rtB = sharedRenderTargetPool.acquire(width, height, PIPELINE_RT_OPTIONS);
 
     // Blit scene — final RT → screen.
     // Same Y-flip as PassNode: RT textures have V=0=top in WebGPU convention.
@@ -125,48 +228,123 @@ export class PipelineManager {
       if (!incomingIds.has(id)) {
         pass.dispose();
         this._passMap.delete(id);
+        this._layerKindById.delete(id);
+        this._mediaRequestVersion.delete(id);
+        this._uniformRecompileWarned.delete(id);
+        this._shaderErrorNotified.delete(id);
       }
     }
 
-    // Create passes for new layers (media or shader)
+    // Create / update passes
     for (const layer of layers) {
-      if (!this._passMap.has(layer.id)) {
-        let pass: PassNode;
-        if (layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam") {
-          pass = new MediaPass(layer.id);
-        } else {
-          pass = createPassNode(layer.id, layer.shaderType);
+      this._layerKindById.set(layer.id, layer.kind);
+
+      let pass = this._passMap.get(layer.id);
+      if (!pass) {
+        try {
+          pass =
+            layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam"
+              ? new MediaPass(layer.id)
+              : createPassNode(layer.id, layer.shaderType);
+          pass.resize(this._width, this._height);
+          this._passMap.set(layer.id, pass);
+        } catch (err) {
+          const error = toError(err);
+          if (layer.kind === "shader") {
+            this._notifyShaderError(layer.id, error);
+          } else {
+            this._callbacks.onMediaStatus?.(layer.id, "error", error.message);
+          }
+          if (isLikelyOutOfMemoryError(error)) {
+            this._callbacks.onOutOfMemory?.(error);
+          }
+          continue;
         }
-        pass.resize(this._width, this._height);
-        this._passMap.set(layer.id, pass);
       }
 
-      const pass = this._passMap.get(layer.id)!;
-      pass.enabled = layer.visible;
-      pass.updateOpacity(layer.opacity);
-      pass.updateBlendMode(layer.blendMode);
-      pass.updateUniforms(layer.params);
+      try {
+        const materialVersionBefore = pass.getMaterialVersion();
+        pass.enabled = layer.visible;
+        pass.updateOpacity(layer.opacity);
+        const blendChanged = pass.updateBlendMode(layer.blendMode);
+        pass.updateUniforms(layer.params);
+        const materialVersionAfter = pass.getMaterialVersion();
 
-      // Trigger async media load when URL changes (no-op if already loaded)
-      if ((layer.kind === "image" || layer.kind === "video") && layer.mediaUrl) {
+        if (
+          process.env.NODE_ENV === "development" &&
+          materialVersionAfter !== materialVersionBefore &&
+          !blendChanged &&
+          !this._uniformRecompileWarned.has(layer.id)
+        ) {
+          this._uniformRecompileWarned.add(layer.id);
+          console.warn(
+            `[PipelineManager] Material recompiled during uniform update for layer "${layer.id}".`,
+          );
+        }
+
+        this._shaderErrorNotified.delete(layer.id);
+      } catch (err) {
+        pass.enabled = false;
+        this._notifyShaderError(layer.id, toError(err));
+        continue;
+      }
+
+      if (layer.kind === "image" || layer.kind === "video") {
         const mediaPass = pass as MediaPass;
-        if (mediaPass.loadedUrl !== layer.mediaUrl) {
-          void mediaPass.setMedia(layer.mediaUrl, layer.kind).finally(() => {
-            this._dirty = true;
-          });
+        const requestedVersion = layer.mediaVersion ?? 0;
+        const lastVersion = this._mediaRequestVersion.get(layer.id);
+
+        if (layer.mediaUrl && lastVersion !== requestedVersion) {
+          this._mediaRequestVersion.set(layer.id, requestedVersion);
+          this._callbacks.onMediaStatus?.(layer.id, "loading");
+          void mediaPass
+            .setMedia(layer.mediaUrl, layer.kind)
+            .then(() => {
+              this._callbacks.onMediaStatus?.(layer.id, "ready");
+              this._dirty = true;
+            })
+            .catch((err) => {
+              const error = toError(err);
+              this._callbacks.onMediaStatus?.(layer.id, "error", error.message);
+              if (isLikelyOutOfMemoryError(error)) {
+                this._callbacks.onOutOfMemory?.(error);
+              }
+              this._dirty = true;
+            });
         }
       }
+
       if (layer.kind === "webcam") {
-        void (pass as MediaPass).startWebcam().finally(() => {
-          this._dirty = true;
-        });
+        const mediaPass = pass as MediaPass;
+        const requestedVersion = layer.mediaVersion ?? 0;
+        const lastVersion = this._mediaRequestVersion.get(layer.id);
+
+        if (lastVersion !== requestedVersion) {
+          this._mediaRequestVersion.set(layer.id, requestedVersion);
+          this._callbacks.onMediaStatus?.(layer.id, "loading");
+          void mediaPass
+            .startWebcam()
+            .then(() => {
+              this._callbacks.onMediaStatus?.(layer.id, "ready");
+              this._dirty = true;
+            })
+            .catch((err) => {
+              const error = toError(err);
+              this._callbacks.onMediaStatus?.(layer.id, "error", error.message);
+              if (isLikelyOutOfMemoryError(error)) {
+                this._callbacks.onOutOfMemory?.(error);
+              }
+              this._dirty = true;
+            });
+        }
       }
     }
 
     // Re-order to match layer stack (bottom → top)
-    this._passes = layers.map((l) => this._passMap.get(l.id)!);
+    this._passes = layers
+      .map((layer) => this._passMap.get(layer.id))
+      .filter((pass): pass is PassNode => Boolean(pass));
     this._dirty = true;
-
   }
 
   /**
@@ -208,10 +386,7 @@ export class PipelineManager {
       Math.abs(uvX - this._lastPointerX) > 1e-7 ||
       Math.abs(uvY - this._lastPointerY) > 1e-7;
     const activeChanged = isActive !== this._lastPointerActive;
-    if (
-      activeChanged ||
-      (isActive && pointerMoved)
-    ) {
+    if (activeChanged || (isActive && pointerMoved)) {
       this._dirty = true;
     }
     this._lastPointerActive = isActive;
@@ -285,36 +460,71 @@ export class PipelineManager {
       return false;
     }
 
-    if (activePasses.length === 0) {
-      // Fast path: no layers → base straight to screen
-      renderer.setRenderTarget(null);
-      renderer.render(this._baseScene, this._baseCamera);
+    try {
+      this._renderFrame(activePasses, time, delta, null);
       this._dirty = false;
       return true;
+    } catch (err) {
+      const error = toError(err);
+      if (isLikelyOutOfMemoryError(error)) {
+        this._callbacks.onOutOfMemory?.(error);
+        this._dirty = true;
+        return false;
+      }
+      throw error;
     }
+  }
 
-    // Step 1 — base media → RT A
-    renderer.setRenderTarget(this._rtA);
-    renderer.render(this._baseScene, this._baseCamera);
+  /**
+   * Render the current pipeline to an offscreen target and return a PNG blob.
+   * This avoids `canvas.toDataURL()` on WebGPU swapchains, which can return
+   * empty/cleared frames in some browsers.
+   */
+  async exportPngBlob(time: number, delta: number): Promise<Blob> {
+    const width = Math.max(this._width, 1);
+    const height = Math.max(this._height, 1);
+    const exportTarget = sharedRenderTargetPool.acquire(width, height, PIPELINE_RT_OPTIONS);
 
-    // Step 2 — ping-pong through pass nodes
-    let read = this._rtA;
-    let write = this._rtB;
+    try {
+      const activePasses = this._passes.filter((p) => p.enabled);
+      this._renderFrame(activePasses, time, delta, exportTarget);
 
-    for (const pass of activePasses) {
-      pass.render(renderer, read.texture, write, time, delta);
-      // Swap
-      const tmp = read;
-      read = write;
-      write = tmp;
+      const pixelData = await this._renderer.readRenderTargetPixelsAsync(
+        exportTarget,
+        0,
+        0,
+        width,
+        height,
+      );
+      const rgba = unpackReadbackRgba8(pixelData, width, height);
+      for (let i = 3; i < rgba.length; i += 4) {
+        rgba[i] = 255;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not create 2D canvas context for export.");
+
+      const imageData = ctx.createImageData(width, height);
+      imageData.data.set(rgba);
+      ctx.putImageData(imageData, 0, 0);
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((next) => {
+          if (!next) {
+            reject(new Error("Failed to encode PNG blob."));
+            return;
+          }
+          resolve(next);
+        }, "image/png");
+      });
+
+      return blob;
+    } finally {
+      sharedRenderTargetPool.release(exportTarget);
     }
-
-    // Step 3 — blit last RT → screen
-    this._blitInputNode.value = read.texture;
-    renderer.setRenderTarget(null);
-    renderer.render(this._blitScene, this._blitCamera);
-    this._dirty = false;
-    return true;
   }
 
   /**
@@ -322,7 +532,7 @@ export class PipelineManager {
    * Resizes render targets and updates the base quad's canvas-aspect uniform.
    */
   resize(width: number, height: number): void {
-    this._width  = width;
+    this._width = width;
     this._height = height;
     this._rtA.setSize(width, height);
     this._rtB.setSize(width, height);
@@ -334,24 +544,78 @@ export class PipelineManager {
   }
 
   dispose(): void {
-    this._rtA.dispose();
-    this._rtB.dispose();
+    sharedRenderTargetPool.release(this._rtA);
+    sharedRenderTargetPool.release(this._rtB);
     this._baseQuad.dispose();
     for (const pass of this._passMap.values()) {
       pass.dispose();
     }
     this._passMap.clear();
     this._passes = [];
+    this._layerKindById.clear();
+    this._mediaRequestVersion.clear();
+    this._uniformRecompileWarned.clear();
+    this._shaderErrorNotified.clear();
     this._blitMaterial.dispose();
   }
 
-  // ── Private ────────────────────────────────────────────────────────────────
+  private _notifyShaderError(layerId: string, error: Error): void {
+    if (this._shaderErrorNotified.has(layerId)) return;
+    this._shaderErrorNotified.add(layerId);
+    this._callbacks.onShaderError?.(layerId, error);
+  }
 
-  private _makeRT(width: number, height: number): THREE.WebGLRenderTarget {
-    return new THREE.WebGLRenderTarget(Math.max(width, 1), Math.max(height, 1), {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      type: THREE.UnsignedByteType,
-    });
+  private _renderFrame(
+    activePasses: PassNode[],
+    time: number,
+    delta: number,
+    finalTarget: THREE.WebGLRenderTarget | null,
+  ): void {
+    const renderer = this._renderer;
+
+    if (activePasses.length === 0) {
+      renderer.setRenderTarget(finalTarget);
+      renderer.render(this._baseScene, this._baseCamera);
+      return;
+    }
+
+    // Step 1 — base media → RT A
+    renderer.setRenderTarget(this._rtA);
+    renderer.render(this._baseScene, this._baseCamera);
+
+    // Step 2 — ping-pong through pass nodes
+    let read = this._rtA;
+    let write = this._rtB;
+
+    for (const pass of activePasses) {
+      try {
+        pass.render(renderer, read.texture, write, time, delta);
+        const tmp = read;
+        read = write;
+        write = tmp;
+      } catch (err) {
+        const error = toError(err);
+        pass.enabled = false;
+
+        const layerId = pass.layerId;
+        const kind = this._layerKindById.get(layerId);
+        if (kind === "shader") {
+          this._notifyShaderError(layerId, error);
+        } else if (kind === "image" || kind === "video" || kind === "webcam") {
+          this._callbacks.onMediaStatus?.(layerId, "error", error.message);
+        }
+        if (isLikelyOutOfMemoryError(error)) {
+          this._callbacks.onOutOfMemory?.(error);
+        }
+
+        this._dirty = true;
+        break;
+      }
+    }
+
+    // Step 3 — blit final chain output
+    this._blitInputNode.value = read.texture;
+    renderer.setRenderTarget(finalTarget);
+    renderer.render(this._blitScene, this._blitCamera);
   }
 }

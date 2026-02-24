@@ -95,6 +95,14 @@ export interface Layer {
   expanded: boolean;
   mediaUrl?: string;
   mediaType?: "image" | "video" | "webcam";
+  /** Upload/render lifecycle for media layers. */
+  mediaStatus?: "idle" | "loading" | "ready" | "error";
+  /** Human-readable media error when mediaStatus === 'error'. */
+  mediaError?: string;
+  /** Bumped to force a media reload (retry). */
+  mediaVersion?: number;
+  /** Runtime shader/pipeline error message for this layer. */
+  runtimeError?: string;
   /** Base-64 thumbnail preview for the layer panel row */
   thumbnail?: string;
 }
@@ -105,6 +113,7 @@ export interface EditorState {
   zoom: number;
   panOffset: { x: number; y: number };
   canvasSize: { width: number; height: number };
+  renderScale: 1 | 0.75 | 0.5;
   showGrid: boolean;
   theme: "light" | "dark";
   sidebarOpen: { left: boolean; right: boolean };

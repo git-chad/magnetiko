@@ -14,7 +14,9 @@ import {
   TabsTrigger,
   Text,
 } from "@/components/ui";
+import { useToast } from "@/components/ui/toast";
 import { useLayerStore } from "@/store/layerStore";
+import { MAX_LAYERS } from "@/store/layerStore";
 import { getDefaultParams } from "@/lib/utils/defaultParams";
 import { cn } from "@/lib/utils";
 import { IMAGE_PRESETS, SHADER_PRESETS, STATIC_ASSETS } from "@/config/presets";
@@ -122,6 +124,22 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
   const addLayer      = useLayerStore((s) => s.addLayer);
   const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
   const setLayers     = useLayerStore((s) => s.setLayers);
+  const layersCount   = useLayerStore((s) => s.layers.length);
+  const { toast }     = useToast();
+
+  const addLayerWithLimit = React.useCallback(
+    (kind: "image" | "video"): string | null => {
+      const id = addLayer(kind);
+      if (id) return id;
+      toast({
+        variant: "warning",
+        title: "Layer limit reached",
+        description: `Maximum ${MAX_LAYERS} layers. Remove one before adding more.`,
+      });
+      return null;
+    },
+    [addLayer, toast],
+  );
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -135,29 +153,56 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = hex;
     ctx.fillRect(0, 0, 64, 64);
-    const id = addLayer("image");
+    const id = addLayerWithLimit("image");
+    if (!id) return;
     setLayerMedia(id, canvas.toDataURL("image/png"), "image");
     onOpenChange(false);
   }
 
   function handleImagePreset(preset: ImagePreset) {
     const dataUrl = gradientToDataUrl(preset);
-    const id      = addLayer("image");
+    const id = addLayerWithLimit("image");
+    if (!id) return;
     setLayerMedia(id, dataUrl, "image");
     onOpenChange(false);
   }
 
   function handleStaticAsset(asset: StaticAsset) {
     const id = addLayer(asset.type);
+    if (!id) {
+      toast({
+        variant: "warning",
+        title: "Layer limit reached",
+        description: `Maximum ${MAX_LAYERS} layers. Remove one before adding more.`,
+      });
+      return;
+    }
     setLayerMedia(id, asset.path, asset.type);
     onOpenChange(false);
   }
 
   function handleShaderPreset(preset: ShaderPreset) {
-    const newLayers      = preset.layers.map(buildShaderLayer);
+    const availableSlots = Math.max(MAX_LAYERS - layersCount, 0);
+    if (availableSlots === 0) {
+      toast({
+        variant: "warning",
+        title: "Layer limit reached",
+        description: `Maximum ${MAX_LAYERS} layers. Remove one before applying presets.`,
+      });
+      return;
+    }
+
+    const newLayers = preset.layers.slice(0, availableSlots).map(buildShaderLayer);
     const existingLayers = useLayerStore.getState().layers;
     // Prepend new layers to the top of whatever is already in the stack
     setLayers([...newLayers, ...existingLayers], newLayers[0]?.id ?? null);
+    if (newLayers.length < preset.layers.length) {
+      toast({
+        variant: "info",
+        title: "Preset partially applied",
+        description: `Added ${newLayers.length}/${preset.layers.length} layers (limit ${MAX_LAYERS}).`,
+      });
+    }
     onOpenChange(false);
   }
 

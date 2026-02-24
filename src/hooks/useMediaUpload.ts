@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useMediaStore } from "@/store/mediaStore";
 import { useLayerStore } from "@/store/layerStore";
+import { MAX_LAYERS } from "@/store/layerStore";
 import { useToast } from "@/components/ui/toast";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ import { useToast } from "@/components/ui/toast";
  */
 export function useMediaUpload() {
   const loadAsset    = useMediaStore((s) => s.loadAsset);
+  const removeAsset  = useMediaStore((s) => s.removeAsset);
   const addLayer     = useLayerStore((s) => s.addLayer);
   const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
   const { toast }    = useToast();
@@ -32,6 +34,15 @@ export function useMediaUpload() {
       try {
         const asset = await loadAsset(file);
         const id    = addLayer(asset.type === "video" ? "video" : "image");
+        if (!id) {
+          removeAsset(asset.id);
+          toast({
+            variant: "warning",
+            title: "Layer limit reached",
+            description: `Maximum ${MAX_LAYERS} layers. Remove one before importing media.`,
+          });
+          return;
+        }
         setLayerMedia(id, asset.url, asset.type);
       } catch (err) {
         toast({
@@ -43,7 +54,7 @@ export function useMediaUpload() {
         setIsLoading(false);
       }
     },
-    [loadAsset, addLayer, setLayerMedia, toast],
+    [loadAsset, removeAsset, addLayer, setLayerMedia, toast],
   );
 
   return { upload, isLoading };

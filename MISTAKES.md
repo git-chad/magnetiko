@@ -39,6 +39,8 @@ Prefix titles with severity:
 - NEVER call TSL `If()` or `.toVar()` outside a `Fn()` shader function context — they are null at build time and crash with "Cannot read properties of null". Instead, build a pure functional DAG: JS-time `for` loop + `select(cond, a, b)` + `max(a, b)` to fold results statically.
 - NEVER make media layers a special case outside the render pipeline — they must be first-class `PassNode` passes in `syncLayers()`, same as shader layers. A `baseQuad` singleton that one component controls is always a wrong pattern for a layer-based compositor.
 - ALWAYS check `l.visible` when selecting which layer to use as a source — skipping the visibility check means hidden layers still affect the output.
+- NEVER use `canvas.toDataURL()` as the primary export path for WebGPU output — use renderer/readback from an offscreen render target.
+- ALWAYS account for WebGPU readback row padding (`bytesPerRow` aligned to 256) before writing to `ImageData`.
 
 <!-- 
 Example of what this section will look like:
@@ -130,6 +132,16 @@ for (let dj = -1; dj <= 1; dj++) {
 ```
 Each iteration builds a new static DAG node via `select`/`max` — no mutation, no `If`, no `Fn()` required.
 **Rule:** NEVER call `If()` or `.toVar()` outside a `Fn()` shader function context. Build pure functional `select`/`max` DAGs at JS time instead.
+
+### 🔴 [9.1] WebGPU export path: white/empty PNG + readback bounds error
+**Date:** 2026-02-24
+**Task:** Phase 9.1 — image export
+**What went wrong:** Exported PNGs were completely white/empty. A follow-up attempt failed with `offset is out of bounds`.
+**Why it happened:** Two issues combined:
+1. Export initially used `canvas.toDataURL()` on a WebGPU canvas swapchain, which is not a reliable capture source for final frame contents.
+2. WebGPU `readRenderTargetPixelsAsync()` can return row-padded buffers (`bytesPerRow` aligned to 256). Writing that raw buffer directly into `ImageData` overflowed expected RGBA size.
+**The fix:** Replaced export with pipeline-driven offscreen readback: render pipeline output to an offscreen render target, read pixels with `readRenderTargetPixelsAsync()`, unpack row padding into tight RGBA, force alpha to 255, then encode PNG blob for download.
+**Rule:** NEVER trust `canvas.toDataURL()` for WebGPU frame export. ALWAYS use offscreen render-target readback and handle padded row strides.
 
 <!--
 ### 🟡 [2.1] WebGPURenderer failed to initialize on Firefox

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  ArrowClockwise,
   Camera,
   Copy,
   DotsThreeVertical,
@@ -45,9 +46,17 @@ function LayerIcon({ layer }: { layer: Layer }) {
 
 interface LayerItemProps {
   layer: Layer;
+  tabIndex?: number;
+  itemRef?: (node: HTMLDivElement | null) => void;
+  onRowKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>, layer: Layer) => void;
 }
 
-export function LayerItem({ layer }: LayerItemProps) {
+export function LayerItem({
+  layer,
+  tabIndex = -1,
+  itemRef,
+  onRowKeyDown,
+}: LayerItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: layer.id,
   });
@@ -65,12 +74,20 @@ export function LayerItem({ layer }: LayerItemProps) {
   const duplicateLayer   = useLayerStore((s) => s.duplicateLayer);
   const renameLayer      = useLayerStore((s) => s.renameLayer);
   const resetParams      = useLayerStore((s) => s.resetParams);
+  const retryLayerMedia  = useLayerStore((s) => s.retryLayerMedia);
   const reorderLayers    = useLayerStore((s) => s.reorderLayers);
 
   const isSelected = selectedLayerId === layer.id;
   const myIndex    = layers.findIndex((l) => l.id === layer.id);
 
   const style = { transform: CSS.Transform.toString(transform), transition };
+  const setCombinedRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node);
+      itemRef?.(node);
+    },
+    [itemRef, setNodeRef],
+  );
 
   // ── Rename ────────────────────────────────────────────────────────────────
 
@@ -95,8 +112,13 @@ export function LayerItem({ layer }: LayerItemProps) {
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setCombinedRef}
       style={style}
+      id={`layer-row-${layer.id}`}
+      data-layer-row="true"
+      role="option"
+      aria-selected={isSelected}
+      tabIndex={tabIndex}
       className={cn(
         "group relative flex items-center gap-2xs py-[6px] pl-[6px] pr-xs",
         "cursor-pointer select-none border-l-2 transition-colors",
@@ -107,6 +129,7 @@ export function LayerItem({ layer }: LayerItemProps) {
         !isDragging && !layer.visible && "opacity-40",
       )}
       onClick={() => selectLayer(layer.id)}
+      onKeyDown={(e) => onRowKeyDown?.(e, layer)}
     >
       {/* Drag handle */}
       <button
@@ -160,6 +183,21 @@ export function LayerItem({ layer }: LayerItemProps) {
             {layer.shaderType.replace(/-/g, " ")}
           </span>
         )}
+        {(layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam") && layer.mediaStatus === "loading" && (
+          <span className="truncate text-[10px] leading-none text-[var(--color-fg-disabled)]">
+            loading media…
+          </span>
+        )}
+        {(layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam") && layer.mediaStatus === "error" && (
+          <span className="truncate text-[10px] leading-none text-[var(--color-error)]">
+            {layer.mediaError ?? "media failed"}
+          </span>
+        )}
+        {layer.kind === "shader" && layer.runtimeError && (
+          <span className="truncate text-[10px] leading-none text-[var(--color-error)]">
+            shader disabled
+          </span>
+        )}
       </div>
 
       {/* Visibility toggle */}
@@ -210,6 +248,13 @@ export function LayerItem({ layer }: LayerItemProps) {
               Reset parameters
             </DropdownMenuItem>
           )}
+          {(layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam") &&
+            layer.mediaStatus === "error" && (
+              <DropdownMenuItem onSelect={() => retryLayerMedia(layer.id)}>
+                <ArrowClockwise size={13} />
+                Retry media
+              </DropdownMenuItem>
+            )}
           {myIndex > 0 && (
             <DropdownMenuItem onSelect={() => reorderLayers(myIndex, 0)}>
               Move to top

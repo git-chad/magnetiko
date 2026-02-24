@@ -9,6 +9,7 @@ interface EditorState {
   zoom: number;
   panOffset: { x: number; y: number };
   canvasSize: { width: number; height: number };
+  renderScale: 1 | 0.75 | 0.5;
   showGrid: boolean;
   theme: "light" | "dark";
   sidebarOpen: { left: boolean; right: boolean };
@@ -24,6 +25,7 @@ interface EditorActions {
   setPan(x: number, y: number): void;
   resetView(): void;
   setCanvasSize(width: number, height: number): void;
+  setRenderScale(scale: 1 | 0.75 | 0.5): void;
   toggleGrid(): void;
   toggleTheme(): void;
   setTheme(theme: "light" | "dark"): void;
@@ -43,6 +45,7 @@ export const useEditorStore = create<EditorStore>()(
     zoom: 1,
     panOffset: { x: 0, y: 0 },
     canvasSize: { width: 1920, height: 1080 },
+    renderScale: 1,
     showGrid: false,
     theme: "light",
     sidebarOpen: { left: true, right: true },
@@ -72,6 +75,12 @@ export const useEditorStore = create<EditorStore>()(
     setCanvasSize(width, height) {
       set((state) => {
         state.canvasSize = { width, height };
+      });
+    },
+
+    setRenderScale(scale) {
+      set((state) => {
+        state.renderScale = scale;
       });
     },
 

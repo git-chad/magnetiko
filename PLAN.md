@@ -796,62 +796,62 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 ### 8.1 Performance
 
 - [x] Dirty flag system: only re-render when state changes or video frame updates
-- [ ] Render target pooling: reuse render targets, don't allocate per frame
-- [ ] Uniform updates without material recompilation (TSL should handle this, verify)
-- [ ] FPS monitoring: warn user (toast) if dropping below 30fps, suggest reducing quality
-- [ ] Resolution scaling: allow rendering at 0.5× or 0.75× resolution for performance
-- [ ] Layer thumbnail generation: render at low resolution on a separate schedule (not every frame)
+- [x] Render target pooling: reuse render targets, don't allocate per frame
+- [x] Uniform updates without material recompilation (TSL should handle this, verify)
+- [x] FPS monitoring: warn user (toast) if dropping below 30fps, suggest reducing quality
+- [x] Resolution scaling: allow rendering at 0.5× or 0.75× resolution for performance
+- [x] Layer thumbnail generation: render at low resolution on a separate schedule (not every frame)
 - [ ] Profile GPU usage with Chrome DevTools / browser MCP
 
 **Done when:** Maintains 60fps with 5 shader layers on a mid-range GPU. No memory leaks over extended sessions. FPS counter confirms.
 
 ### 8.2 Animations & Transitions (GSAP)
 
-- [ ] Sidebar open/close: slide + fade, 150ms, correct easing from design system
+- [x] Sidebar open/close: slide + fade, 150ms, correct easing from design system
 - [ ] Layer add/remove: height collapse animation in list
-- [ ] Layer reorder: smooth position animation (dnd-kit + GSAP)
-- [ ] Modal enter/exit: scale + translateY per design spec
-- [ ] Toast enter/exit: per design spec
-- [ ] Stagger: 30ms per child in lists
-- [ ] Reduced motion: respect `prefers-reduced-motion`
+- [x] Layer reorder: smooth position animation (dnd-kit + GSAP)
+- [x] Modal enter/exit: scale + translateY per design spec
+- [x] Toast enter/exit: per design spec
+- [x] Stagger: 30ms per child in lists
+- [x] Reduced motion: respect `prefers-reduced-motion`
 
 **Done when:** All UI transitions match the design system motion spec exactly. No janky animations. Reduced motion kills all.
 
 ### 8.3 Keyboard & Screen Reader
 
-- [ ] All interactive elements focusable via Tab
-- [ ] Layer panel: Arrow keys to navigate, Space to toggle visibility, Enter to select, Delete to remove
-- [ ] Sliders: Arrow keys for fine control (step), Shift+Arrow for coarse (10×step)
-- [ ] Undo/Redo: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z
-- [ ] Save: Ctrl/Cmd+S (triggers export)
-- [ ] ARIA labels on all icon buttons
-- [ ] `aria-expanded` on collapsible sections
-- [ ] `aria-live` on toast container and FPS counter
-- [ ] Focus trap in modals
-- [ ] Skip-to-content link (skips toolbar, goes to canvas)
+- [x] All interactive elements focusable via Tab
+- [x] Layer panel: Arrow keys to navigate, Space to toggle visibility, Enter to select, Delete to remove
+- [x] Sliders: Arrow keys for fine control (step), Shift+Arrow for coarse (10×step)
+- [x] Undo/Redo: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z
+- [x] Save: Ctrl/Cmd+S (triggers export)
+- [x] ARIA labels on all icon buttons
+- [x] `aria-expanded` on collapsible sections
+- [x] `aria-live` on toast container and FPS counter
+- [x] Focus trap in modals
+- [x] Skip-to-content link (skips toolbar, goes to canvas)
 - [ ] Color contrast: verify all text meets WCAG AA (4.5:1 body, 3:1 large)
 
 **Done when:** Can operate the entire editor with keyboard only. VoiceOver/NVDA can navigate layer panel and controls. Contrast checker passes.
 
 ### 8.4 Responsive Design
 
-- [ ] **375px (mobile):** Single column. Canvas full width. Layer panel = bottom drawer (drag up). Properties = bottom sheet. Toolbar compact with hamburger menu.
-- [ ] **768px (tablet):** Canvas with left sidebar (layer panel, collapsible). Properties as overlay/drawer from right.
-- [ ] **1024px (laptop):** Full three-column layout. Sidebars fixed.
-- [ ] **1440px+ (desktop):** Wider sidebars, more breathing room.
-- [ ] Touch interactions: pinch-to-zoom on canvas, swipe to dismiss drawers
-- [ ] Test with Chrome DevTools device simulation + browser MCP
+- [!] **375px (mobile):** Single column. Canvas full width. Layer panel = bottom drawer (drag up). Properties = bottom sheet. Toolbar compact with hamburger menu _(intentionally deferred; not targeting mobile yet)_
+- [!] **768px (tablet):** Canvas with left sidebar (layer panel, collapsible). Properties as overlay/drawer from right _(intentionally deferred; not targeting mobile yet)_
+- [!] **1024px (laptop):** Full three-column layout. Sidebars fixed _(desktop behavior already in place; full responsive matrix deferred)_
+- [!] **1440px+ (desktop):** Wider sidebars, more breathing room _(deferred)_
+- [!] Touch interactions: pinch-to-zoom on canvas, swipe to dismiss drawers _(deferred with mobile scope)_
+- [!] Test with Chrome DevTools device simulation + browser MCP _(deferred with mobile scope)_
 
 **Done when:** Layout works beautifully at all 4 breakpoints. Touch gestures feel native. No overflow, no cut-off content.
 
 ### 8.5 Error Handling & Edge Cases
 
-- [ ] WebGPU not available: show clear fallback page with browser requirements
-- [ ] Shader compilation error: catch, show toast with error, disable layer (don't crash)
-- [ ] Media load failure: show error state in layer, allow retry
-- [ ] Empty state: welcoming "Get Started" screen when no layers exist
-- [ ] Maximum layers: cap at 20, show toast when limit reached
-- [ ] Out of GPU memory: catch, show warning, suggest removing layers
+- [x] WebGPU not available: show clear fallback page with browser requirements
+- [x] Shader compilation error: catch, show toast with error, disable layer (don't crash)
+- [x] Media load failure: show error state in layer, allow retry
+- [x] Empty state: welcoming "Get Started" screen when no layers exist
+- [x] Maximum layers: cap at 20, show toast when limit reached
+- [x] Out of GPU memory: catch, show warning, suggest removing layers
 
 **Done when:** Every error case shows a helpful message, not a blank screen or cryptic error.
 
@@ -863,10 +863,10 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 9.1 Image Export
 
-- [ ] Capture current canvas frame as PNG or JPEG
+- [!] Capture current canvas frame as PNG or JPEG _(PNG export implemented via WebGPU offscreen readback; JPEG still pending)_
 - [ ] Resolution options: 1×, 2×, 4× current viewport, or custom dimensions
 - [ ] Quality slider for JPEG
-- [ ] Download via browser save dialog
+- [x] Download via browser save dialog
 - [ ] Include/exclude UI overlays (interaction cursors, grid)
 
 **Done when:** Exports a clean, high-resolution image that matches the canvas exactly.

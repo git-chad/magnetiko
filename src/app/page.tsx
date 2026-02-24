@@ -41,10 +41,18 @@ export default function EditorPage() {
 
   // ── Mobile detection (updated on resize) ────────────────────────────────
   const [isMobile, setIsMobile] = React.useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
   React.useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
     setIsMobile(mq.matches);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  React.useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
@@ -53,38 +61,59 @@ export default function EditorPage() {
   React.useEffect(() => {
     const el = leftRef.current;
     if (!el) return;
+    const target = isMobile
+      ? { x: leftOpen ? 0 : -LEFT_W, opacity: leftOpen ? 1 : 0 }
+      : { width: leftOpen ? LEFT_W : 0, opacity: leftOpen ? 1 : 0 };
+    if (prefersReducedMotion) {
+      gsap.set(el, target);
+      return;
+    }
     if (isMobile) {
       // Mobile: fixed overlay, translate in from left
-      gsap.to(el, { x: leftOpen ? 0 : -LEFT_W, ...ANIM });
+      gsap.to(el, { x: leftOpen ? 0 : -LEFT_W, opacity: leftOpen ? 1 : 0, ...ANIM });
     } else {
       // Desktop: inline panel, animate width
-      gsap.to(el, { width: leftOpen ? LEFT_W : 0, ...ANIM });
+      gsap.to(el, { width: leftOpen ? LEFT_W : 0, opacity: leftOpen ? 1 : 0, ...ANIM });
     }
-  }, [leftOpen, isMobile]);
+  }, [leftOpen, isMobile, prefersReducedMotion]);
 
   // ── Right sidebar animation ──────────────────────────────────────────────
   React.useEffect(() => {
     const el = rightRef.current;
     if (!el) return;
-    if (isMobile) {
-      gsap.to(el, { x: rightOpen ? 0 : RIGHT_W, ...ANIM });
-    } else {
-      gsap.to(el, { width: rightOpen ? RIGHT_W : 0, ...ANIM });
+    const target = isMobile
+      ? { x: rightOpen ? 0 : RIGHT_W, opacity: rightOpen ? 1 : 0 }
+      : { width: rightOpen ? RIGHT_W : 0, opacity: rightOpen ? 1 : 0 };
+    if (prefersReducedMotion) {
+      gsap.set(el, target);
+      return;
     }
-  }, [rightOpen, isMobile]);
+    if (isMobile) {
+      gsap.to(el, { x: rightOpen ? 0 : RIGHT_W, opacity: rightOpen ? 1 : 0, ...ANIM });
+    } else {
+      gsap.to(el, { width: rightOpen ? RIGHT_W : 0, opacity: rightOpen ? 1 : 0, ...ANIM });
+    }
+  }, [rightOpen, isMobile, prefersReducedMotion]);
 
   // ── Mobile backdrop ──────────────────────────────────────────────────────
   const anySidebarOpen = isMobile && (leftOpen || rightOpen);
   React.useEffect(() => {
     const el = backdropRef.current;
     if (!el) return;
+    if (prefersReducedMotion) {
+      gsap.set(el, {
+        display: anySidebarOpen ? "block" : "none",
+        opacity: anySidebarOpen ? 1 : 0,
+      });
+      return;
+    }
     if (anySidebarOpen) {
       gsap.set(el, { display: "block" });
       gsap.to(el, { opacity: 1, duration: 0.15 });
     } else {
       gsap.to(el, { opacity: 0, duration: 0.15, onComplete: () => { gsap.set(el, { display: "none" }); } });
     }
-  }, [anySidebarOpen]);
+  }, [anySidebarOpen, prefersReducedMotion]);
 
   // ── Close both sidebars on mobile backdrop click ─────────────────────────
   const closeSidebars = useEditorStore((s) => s.setSidebarOpen);
@@ -96,6 +125,12 @@ export default function EditorPage() {
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-bg)]">
+        <a
+          href="#editor-canvas-main"
+          className="sr-only absolute left-2 top-2 z-[120] rounded-xs bg-[var(--color-bg-raised)] px-xs py-3xs text-caption text-[var(--color-fg-primary)] shadow-mid focus:not-sr-only"
+        >
+          Skip to canvas
+        </a>
 
         {/* ── Toolbar (48px) ─────────────────────────────────────────── */}
         <Toolbar onBrowsePresets={() => setPresetOpen(true)} />
@@ -122,7 +157,11 @@ export default function EditorPage() {
           </aside>
 
           {/* Canvas (fills remaining space) */}
-          <main className="relative min-w-0 flex-1 overflow-hidden">
+          <main
+            id="editor-canvas-main"
+            tabIndex={-1}
+            className="relative min-w-0 flex-1 overflow-hidden"
+          >
             <Canvas className="absolute inset-0 size-full" />
           </main>
 

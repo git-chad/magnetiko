@@ -89,22 +89,18 @@ export class MediaPass extends PassNode {
     this._releaseCurrentMedia();
     this._loadedUrl = url;
     if (this._uMirrorX) this._uMirrorX.value = 0.0;
-    try {
-      if (type === "image") {
-        const tex = await loadImageTexture(url);
-        this._currentTex = tex;
-        this._setAspect(tex);
-      } else {
-        const handle = await createVideoTexture(url);
-        this._currentTex  = handle.texture;
-        this._videoTex    = handle.texture;
-        this._videoHandle = handle;
-        this._setAspect(handle.texture);
-      }
-    } catch (err) {
-      console.error("[MediaPass] failed to load media:", err);
-      this._loadedUrl = null;
+    if (type === "image") {
+      const tex = await loadImageTexture(url);
+      this._currentTex = tex;
+      this._setAspect(tex);
+      return;
     }
+
+    const handle = await createVideoTexture(url);
+    this._currentTex = handle.texture;
+    this._videoTex = handle.texture;
+    this._videoHandle = handle;
+    this._setAspect(handle.texture);
   }
 
   /**
@@ -117,16 +113,12 @@ export class MediaPass extends PassNode {
     this._releaseCurrentMedia();
     this._loadedUrl = "__webcam__";
     if (this._uMirrorX) this._uMirrorX.value = 1.0;
-    try {
-      const handle = await createWebcamTexture();
-      this._currentTex  = handle.texture;
-      this._videoTex    = handle.texture;
-      this._videoHandle = handle;
-      this._setAspect(handle.texture);
-    } catch (err) {
-      console.error("[MediaPass] failed to start webcam:", err);
-      this._loadedUrl = null;
-    }
+
+    const handle = await createWebcamTexture();
+    this._currentTex = handle.texture;
+    this._videoTex = handle.texture;
+    this._videoHandle = handle;
+    this._setAspect(handle.texture);
   }
 
   // ── PassNode overrides ─────────────────────────────────────────────────────

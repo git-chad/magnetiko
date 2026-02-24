@@ -22,7 +22,7 @@ interface LayerState {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface LayerActions {
-  addLayer(kind: LayerKind, shaderType?: ShaderType, insertIndex?: number): string;
+  addLayer(kind: LayerKind, shaderType?: ShaderType, insertIndex?: number): string | null;
   removeLayer(id: string): void;
   duplicateLayer(id: string): string | null;
   reorderLayers(fromIndex: number, toIndex: number): void;
@@ -38,6 +38,13 @@ interface LayerActions {
   updateParam(layerId: string, paramKey: string, value: Layer["params"][number]["value"]): void;
   resetParams(layerId: string): void;
   setLayerMedia(id: string, url: string, type: "image" | "video"): void;
+  setLayerMediaStatus(
+    id: string,
+    status: "idle" | "loading" | "ready" | "error",
+    error?: string,
+  ): void;
+  retryLayerMedia(id: string): void;
+  setLayerRuntimeError(id: string, error: string | null): void;
   setLayerThumbnail(id: string, thumbnail: string): void;
   /** Restore a full snapshot (used by undo/redo). */
   setLayers(layers: Layer[], selectedLayerId: string | null): void;
@@ -51,6 +58,7 @@ interface LayerSelectors {
   getSelectedLayer(): Layer | null;
   getVisibleLayers(): Layer[];
   getLayersByOrder(): Layer[];
+  hasReachedLayerLimit(): boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,6 +66,7 @@ interface LayerSelectors {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type LayerStore = LayerState & LayerActions & LayerSelectors;
+export const MAX_LAYERS = 20;
 
 function createDefaultLayer(
   kind: LayerKind,
@@ -85,6 +94,8 @@ function createDefaultLayer(
     params: shaderType ? getDefaultParams(shaderType) : [],
     locked: false,
     expanded: true,
+    mediaStatus: "idle",
+    mediaVersion: 0,
   };
 }
 
@@ -99,6 +110,7 @@ export const useLayerStore = create<LayerStore>()(
 
     addLayer(kind, shaderType, insertIndex) {
       const { layers } = get();
+      if (layers.length >= MAX_LAYERS) return null;
       const sameTypeCount = shaderType
         ? layers.filter((l) => l.shaderType === shaderType).length
         : 0;
@@ -137,6 +149,7 @@ export const useLayerStore = create<LayerStore>()(
 
     duplicateLayer(id) {
       const { layers } = get();
+      if (layers.length >= MAX_LAYERS) return null;
       const source = layers.find((l) => l.id === id);
       if (!source) return null;
 
@@ -146,6 +159,8 @@ export const useLayerStore = create<LayerStore>()(
         name: `${source.name} copy`,
         params: source.params.map((p) => ({ ...p })),
         expanded: true,
+        runtimeError: undefined,
+        mediaError: undefined,
       };
 
       set((state) => {
@@ -235,7 +250,10 @@ export const useLayerStore = create<LayerStore>()(
         const layer = state.layers.find((l) => l.id === layerId);
         if (!layer) return;
         const param = layer.params.find((p) => p.key === paramKey);
-        if (param) param.value = value;
+        if (param) {
+          param.value = value;
+          layer.runtimeError = undefined;
+        }
       });
     },
 
@@ -244,6 +262,7 @@ export const useLayerStore = create<LayerStore>()(
         const layer = state.layers.find((l) => l.id === layerId);
         if (!layer?.shaderType) return;
         layer.params = getDefaultParams(layer.shaderType);
+        layer.runtimeError = undefined;
       });
     },
 
@@ -253,7 +272,39 @@ export const useLayerStore = create<LayerStore>()(
         if (layer) {
           layer.mediaUrl = url;
           layer.mediaType = type;
+          layer.mediaStatus = "loading";
+          layer.mediaError = undefined;
+          layer.mediaVersion = (layer.mediaVersion ?? 0) + 1;
         }
+      });
+    },
+
+    setLayerMediaStatus(id, status, error) {
+      set((state) => {
+        const layer = state.layers.find((l) => l.id === id);
+        if (!layer) return;
+        layer.mediaStatus = status;
+        layer.mediaError = status === "error" ? (error ?? "Failed to load media.") : undefined;
+      });
+    },
+
+    retryLayerMedia(id) {
+      set((state) => {
+        const layer = state.layers.find((l) => l.id === id);
+        if (!layer) return;
+        if (layer.kind === "webcam" || layer.mediaUrl) {
+          layer.mediaStatus = "loading";
+          layer.mediaError = undefined;
+          layer.mediaVersion = (layer.mediaVersion ?? 0) + 1;
+        }
+      });
+    },
+
+    setLayerRuntimeError(id, error) {
+      set((state) => {
+        const layer = state.layers.find((l) => l.id === id);
+        if (!layer) return;
+        layer.runtimeError = error ?? undefined;
       });
     },
 
@@ -266,8 +317,12 @@ export const useLayerStore = create<LayerStore>()(
 
     setLayers(layers, selectedLayerId) {
       set((state) => {
-        state.layers = layers;
-        state.selectedLayerId = selectedLayerId;
+        const nextLayers = layers.slice(0, MAX_LAYERS);
+        state.layers = nextLayers;
+        state.selectedLayerId =
+          selectedLayerId && nextLayers.some((layer) => layer.id === selectedLayerId)
+            ? selectedLayerId
+            : nextLayers[0]?.id ?? null;
       });
     },
 
@@ -287,6 +342,10 @@ export const useLayerStore = create<LayerStore>()(
     getLayersByOrder() {
       // Returns layers bottom-to-top (render order: first = base, last = front)
       return [...get().layers].reverse();
+    },
+
+    hasReachedLayerLimit() {
+      return get().layers.length >= MAX_LAYERS;
     },
   })),
 );

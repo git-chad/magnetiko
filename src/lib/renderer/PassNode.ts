@@ -109,11 +109,12 @@ export class PassNode {
    * (one recompile). Safe to call on every syncLayers(); early-exits when
    * the mode hasn't changed.
    */
-  updateBlendMode(blendMode: string): void {
-    if (blendMode === this._blendMode) return;
+  updateBlendMode(blendMode: string): boolean {
+    if (blendMode === this._blendMode) return false;
     this._blendMode = blendMode;
     this._rebuildColorNode();
     this._material.needsUpdate = true;
+    return true;
   }
 
   /**
@@ -139,6 +140,10 @@ export class PassNode {
    */
   needsContinuousRender(): boolean {
     return false;
+  }
+
+  getMaterialVersion(): number {
+    return this._material.version;
   }
 
   dispose(): void {

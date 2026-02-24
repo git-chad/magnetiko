@@ -14,6 +14,7 @@ import {
 } from "three/tsl";
 import * as THREE from "three/webgpu";
 import { PassNode } from "@/lib/renderer/PassNode";
+import { sharedRenderTargetPool } from "@/lib/renderer/RenderTargetPool";
 import type { ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,8 +50,8 @@ class DoubleFBO {
     height: number,
     options: THREE.RenderTargetOptions,
   ) {
-    this.read = new THREE.WebGLRenderTarget(width, height, options);
-    this.write = new THREE.WebGLRenderTarget(width, height, options);
+    this.read = sharedRenderTargetPool.acquire(width, height, options);
+    this.write = sharedRenderTargetPool.acquire(width, height, options);
   }
 
   get texture(): THREE.Texture {
@@ -69,8 +70,8 @@ class DoubleFBO {
   }
 
   dispose(): void {
-    this.read.dispose();
-    this.write.dispose();
+    sharedRenderTargetPool.release(this.read);
+    sharedRenderTargetPool.release(this.write);
   }
 }
 
@@ -1053,7 +1054,7 @@ function makeFluidRT(
   height: number,
   filter: number,
 ): THREE.WebGLRenderTarget {
-  return new THREE.WebGLRenderTarget(
+  return sharedRenderTargetPool.acquire(
     Math.max(width, 1),
     Math.max(height, 1),
     makeFluidRTOptions(filter),

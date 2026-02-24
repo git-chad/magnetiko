@@ -12,6 +12,7 @@ import {
   texture as tslTexture,
 } from "three/tsl";
 import { PassNode } from "@/lib/renderer/PassNode";
+import { sharedRenderTargetPool } from "@/lib/renderer/RenderTargetPool";
 import type { ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,6 +22,15 @@ import type { ShaderParam } from "@/types";
 /** Pre-normalised 9-tap Gaussian weights (σ ≈ 1.5). Sum = 1. */
 const WEIGHTS = [0.0076, 0.0361, 0.1096, 0.2135, 0.2666, 0.2135, 0.1096, 0.0361, 0.0076];
 const OFFSETS = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+const PROGRESSIVE_BLUR_RT_OPTIONS = {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat,
+  type: THREE.UnsignedByteType,
+  depthBuffer: false,
+  stencilBuffer: false,
+  generateMipmaps: false,
+} as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ProgressiveBlurPass
@@ -99,11 +109,7 @@ export class ProgressiveBlurPass extends PassNode {
     this._focusSizeU  = uniform(0.3);   // normalised UV radius of sharp zone
 
     // ── H-pass render target ───────────────────────────────────────────────
-    this._blurHRT = new THREE.WebGLRenderTarget(1, 1, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      type: THREE.UnsignedByteType,
-    });
+    this._blurHRT = sharedRenderTargetPool.acquire(1, 1, PROGRESSIVE_BLUR_RT_OPTIONS);
     this._blurHCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     // ── H-pass TSL graph ───────────────────────────────────────────────────
@@ -231,7 +237,7 @@ export class ProgressiveBlurPass extends PassNode {
   // ── Dispose ────────────────────────────────────────────────────────────────
 
   override dispose(): void {
-    this._blurHRT.dispose();
+    sharedRenderTargetPool.release(this._blurHRT);
     this._blurHMat.dispose();
     super.dispose();
   }
