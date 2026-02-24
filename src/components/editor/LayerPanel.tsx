@@ -7,6 +7,7 @@ import {
   Cube,
   CaretDown,
   CaretRight,
+  DotsSixVertical,
   DotsThreeVertical,
   FolderSimple,
   Image as ImageIcon,
@@ -31,6 +32,8 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useSortable } from "@dnd-kit/sortable";
 import {
   Button,
   DropdownMenu,
@@ -51,6 +54,18 @@ import type { Layer, LayerGroup, ShaderType } from "@/types";
 type DisplayRow =
   | { type: "group"; group: LayerGroup; childCount: number }
   | { type: "layer"; layer: Layer; inGroup: boolean };
+
+const GROUP_ROW_PREFIX = "group:";
+
+function toGroupRowId(groupId: string): string {
+  return `${GROUP_ROW_PREFIX}${groupId}`;
+}
+
+function fromGroupRowId(rowId: string): string | null {
+  return rowId.startsWith(GROUP_ROW_PREFIX)
+    ? rowId.slice(GROUP_ROW_PREFIX.length)
+    : null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shader type menu data
@@ -261,21 +276,41 @@ function AddLayerMenu() {
 function GroupRow({
   group,
   childCount,
+  canAddSelected,
+  onAddSelected,
   onToggle,
   onRename,
   onDelete,
 }: {
   group: LayerGroup;
   childCount: number;
+  canAddSelected: boolean;
+  onAddSelected: () => void;
   onToggle: () => void;
   onRename: () => void;
   onDelete: () => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: toGroupRowId(group.id),
+  });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       data-layer-row="true"
       className="group mx-3xs my-[2px] flex items-center gap-2xs rounded-sm border border-transparent bg-[var(--color-bg-subtle)] py-[6px] pl-[8px] pr-xs"
     >
+      <button
+        {...attributes}
+        {...listeners}
+        className="shrink-0 cursor-grab touch-none text-[var(--color-fg-disabled)] opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+        aria-label="Reorder group"
+        tabIndex={-1}
+      >
+        <DotsSixVertical size={12} weight="bold" />
+      </button>
       <button
         className="shrink-0 text-[var(--color-fg-tertiary)] transition-colors hover:text-[var(--color-fg-primary)]"
         onClick={onToggle}
@@ -303,6 +338,11 @@ function GroupRow({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={4}>
+          <DropdownMenuItem disabled={!canAddSelected} onSelect={onAddSelected}>
+            <Plus size={13} />
+            Add selected layer
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onRename}>
             <PencilSimple size={13} />
             Rename group
@@ -330,6 +370,7 @@ export function LayerPanel() {
   const selectLayer = useLayerStore((s) => s.selectLayer);
   const removeLayer = useLayerStore((s) => s.removeLayer);
   const setLayerVisibility = useLayerStore((s) => s.setLayerVisibility);
+  const assignLayerToGroup = useLayerStore((s) => s.assignLayerToGroup);
   const renameGroup = useLayerStore((s) => s.renameGroup);
   const removeGroup = useLayerStore((s) => s.removeGroup);
   const toggleGroupCollapsed = useLayerStore((s) => s.toggleGroupCollapsed);
@@ -400,10 +441,31 @@ export function LayerPanel() {
     [rows],
   );
 
+  const sortableRowIds = React.useMemo(
+    () =>
+      rows.flatMap((row) => {
+        if (row.type === "group") return [toGroupRowId(row.group.id)];
+        if (!row.inGroup) return [row.layer.id];
+        return [];
+      }),
+    [rows],
+  );
+
   function handleDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
-    const oldIndex = layers.findIndex((l) => l.id === active.id);
-    const newIndex = layers.findIndex((l) => l.id === over.id);
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    const activeGroupId = fromGroupRowId(activeId);
+    const overGroupId = fromGroupRowId(overId);
+
+    const oldIndex = activeGroupId
+      ? layers.findIndex((layer) => layer.groupId === activeGroupId)
+      : layers.findIndex((layer) => layer.id === activeId);
+    const newIndex = overGroupId
+      ? layers.findIndex((layer) => layer.groupId === overGroupId)
+      : layers.findIndex((layer) => layer.id === overId);
+
     if (oldIndex !== -1 && newIndex !== -1) reorderLayers(oldIndex, newIndex);
   }
 
@@ -519,16 +581,27 @@ export function LayerPanel() {
           >
             <div ref={listRef} role="listbox" aria-label="Layer stack">
               <SortableContext
-                items={visibleLayerIds}
+                items={sortableRowIds}
                 strategy={verticalListSortingStrategy}
               >
                 {rows.map((row, i) => {
                   if (row.type === "group") {
+                    const selectedLayer = selectedLayerId
+                      ? layers.find((layer) => layer.id === selectedLayerId)
+                      : null;
+                    const canAddSelected =
+                      Boolean(selectedLayer) &&
+                      selectedLayer?.groupId !== row.group.id;
                     return (
                       <GroupRow
                         key={`group-${row.group.id}`}
                         group={row.group}
                         childCount={row.childCount}
+                        canAddSelected={canAddSelected}
+                        onAddSelected={() => {
+                          if (!selectedLayer) return;
+                          assignLayerToGroup(selectedLayer.id, row.group.id);
+                        }}
                         onToggle={() => toggleGroupCollapsed(row.group.id)}
                         onRename={() => handleRenameGroup(row.group)}
                         onDelete={() => removeGroup(row.group.id)}
@@ -542,6 +615,7 @@ export function LayerPanel() {
                     <LayerItem
                       key={layer.id}
                       layer={layer}
+                      sortable={!row.inGroup}
                       rowClassName={row.inGroup ? "ml-sm" : undefined}
                       tabIndex={
                         selectedLayerId

@@ -185,8 +185,59 @@ export const useLayerStore = create<LayerStore>()(
 
     reorderLayers(fromIndex, toIndex) {
       set((state) => {
+        if (
+          fromIndex < 0 ||
+          fromIndex >= state.layers.length ||
+          toIndex < 0 ||
+          toIndex >= state.layers.length ||
+          fromIndex === toIndex
+        ) {
+          return;
+        }
+
+        const movingLayer = state.layers[fromIndex];
+        if (!movingLayer) return;
+        const directionDown = fromIndex < toIndex;
+
+        // Grouped layers move as a block so grouped stacks behave like one unit.
+        if (movingLayer.groupId) {
+          const movingGroupId = movingLayer.groupId;
+          const movingIndices = collectGroupIndices(state.layers, movingGroupId);
+          if (movingIndices.length === 0) return;
+
+          const targetLayer = state.layers[toIndex];
+          if (targetLayer?.groupId === movingGroupId) return;
+
+          const adjustedToIndex = normalizeTargetIndexForGroupBoundary(
+            state.layers,
+            toIndex,
+            directionDown,
+            movingGroupId,
+          );
+          const movingSet = new Set(movingIndices);
+          const movingBlock = state.layers.filter((_, idx) => movingSet.has(idx));
+          const remaining = state.layers.filter((_, idx) => !movingSet.has(idx));
+          const removedBeforeTarget = movingIndices.filter((idx) => idx < adjustedToIndex).length;
+          let insertIndex = adjustedToIndex - removedBeforeTarget;
+          insertIndex = Math.max(0, Math.min(remaining.length, insertIndex));
+          remaining.splice(insertIndex, 0, ...movingBlock);
+          state.layers = remaining;
+          return;
+        }
+
+        const adjustedToIndex = normalizeTargetIndexForGroupBoundary(
+          state.layers,
+          toIndex,
+          directionDown,
+          null,
+        );
+        const targetGroupId = state.layers[toIndex]?.groupId;
+        const isDroppingOnGroupedBlock = typeof targetGroupId === "string";
+        const insertIndex = isDroppingOnGroupedBlock && fromIndex < adjustedToIndex
+          ? adjustedToIndex - 1
+          : adjustedToIndex;
         const [moved] = state.layers.splice(fromIndex, 1);
-        state.layers.splice(toIndex, 0, moved);
+        state.layers.splice(insertIndex, 0, moved);
       });
     },
 
@@ -332,7 +383,7 @@ export const useLayerStore = create<LayerStore>()(
       const { groups, layers, selectedLayerId } = get();
       const nextGroupId = uuidv4();
       const normalizedName = name?.trim();
-      const fallbackName = `Group ${groups.length + 1}`;
+      const fallbackName = getNextGroupName(groups);
       const selectedIds =
         layerIds && layerIds.length > 0
           ? layerIds
@@ -348,10 +399,23 @@ export const useLayerStore = create<LayerStore>()(
           collapsed: false,
         });
         if (memberIds.length > 0) {
+          const memberSet = new Set(memberIds);
+          const firstMemberIndex = state.layers.findIndex((layer) => memberSet.has(layer.id));
           for (const layer of state.layers) {
-            if (memberIds.includes(layer.id)) {
+            if (memberSet.has(layer.id)) {
               layer.groupId = nextGroupId;
             }
+          }
+          // Keep newly grouped members contiguous.
+          if (firstMemberIndex >= 0 && memberIds.length > 1) {
+            const groupedLayers = state.layers.filter((layer) => memberSet.has(layer.id));
+            const nonGroupedLayers = state.layers.filter((layer) => !memberSet.has(layer.id));
+            let insertIndex = 0;
+            for (let i = 0; i < firstMemberIndex; i++) {
+              if (!memberSet.has(state.layers[i].id)) insertIndex++;
+            }
+            nonGroupedLayers.splice(insertIndex, 0, ...groupedLayers);
+            state.layers = nonGroupedLayers;
           }
         }
       });
@@ -388,13 +452,31 @@ export const useLayerStore = create<LayerStore>()(
       set((state) => {
         const layer = state.layers.find((l) => l.id === layerId);
         if (!layer) return;
+        const previousGroupId = layer.groupId;
         if (!groupId) {
           layer.groupId = undefined;
           pruneEmptyGroups(state);
           return;
         }
         if (!state.groups.some((group) => group.id === groupId)) return;
+        if (layer.groupId === groupId) return;
         layer.groupId = groupId;
+
+        // Keep destination group contiguous by moving the new member to the tail.
+        const currentIndex = state.layers.findIndex((l) => l.id === layer.id);
+        const destinationIndices = collectGroupIndices(state.layers, groupId).filter(
+          (idx) => state.layers[idx]?.id !== layer.id,
+        );
+        if (currentIndex >= 0 && destinationIndices.length > 0) {
+          const groupTailIndex = destinationIndices[destinationIndices.length - 1]!;
+          const [moved] = state.layers.splice(currentIndex, 1);
+          const insertIndex = currentIndex < groupTailIndex ? groupTailIndex : groupTailIndex + 1;
+          state.layers.splice(insertIndex, 0, moved);
+        }
+
+        if (previousGroupId && previousGroupId !== groupId) {
+          pruneEmptyGroups(state);
+        }
       });
     },
 
@@ -446,4 +528,44 @@ function pruneEmptyGroups(state: LayerState): void {
     state.layers.map((layer) => layer.groupId).filter((id): id is string => typeof id === "string"),
   );
   state.groups = state.groups.filter((group) => used.has(group.id));
+}
+
+function getNextGroupName(groups: LayerGroup[]): string {
+  const usedNumbers = new Set<number>();
+  for (const group of groups) {
+    const match = /^Group\s+(\d+)$/i.exec(group.name.trim());
+    if (!match) continue;
+    const parsed = Number.parseInt(match[1] ?? "", 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      usedNumbers.add(parsed);
+    }
+  }
+  let next = 1;
+  while (usedNumbers.has(next)) next++;
+  return `Group ${next}`;
+}
+
+function collectGroupIndices(layers: Layer[], groupId: string): number[] {
+  const indices: number[] = [];
+  for (let i = 0; i < layers.length; i++) {
+    if (layers[i]?.groupId === groupId) indices.push(i);
+  }
+  return indices;
+}
+
+function normalizeTargetIndexForGroupBoundary(
+  layers: Layer[],
+  targetIndex: number,
+  movingDown: boolean,
+  ignoreGroupId: string | null,
+): number {
+  const targetLayer = layers[targetIndex];
+  if (!targetLayer?.groupId || targetLayer.groupId === ignoreGroupId) {
+    return targetIndex;
+  }
+  const targetGroupIndices = collectGroupIndices(layers, targetLayer.groupId);
+  if (targetGroupIndices.length === 0) return targetIndex;
+  const groupHead = targetGroupIndices[0]!;
+  const groupTail = targetGroupIndices[targetGroupIndices.length - 1]!;
+  return movingDown ? groupTail + 1 : groupHead;
 }

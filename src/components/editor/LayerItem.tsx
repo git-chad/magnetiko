@@ -10,6 +10,7 @@ import {
   DotsSixVertical,
   Eye,
   EyeSlash,
+  FolderSimple,
   Image as ImageIcon,
   LockSimple,
   LockSimpleOpen,
@@ -25,6 +26,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui";
 import { useLayerStore } from "@/store/layerStore";
@@ -51,6 +55,7 @@ function LayerIcon({ layer }: { layer: Layer }) {
 
 interface LayerItemProps {
   layer: Layer;
+  sortable?: boolean;
   tabIndex?: number;
   rowClassName?: string;
   itemRef?: (node: HTMLDivElement | null) => void;
@@ -62,6 +67,7 @@ interface LayerItemProps {
 
 export function LayerItem({
   layer,
+  sortable = true,
   tabIndex = -1,
   rowClassName,
   itemRef,
@@ -76,6 +82,7 @@ export function LayerItem({
     isDragging,
   } = useSortable({
     id: layer.id,
+    disabled: !sortable,
   });
 
   const [isRenaming, setIsRenaming] = React.useState(false);
@@ -93,6 +100,9 @@ export function LayerItem({
   const resetParams = useLayerStore((s) => s.resetParams);
   const retryLayerMedia = useLayerStore((s) => s.retryLayerMedia);
   const reorderLayers = useLayerStore((s) => s.reorderLayers);
+  const groups = useLayerStore((s) => s.groups);
+  const assignLayerToGroup = useLayerStore((s) => s.assignLayerToGroup);
+  const createGroup = useLayerStore((s) => s.createGroup);
 
   const isSelected = selectedLayerId === layer.id;
   const myIndex = layers.findIndex((l) => l.id === layer.id);
@@ -154,10 +164,16 @@ export function LayerItem({
     >
       {/* Drag handle */}
       <button
-        {...attributes}
-        {...listeners}
-        className="shrink-0 cursor-grab touch-none text-[var(--color-fg-disabled)] opacity-0 group-hover:opacity-100 active:cursor-grabbing"
+        {...(sortable ? attributes : {})}
+        {...(sortable ? listeners : {})}
+        className={cn(
+          "shrink-0 touch-none text-[var(--color-fg-disabled)]",
+          sortable
+            ? "cursor-grab opacity-0 group-hover:opacity-100 active:cursor-grabbing"
+            : "cursor-default opacity-0",
+        )}
         aria-label="Reorder layer"
+        disabled={!sortable}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
@@ -269,6 +285,33 @@ export function LayerItem({
             <Copy size={13} />
             Duplicate
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <FolderSimple size={13} />
+              Group
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent sideOffset={6}>
+              <DropdownMenuItem
+                disabled={!layer.groupId}
+                onSelect={() => assignLayerToGroup(layer.id, null)}
+              >
+                Ungroup
+              </DropdownMenuItem>
+              {groups.map((group) => (
+                <DropdownMenuItem
+                  key={group.id}
+                  disabled={layer.groupId === group.id}
+                  onSelect={() => assignLayerToGroup(layer.id, group.id)}
+                >
+                  {group.name}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => createGroup(undefined, [layer.id])}>
+                New group from layer
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           {layer.shaderType && (
             <DropdownMenuItem onSelect={() => resetParams(layer.id)}>
               Reset parameters

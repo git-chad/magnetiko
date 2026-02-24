@@ -22,7 +22,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      "flex cursor-default select-none items-center rounded-xs px-xs py-[5px]",
+      "flex cursor-default select-none items-center gap-2 rounded-xs px-xs py-[5px]",
       "text-body text-[var(--color-fg)] outline-none",
       "focus:bg-[var(--color-hover-bg)]",
       "data-[state=open]:bg-[var(--color-hover-bg)]",
@@ -40,19 +40,23 @@ DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayNam
 const DropdownMenuSubContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.SubContent
-    ref={ref}
-    className={cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-md",
-      "border border-[var(--color-border)] bg-[var(--color-bg-raised)]/95 backdrop-blur-xl",
-      "p-3xs shadow-mid",
-      "data-[state=open]:animate-[dropdown-enter_120ms_var(--ease-enter)_both]",
-      "data-[state=closed]:animate-[fade-in_72ms_var(--ease-exit)_reverse_both]",
-      className,
-    )}
-    {...props}
-  />
+>(({ className, sideOffset = 6, ...props }, ref) => (
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.SubContent
+      ref={ref}
+      sideOffset={sideOffset}
+      collisionPadding={8}
+      className={cn(
+        "z-50 min-w-[8rem] overflow-hidden rounded-md",
+        "border border-[var(--color-border)] bg-[var(--color-bg-raised)]/95 backdrop-blur-xl",
+        "p-3xs shadow-mid",
+        "data-[state=open]:animate-[dropdown-enter_120ms_var(--ease-enter)_both]",
+        "data-[state=closed]:animate-[fade-in_72ms_var(--ease-exit)_reverse_both]",
+        className,
+      )}
+      {...props}
+    />
+  </DropdownMenuPrimitive.Portal>
 ));
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;
 
