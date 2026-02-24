@@ -41,6 +41,8 @@ Prefix titles with severity:
 - ALWAYS check `l.visible` when selecting which layer to use as a source — skipping the visibility check means hidden layers still affect the output.
 - NEVER use `canvas.toDataURL()` as the primary export path for WebGPU output — use renderer/readback from an offscreen render target.
 - ALWAYS account for WebGPU readback row padding (`bytesPerRow` aligned to 256) before writing to `ImageData`.
+- NEVER derive frame aspect from selected/top media layers implicitly — in auto mode, anchor to a stable base source and expose explicit frame-aspect modes.
+- ALWAYS design right-sidebar action rows to wrap on narrow widths; never assume inline labels plus multiple buttons will fit.
 
 <!-- 
 Example of what this section will look like:
@@ -142,6 +144,22 @@ Each iteration builds a new static DAG node via `select`/`max` — no mutation, 
 2. WebGPU `readRenderTargetPixelsAsync()` can return row-padded buffers (`bytesPerRow` aligned to 256). Writing that raw buffer directly into `ImageData` overflowed expected RGBA size.
 **The fix:** Replaced export with pipeline-driven offscreen readback: render pipeline output to an offscreen render target, read pixels with `readRenderTargetPixelsAsync()`, unpack row padding into tight RGBA, force alpha to 255, then encode PNG blob for download.
 **Rule:** NEVER trust `canvas.toDataURL()` for WebGPU frame export. ALWAYS use offscreen render-target readback and handle padded row strides.
+
+### 🟡 [6.4] Frame aspect ownership coupled to selected/front media
+**Date:** 2026-02-24
+**Task:** Canvas frame aspect stability while switching portrait/landscape media
+**What went wrong:** Uploading/selecting a landscape media layer after a portrait source unexpectedly changed the canvas frame aspect; hiding layers could "restore" the prior aspect.
+**Why it happened:** Aspect resolution used implicit selected/front media ownership instead of a dedicated frame policy, so selection/stack changes silently overrode frame size.
+**The fix:** Added explicit frame-aspect modes (`auto-base`, `locked`, `custom`) in editor state. Auto mode now resolves from the bottom-most active media layer (stable base source), and sidebar controls own the behavior.
+**Rule:** NEVER derive frame aspect from selected/top media layers implicitly — in auto mode, anchor to a stable base source and expose explicit frame-aspect modes.
+
+### 🟢 [8.5] Properties sidebar actions clipped on narrow width
+**Date:** 2026-02-24
+**Task:** Frame controls in right properties panel
+**What went wrong:** "From selected" and "Lock current" were cut off horizontally in narrow sidebar widths.
+**Why it happened:** Actions shared a single inline row with the current aspect label and had no wrapping behavior.
+**The fix:** Split the actions into a dedicated `flex-wrap` row under the current value line, so controls flow correctly at constrained widths.
+**Rule:** ALWAYS design right-sidebar action rows to wrap on narrow widths; never assume inline labels plus multiple buttons will fit.
 
 <!--
 ### 🟡 [2.1] WebGPURenderer failed to initialize on Firefox

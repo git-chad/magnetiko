@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import type { FrameAspectMode } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State shape
@@ -9,6 +10,10 @@ interface EditorState {
   zoom: number;
   panOffset: { x: number; y: number };
   canvasSize: { width: number; height: number };
+  frameAspectMode: FrameAspectMode;
+  frameAspectCustom: { width: number; height: number };
+  frameAspectLocked: number;
+  resolvedFrameAspect: number;
   renderScale: 1 | 0.75 | 0.5;
   showGrid: boolean;
   theme: "light" | "dark";
@@ -25,6 +30,11 @@ interface EditorActions {
   setPan(x: number, y: number): void;
   resetView(): void;
   setCanvasSize(width: number, height: number): void;
+  setFrameAspectMode(mode: FrameAspectMode): void;
+  setFrameAspectCustom(width: number, height: number): void;
+  setFrameAspectLocked(aspect: number): void;
+  setResolvedFrameAspect(aspect: number): void;
+  lockFrameAspect(aspect?: number): void;
   setRenderScale(scale: 1 | 0.75 | 0.5): void;
   toggleGrid(): void;
   toggleTheme(): void;
@@ -35,9 +45,10 @@ interface EditorActions {
 }
 
 type EditorStore = EditorState & EditorActions;
-
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 5;
+const DEFAULT_ASPECT = 1920 / 1080;
+const ASPECT_EPSILON = 1e-6;
 
 export const useEditorStore = create<EditorStore>()(
   immer((set) => ({
@@ -45,6 +56,10 @@ export const useEditorStore = create<EditorStore>()(
     zoom: 1,
     panOffset: { x: 0, y: 0 },
     canvasSize: { width: 1920, height: 1080 },
+    frameAspectMode: "auto-base",
+    frameAspectCustom: { width: 16, height: 9 },
+    frameAspectLocked: DEFAULT_ASPECT,
+    resolvedFrameAspect: DEFAULT_ASPECT,
     renderScale: 1,
     showGrid: false,
     theme: "light",
@@ -74,7 +89,58 @@ export const useEditorStore = create<EditorStore>()(
 
     setCanvasSize(width, height) {
       set((state) => {
-        state.canvasSize = { width, height };
+        const w = Math.max(1, Math.round(width));
+        const h = Math.max(1, Math.round(height));
+        if (state.canvasSize.width === w && state.canvasSize.height === h) return;
+        state.canvasSize = { width: w, height: h };
+      });
+    },
+
+    setFrameAspectMode(mode) {
+      set((state) => {
+        if (state.frameAspectMode === mode) return;
+        state.frameAspectMode = mode;
+      });
+    },
+
+    setFrameAspectCustom(width, height) {
+      set((state) => {
+        const w = Math.max(1, Math.min(10000, Math.round(width)));
+        const h = Math.max(1, Math.min(10000, Math.round(height)));
+        if (state.frameAspectCustom.width === w && state.frameAspectCustom.height === h) return;
+        state.frameAspectCustom = { width: w, height: h };
+      });
+    },
+
+    setFrameAspectLocked(aspect) {
+      set((state) => {
+        if (!Number.isFinite(aspect) || aspect <= 0) return;
+        if (Math.abs(state.frameAspectLocked - aspect) <= ASPECT_EPSILON) return;
+        state.frameAspectLocked = aspect;
+      });
+    },
+
+    setResolvedFrameAspect(aspect) {
+      set((state) => {
+        if (!Number.isFinite(aspect) || aspect <= 0) return;
+        if (Math.abs(state.resolvedFrameAspect - aspect) <= ASPECT_EPSILON) return;
+        state.resolvedFrameAspect = aspect;
+      });
+    },
+
+    lockFrameAspect(aspect) {
+      set((state) => {
+        const next =
+          typeof aspect === "number" && Number.isFinite(aspect) && aspect > 0
+            ? aspect
+            : state.resolvedFrameAspect;
+        if (!Number.isFinite(next) || next <= 0) return;
+        if (Math.abs(state.frameAspectLocked - next) > ASPECT_EPSILON) {
+          state.frameAspectLocked = next;
+        }
+        if (state.frameAspectMode !== "locked") {
+          state.frameAspectMode = "locked";
+        }
       });
     },
 

@@ -7,6 +7,7 @@ import {
   uniform,
   floor,
   mix,
+  clamp,
   texture as tslTexture,
 } from "three/tsl";
 import { PassNode } from "@/lib/renderer/PassNode";
@@ -43,6 +44,17 @@ const MAX_CELLS = 1024;
  *   animation progress to 0.  render() advances the progress each frame.
  */
 export class MasonryPass extends PassNode {
+  // ── Animation mode ────────────────────────────────────────────────────────
+  // adaptive: continuous sources (video/upstream animation) auto-run;
+  // static sources animate on hover + movement.
+  private _animationMode: "adaptive" | "always" | "hover-move" | "off" = "adaptive";
+  private _hoverActive: boolean = false;
+  private _motionHold: number = 0;
+  private _pointerDX: number = 0;
+  private _pointerDY: number = 0;
+  private _continuousFrameStreak: number = 0;
+  private _cursorPushStrength: number = 8;
+
   // ── TSL uniforms ──────────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _gridWU: any;     // float: horizontal cell count
@@ -50,6 +62,8 @@ export class MasonryPass extends PassNode {
   private readonly _gridHU: any;     // float: vertical cell count
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _progressU: any;  // float: animation progress 0→1
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _cursorPushU: any; // vec2: directional UV push from pointer
 
   // ── DataTextures (pre-allocated at MAX_CELLS) ─────────────────────────────
   private readonly _permDataCur:  Float32Array;
@@ -83,6 +97,7 @@ export class MasonryPass extends PassNode {
     this._gridWU    = uniform(4.0);
     this._gridHU    = uniform(4.0);
     this._progressU = uniform(1.0);
+    this._cursorPushU = uniform(new THREE.Vector2(0, 0));
 
     // ── DataTextures (RGBA float, 1024×1 — R channel = cell index) ────────
     this._permDataCur  = new Float32Array(MAX_CELLS * 4);
@@ -128,15 +143,28 @@ export class MasonryPass extends PassNode {
     _time: number,
     delta: number,
   ): void {
+    if (delta > 0 && delta < 0.12) {
+      this._continuousFrameStreak = Math.min(this._continuousFrameStreak + 1, 240);
+    } else {
+      this._continuousFrameStreak = 1;
+    }
+
+    this._motionHold = Math.max(0, this._motionHold - delta);
+    const moving = this._isPointerMoving();
+    const shouldAnimate = this._shouldAnimate();
+
     // ── Auto-reshuffle timer ────────────────────────────────────────────────
-    this._elapsed += delta;
-    if (this._reshuffleInterval > 0 && this._elapsed >= this._reshuffleInterval) {
-      this._elapsed -= this._reshuffleInterval;
-      this._triggerReshuffle();
+    if (shouldAnimate) {
+      const moveBoost = moving ? Math.min(1, Math.hypot(this._pointerDX, this._pointerDY) * 180) : 0;
+      this._elapsed += delta * (1 + moveBoost * 4);
+      if (this._reshuffleInterval > 0 && this._elapsed >= this._reshuffleInterval) {
+        this._elapsed -= this._reshuffleInterval;
+        this._triggerReshuffle();
+      }
     }
 
     // ── Animation progress ─────────────────────────────────────────────────
-    if (this._animating) {
+    if (this._animating && shouldAnimate) {
       if (this._animDuration <= 0) {
         this._animProgress    = 1.0;
         this._progressU.value = 1.0;
@@ -148,9 +176,40 @@ export class MasonryPass extends PassNode {
       }
     }
 
+    // ── Cursor-directional tile drift ───────────────────────────────────────
+    // Positive UV sample offsets move visuals in the opposite direction, so
+    // we negate pointer delta to make tile motion follow the cursor.
+    const push = this._cursorPushU.value as THREE.Vector2;
+    if (moving) {
+      const targetX = -this._pointerDX * this._cursorPushStrength;
+      const targetY = -this._pointerDY * this._cursorPushStrength;
+      const blend = Math.min(1, delta * 24);
+      push.x += (targetX - push.x) * blend;
+      push.y += (targetY - push.y) * blend;
+    } else {
+      const decay = Math.exp(-delta * 14);
+      push.x *= decay;
+      push.y *= decay;
+      if (Math.abs(push.x) < 1e-5) push.x = 0;
+      if (Math.abs(push.y) < 1e-5) push.y = 0;
+    }
+
     // ── Sync input sampler ─────────────────────────────────────────────────
     this._inputSamplerNode.value = inputTex;
     super.render(renderer, inputTex, outputTarget, _time, delta);
+  }
+
+  override needsContinuousRender(): boolean {
+    switch (this._animationMode) {
+      case "always":
+        return true;
+      case "hover-move":
+      case "adaptive":
+        return this._hoverActive && this._isPointerMoving();
+      case "off":
+      default:
+        return false;
+    }
   }
 
   // ── Effect node ────────────────────────────────────────────────────────────
@@ -208,9 +267,14 @@ export class MasonryPass extends PassNode {
 
     // Lerp between prev and cur positions for the slide animation.
     const sourceUV = mix(sourceUVPrev, sourceUVCur, this._progressU);
+    const pushedUV = clamp(
+      sourceUV.add(this._cursorPushU),
+      vec2(0.001, 0.001),
+      vec2(0.999, 0.999),
+    );
 
     // Sample the input texture at the remapped UV — .value set each frame.
-    this._inputSamplerNode = tslTexture(new THREE.Texture(), sourceUV);
+    this._inputSamplerNode = tslTexture(new THREE.Texture(), pushedUV);
 
     return vec4(
       float(this._inputSamplerNode.r),
@@ -245,6 +309,22 @@ export class MasonryPass extends PassNode {
         case "animDuration":
           this._animDuration = typeof p.value === "number" ? p.value : 0.4;
           break;
+        case "animationMode":
+          if (
+            p.value === "adaptive" ||
+            p.value === "always" ||
+            p.value === "hover-move" ||
+            p.value === "hover" ||
+            p.value === "off"
+          ) {
+            this._animationMode = p.value === "hover" ? "hover-move" : p.value;
+          } else {
+            this._animationMode = "adaptive";
+          }
+          break;
+        case "cursorPush":
+          this._cursorPushStrength = typeof p.value === "number" ? p.value : 8;
+          break;
       }
     }
 
@@ -260,6 +340,35 @@ export class MasonryPass extends PassNode {
       this._progressU.value = 1.0;
       this._animating       = false;
       this._elapsed         = 0;
+    }
+  }
+
+  // PipelineManager forwards pointer state to passes that implement setPointer.
+  // We only need hover activity as an animation gate.
+  setPointer(
+    _uvX: number,
+    _uvY: number,
+    _duvX: number,
+    _duvY: number,
+    isActive: boolean,
+  ): void {
+    this._hoverActive = isActive;
+    if (!isActive) {
+      this._pointerDX = 0;
+      this._pointerDY = 0;
+      this._motionHold = 0;
+      return;
+    }
+
+    const mag = Math.hypot(_duvX, _duvY);
+    if (mag > 1e-5) {
+      this._pointerDX = _duvX;
+      this._pointerDY = _duvY;
+      this._motionHold = 0.12;
+    } else {
+      // Keep directional continuity briefly after movement stops.
+      this._pointerDX *= 0.9;
+      this._pointerDY *= 0.9;
     }
   }
 
@@ -292,6 +401,28 @@ export class MasonryPass extends PassNode {
       this._progressU.value = 0.0;
       this._animating       = true;
     }
+  }
+
+  private _shouldAnimate(): boolean {
+    switch (this._animationMode) {
+      case "always":
+        return true;
+      case "hover-move":
+        return this._hoverActive && this._isPointerMoving();
+      case "off":
+        return false;
+      case "adaptive":
+      default:
+        // Continuous sources (video/upstream animation) render every frame.
+        // Static sources only render on interaction and should require motion.
+        return this._isPointerMoving() && this._hoverActive || this._continuousFrameStreak >= 6;
+    }
+  }
+
+  private _isPointerMoving(): boolean {
+    if (!this._hoverActive) return false;
+    if (this._motionHold <= 0) return false;
+    return Math.abs(this._pointerDX) + Math.abs(this._pointerDY) > 1e-6;
   }
 }
 

@@ -16,6 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import {
   Button,
+  Input,
   ScrollArea,
   Select,
   SelectContent,
@@ -33,10 +34,12 @@ import {
 } from "@/components/ui";
 import { useLayerStore } from "@/store/layerStore";
 import { useHistoryStore } from "@/store/historyStore";
+import { useEditorStore } from "@/store/editorStore";
+import { useMediaStore } from "@/store/mediaStore";
 import { getDefaultParams } from "@/lib/utils/defaultParams";
 import { ParamControl } from "@/components/shared/ParamControl";
 import { cn } from "@/lib/utils";
-import type { BlendMode, FilterMode, Layer, ShaderParam } from "@/types";
+import type { BlendMode, FilterMode, FrameAspectMode, Layer, ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Blend mode option groups (all 16 CSS blend modes, organised by category)
@@ -73,6 +76,49 @@ const BLEND_MODE_GROUPS: Array<{
     { value: "luminosity", label: "Luminosity" },
   ]},
 ];
+
+const FRAME_ASPECT_MODES: Array<{ value: FrameAspectMode; label: string }> = [
+  { value: "auto-base", label: "Auto (Base)" },
+  { value: "locked", label: "Locked" },
+  { value: "custom", label: "Custom" },
+];
+
+const FRAME_ASPECT_PRESETS = [
+  { label: "1:1", width: 1, height: 1 },
+  { label: "4:5", width: 4, height: 5 },
+  { label: "3:2", width: 3, height: 2 },
+  { label: "16:9", width: 16, height: 9 },
+  { label: "9:16", width: 9, height: 16 },
+] as const;
+
+function _safeAspect(width: number, height: number): number {
+  return Math.max(width, 1) / Math.max(height, 1);
+}
+
+async function _loadImageAspect(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(_safeAspect(img.naturalWidth, img.naturalHeight));
+    img.onerror = () => reject(new Error("Could not read image metadata."));
+    img.src = url;
+  });
+}
+
+async function _loadVideoAspect(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => resolve(_safeAspect(video.videoWidth, video.videoHeight));
+    video.onerror = () => reject(new Error("Could not read video metadata."));
+    video.src = url;
+  });
+}
+
+function _formatAspectLabel(aspect: number): string {
+  if (!Number.isFinite(aspect) || aspect <= 0) return "N/A";
+  const rounded = Number(aspect.toFixed(3));
+  return `${rounded}:1`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: push a snapshot to history
@@ -113,29 +159,28 @@ export function PropertiesPanel() {
         </Text>
       </div>
 
-      {layer ? (
-        <>
-          {/* Layer header (name + lock) */}
-          <_LayerHeader layer={layer} />
+      {layer && <_LayerHeader layer={layer} />}
 
-          {/* Scrollable body */}
-          <ScrollArea className="flex-1">
-            <div className="space-y-0">
+      <ScrollArea className="flex-1">
+        <div className="space-y-0">
+          <_FrameAspectSection layer={layer} />
+          {layer ? (
+            <>
               <_GeneralSection layer={layer} />
               {layer.kind === "shader" && layer.params.length > 0 && (
                 <_ParamsSection layer={layer} />
               )}
               <_ActionsSection layer={layer} />
+            </>
+          ) : (
+            <div className="flex items-center justify-center p-md">
+              <Text variant="caption" color="disabled" className="text-center">
+                Select a layer to edit layer-specific properties
+              </Text>
             </div>
-          </ScrollArea>
-        </>
-      ) : (
-        <div className="flex flex-1 items-center justify-center p-md">
-          <Text variant="caption" color="disabled" className="text-center">
-            Select a layer to edit its properties
-          </Text>
+          )}
         </div>
-      )}
+      </ScrollArea>
     </div>
   );
 }
@@ -265,6 +310,213 @@ function _SectionLabel({ title }: { title: string }) {
       >
         {title}
       </Text>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _FrameAspectSection — global canvas/frame aspect controls
+// ─────────────────────────────────────────────────────────────────────────────
+
+function _FrameAspectSection({ layer }: { layer: Layer | null }) {
+  const frameAspectMode = useEditorStore((s) => s.frameAspectMode);
+  const frameAspectCustom = useEditorStore((s) => s.frameAspectCustom);
+  const frameAspectLocked = useEditorStore((s) => s.frameAspectLocked);
+  const resolvedFrameAspect = useEditorStore((s) => s.resolvedFrameAspect);
+  const setFrameAspectMode = useEditorStore((s) => s.setFrameAspectMode);
+  const setFrameAspectCustom = useEditorStore((s) => s.setFrameAspectCustom);
+  const lockFrameAspect = useEditorStore((s) => s.lockFrameAspect);
+  const mediaAssets = useMediaStore((s) => s.assets);
+
+  const selectedMediaLayer = React.useMemo(() => {
+    if (!layer) return null;
+    if ((layer.kind === "image" || layer.kind === "video") && layer.mediaUrl) {
+      return layer;
+    }
+    return null;
+  }, [layer]);
+
+  const selectedAsset = React.useMemo(() => {
+    if (!selectedMediaLayer?.mediaUrl) return null;
+    return mediaAssets.find((asset) => asset.url === selectedMediaLayer.mediaUrl) ?? null;
+  }, [mediaAssets, selectedMediaLayer]);
+
+  const [customWidthInput, setCustomWidthInput] = React.useState(
+    String(frameAspectCustom.width),
+  );
+  const [customHeightInput, setCustomHeightInput] = React.useState(
+    String(frameAspectCustom.height),
+  );
+  const [isResolvingSelected, setIsResolvingSelected] = React.useState(false);
+
+  React.useEffect(() => {
+    setCustomWidthInput(String(frameAspectCustom.width));
+    setCustomHeightInput(String(frameAspectCustom.height));
+  }, [frameAspectCustom.height, frameAspectCustom.width]);
+
+  const commitCustomAspect = React.useCallback(() => {
+    const width = Number.parseInt(customWidthInput, 10);
+    const height = Number.parseInt(customHeightInput, 10);
+
+    if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+      setCustomWidthInput(String(frameAspectCustom.width));
+      setCustomHeightInput(String(frameAspectCustom.height));
+      return;
+    }
+
+    setFrameAspectCustom(width, height);
+    setFrameAspectMode("custom");
+  }, [
+    customHeightInput,
+    customWidthInput,
+    frameAspectCustom.height,
+    frameAspectCustom.width,
+    setFrameAspectCustom,
+    setFrameAspectMode,
+  ]);
+
+  const handleSetFromSelected = React.useCallback(async () => {
+    if (!selectedMediaLayer?.mediaUrl) return;
+    setIsResolvingSelected(true);
+    try {
+      if (selectedAsset) {
+        lockFrameAspect(_safeAspect(selectedAsset.width, selectedAsset.height));
+        return;
+      }
+
+      const aspect =
+        selectedMediaLayer.kind === "video"
+          ? await _loadVideoAspect(selectedMediaLayer.mediaUrl)
+          : await _loadImageAspect(selectedMediaLayer.mediaUrl);
+      lockFrameAspect(aspect);
+    } finally {
+      setIsResolvingSelected(false);
+    }
+  }, [lockFrameAspect, selectedAsset, selectedMediaLayer]);
+
+  const handleCustomKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      commitCustomAspect();
+    },
+    [commitCustomAspect],
+  );
+
+  const canUseSelectedMedia = Boolean(selectedMediaLayer?.mediaUrl);
+
+  return (
+    <div>
+      <_SectionLabel title="Frame" />
+      <div className="space-y-2xs px-xs pb-xs">
+        <div className="flex items-center gap-xs py-3xs">
+          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+            Mode
+          </Text>
+          <Select
+            value={frameAspectMode}
+            onValueChange={(value) => {
+              const mode = value as FrameAspectMode;
+              if (mode === "locked") {
+                lockFrameAspect();
+                return;
+              }
+              setFrameAspectMode(mode);
+            }}
+          >
+            <SelectTrigger className="h-7 flex-1 text-caption">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FRAME_ASPECT_MODES.map((mode) => (
+                <SelectItem key={mode.value} value={mode.value}>
+                  {mode.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-xs py-3xs">
+          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+            Current
+          </Text>
+          <span className="font-mono text-caption text-[var(--color-fg-tertiary)]">
+            {_formatAspectLabel(resolvedFrameAspect)}
+          </span>
+        </div>
+        <div className="flex flex-wrap justify-start gap-3xs py-3xs">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!canUseSelectedMedia || isResolvingSelected}
+            onClick={() => void handleSetFromSelected()}
+          >
+            {isResolvingSelected ? "Reading…" : "From selected"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => lockFrameAspect()}>
+            Lock current
+          </Button>
+        </div>
+
+        {frameAspectMode === "locked" && (
+          <div className="flex items-center gap-xs py-3xs">
+            <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+              Locked
+            </Text>
+            <span className="font-mono text-caption text-[var(--color-fg-tertiary)]">
+              {_formatAspectLabel(frameAspectLocked)}
+            </span>
+          </div>
+        )}
+
+        {frameAspectMode === "custom" && (
+          <>
+            <div className="flex items-center gap-xs py-3xs">
+              <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+                Ratio
+              </Text>
+              <div className="flex flex-1 items-center gap-3xs">
+                <Input
+                  type="number"
+                  min={1}
+                  value={customWidthInput}
+                  onChange={(event) => setCustomWidthInput(event.target.value)}
+                  onBlur={commitCustomAspect}
+                  onKeyDown={handleCustomKeyDown}
+                  className="h-7"
+                />
+                <span className="text-caption text-[var(--color-fg-disabled)]">:</span>
+                <Input
+                  type="number"
+                  min={1}
+                  value={customHeightInput}
+                  onChange={(event) => setCustomHeightInput(event.target.value)}
+                  onBlur={commitCustomAspect}
+                  onKeyDown={handleCustomKeyDown}
+                  className="h-7"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3xs">
+              {FRAME_ASPECT_PRESETS.map((preset) => (
+                <Button
+                  key={preset.label}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setFrameAspectCustom(preset.width, preset.height);
+                    setFrameAspectMode("custom");
+                  }}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <Separator />
     </div>
   );
 }

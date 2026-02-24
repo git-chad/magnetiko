@@ -56,21 +56,12 @@ function toSourceMedia(layer: Layer): SourceMedia | null {
   return null;
 }
 
-function getActiveSourceMedia(layers: Layer[], selectedLayerId: string | null): SourceMedia | null {
+function getAutoBaseSourceMedia(layers: Layer[]): SourceMedia | null {
   const hasSolo = layers.some((layer) => layer.solo);
   const activeLayers = hasSolo ? layers.filter((layer) => layer.solo) : layers.filter((layer) => layer.visible);
 
-  // If the selected layer is itself a media layer, it owns the canvas aspect.
-  if (selectedLayerId) {
-    const selected = activeLayers.find((layer) => layer.id === selectedLayerId);
-    if (selected) {
-      const source = toSourceMedia(selected);
-      if (source) return source;
-    }
-  }
-
-  // Otherwise choose the front-most active media layer (panel order is top -> bottom).
-  for (let i = 0; i < activeLayers.length; i++) {
+  // In panel order index 0 is top/front; use bottom-most active media as base frame source.
+  for (let i = activeLayers.length - 1; i >= 0; i--) {
     const source = toSourceMedia(activeLayers[i]);
     if (source) return source;
   }
@@ -224,6 +215,10 @@ export function Canvas({ className }: CanvasProps) {
   const setFps = useEditorStore((s) => s.setFps);
   const setCanvasSize = useEditorStore((s) => s.setCanvasSize);
   const canvasSize = useEditorStore((s) => s.canvasSize);
+  const frameAspectMode = useEditorStore((s) => s.frameAspectMode);
+  const frameAspectCustom = useEditorStore((s) => s.frameAspectCustom);
+  const frameAspectLocked = useEditorStore((s) => s.frameAspectLocked);
+  const setResolvedFrameAspect = useEditorStore((s) => s.setResolvedFrameAspect);
   const renderScale = useEditorStore((s) => s.renderScale);
   const hasMediaLayers = useLayerStore((s) =>
     s.layers.some(
@@ -239,11 +234,11 @@ export function Canvas({ className }: CanvasProps) {
   const hasMediaLayersRef = React.useRef(hasMediaLayers);
   const toastRef = React.useRef(toast);
   const sourceMediaKind = useLayerStore(
-    (s) => getActiveSourceMedia(s.layers, s.selectedLayerId)?.kind ?? null,
+    (s) => getAutoBaseSourceMedia(s.layers)?.kind ?? null,
   );
   const selectedLayerId = useLayerStore((s) => s.selectedLayerId);
   const sourceMediaUrl = useLayerStore(
-    (s) => getActiveSourceMedia(s.layers, s.selectedLayerId)?.url ?? null,
+    (s) => getAutoBaseSourceMedia(s.layers)?.url ?? null,
   );
   const sourceMedia = React.useMemo<SourceMedia | null>(() => {
     if (!sourceMediaKind) return null;
@@ -257,7 +252,24 @@ export function Canvas({ className }: CanvasProps) {
   );
   const fallbackAspect = safeAspect(canvasSize.width, canvasSize.height);
   const [sourceAspect, setSourceAspect] = React.useState(fallbackAspect);
-  const sourceAspectRef = React.useRef(sourceAspect);
+  const resolvedAspect = React.useMemo(() => {
+    if (frameAspectMode === "custom") {
+      return safeAspect(frameAspectCustom.width, frameAspectCustom.height);
+    }
+    if (frameAspectMode === "locked") {
+      return Number.isFinite(frameAspectLocked) && frameAspectLocked > 0
+        ? frameAspectLocked
+        : sourceAspect;
+    }
+    return sourceAspect;
+  }, [
+    frameAspectCustom.height,
+    frameAspectCustom.width,
+    frameAspectLocked,
+    frameAspectMode,
+    sourceAspect,
+  ]);
+  const resolvedAspectRef = React.useRef(resolvedAspect);
   const renderScaleRef = React.useRef(renderScale);
   const selectedLayerIdRef = React.useRef(selectedLayerId);
   const thumbnailNeedsRefreshRef = React.useRef(false);
@@ -272,7 +284,7 @@ export function Canvas({ className }: CanvasProps) {
     if (!outer) return;
 
     const rect = outer.getBoundingClientRect();
-    const next = fitRect(rect.width, rect.height, sourceAspectRef.current);
+    const next = fitRect(rect.width, rect.height, resolvedAspectRef.current);
     setRenderRect((prev) => (isSameRect(prev, next) ? prev : next));
 
     const renderer = rendererRef.current;
@@ -415,9 +427,13 @@ export function Canvas({ className }: CanvasProps) {
   }, [status]);
 
   React.useEffect(() => {
-    sourceAspectRef.current = sourceAspect;
+    resolvedAspectRef.current = resolvedAspect;
     resizeSurface();
-  }, [sourceAspect, resizeSurface]);
+  }, [resolvedAspect, resizeSurface]);
+
+  React.useEffect(() => {
+    setResolvedFrameAspect(resolvedAspect);
+  }, [resolvedAspect, setResolvedFrameAspect]);
 
   React.useEffect(() => {
     if (status !== "ready") return;
@@ -501,7 +517,7 @@ export function Canvas({ className }: CanvasProps) {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
         const rect = outer.getBoundingClientRect();
-        const initialRect = fitRect(rect.width, rect.height, sourceAspectRef.current);
+        const initialRect = fitRect(rect.width, rect.height, resolvedAspectRef.current);
         setRenderRect((prev) => (isSameRect(prev, initialRect) ? prev : initialRect));
         const initialRenderWidth = Math.max(
           Math.round(initialRect.width * renderScaleRef.current),

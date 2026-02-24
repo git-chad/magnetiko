@@ -749,6 +749,16 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 **Done when:** Video plays through the shader pipeline in real-time. Pause/play works. Scrubbing updates the canvas.
 
+### 6.4 Frame Aspect Management
+
+- [x] Base-frame source in auto mode uses the bottom-most active media layer (not selected/top layer)
+- [x] Added explicit frame aspect modes in editor state: `auto-base`, `locked`, `custom`
+- [x] Added right-sidebar frame controls: mode selector, lock current, set from selected, custom ratio + presets
+- [x] Aspect updates correctly when switching between portrait and landscape media sources
+- [x] Frame control actions wrap in narrow sidebars (no clipped controls)
+
+**Done when:** Canvas sizing follows explicit frame policy and remains stable across layer selection/reordering/source swaps.
+
 ---
 
 ## Phase 7 — Interactivity Layer
@@ -852,6 +862,8 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 - [x] Empty state: welcoming "Get Started" screen when no layers exist
 - [x] Maximum layers: cap at 20, show toast when limit reached
 - [x] Out of GPU memory: catch, show warning, suggest removing layers
+- [x] Frame aspect override bug fixed: selected/front media no longer hijacks canvas aspect in auto mode
+- [x] Sidebar overflow guard: frame controls no longer clip in narrow right panels
 
 **Done when:** Every error case shows a helpful message, not a blank screen or cryptic error.
 
@@ -1021,9 +1033,9 @@ Tasks can be marked with:
 | 4 | Shader Library | 9 | 9 | ✅ Complete |
 | 5 | Controls & Sidebar | 4 | 4 | ✅ Complete |
 | 6 | Media Input | 3 | 2 | 🔵 In progress |
-| 7 | Interactivity | 3 | 0 | ⬜ Not started |
-| 8 | Polish & Perf | 5 | 0 | ⬜ Not started |
-| 9 | Export | 3 | 0 | ⬜ Not started |
+| 7 | Interactivity | 3 | 3 | ✅ Complete (scope-adjusted) |
+| 8 | Polish & Perf | 5 | 3 | 🔵 In progress |
+| 9 | Export | 3 | 0 | 🔵 In progress |
 | 10 | Stretch | — | 0 | ⬜ Future |
 
 **Total: 51 tasks across 10 phases**

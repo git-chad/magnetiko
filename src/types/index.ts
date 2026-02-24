@@ -33,6 +33,7 @@ export type LayerKind = "shader" | "image" | "video" | "webcam";
  * mask   — the shader generates independent output composited via blend mode
  */
 export type FilterMode = "filter" | "mask";
+export type FrameAspectMode = "auto-base" | "locked" | "custom";
 
 // ── Shader types ──────────────────────────────────────────────────────────────
 
@@ -113,6 +114,10 @@ export interface EditorState {
   zoom: number;
   panOffset: { x: number; y: number };
   canvasSize: { width: number; height: number };
+  frameAspectMode: FrameAspectMode;
+  frameAspectCustom: { width: number; height: number };
+  frameAspectLocked: number;
+  resolvedFrameAspect: number;
   renderScale: 1 | 0.75 | 0.5;
   showGrid: boolean;
   theme: "light" | "dark";
