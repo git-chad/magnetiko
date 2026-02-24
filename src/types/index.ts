@@ -45,7 +45,8 @@ export type ShaderType =
   | "fluted-glass"
   | "progressive-blur"
   | "grain"
-  | "interactivity";
+  | "interactivity"
+  | "masonry";
 
 // ── Shader parameter ──────────────────────────────────────────────────────────
 

@@ -676,6 +676,54 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
         },
       ];
 
+    case "masonry":
+      return [
+        {
+          key: "columns",
+          label: "Columns",
+          type: "int",
+          value: 4,
+          min: 2,
+          max: 16,
+          step: 1,
+          group: "Grid",
+          description: "Horizontal cell count",
+        },
+        {
+          key: "rows",
+          label: "Rows",
+          type: "int",
+          value: 4,
+          min: 2,
+          max: 16,
+          step: 1,
+          group: "Grid",
+          description: "Vertical cell count",
+        },
+        {
+          key: "interval",
+          label: "Interval",
+          type: "float",
+          value: 1.0,
+          min: 0,
+          max: 10,
+          step: 0.1,
+          group: "Animation",
+          description: "Seconds between reshuffles; 0 = off",
+        },
+        {
+          key: "animDuration",
+          label: "Slide Duration",
+          type: "float",
+          value: 0.4,
+          min: 0,
+          max: 1.5,
+          step: 0.05,
+          group: "Animation",
+          description: "Slide animation duration in seconds; 0 = instant snap",
+        },
+      ];
+
     default:
       return [];
   }
@@ -696,6 +744,7 @@ export function getDefaultLayerName(
     "progressive-blur": "Progressive Blur",
     grain: "Grain",
     interactivity: "Interactivity",
+    masonry: "Masonry",
   };
   const base = names[shaderType] ?? "Layer";
   return existingCount > 0 ? `${base} ${existingCount + 1}` : base;

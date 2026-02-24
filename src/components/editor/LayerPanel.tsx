@@ -1,7 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Image as ImageIcon, Plus, Shapes, Stack, VideoCamera } from "@phosphor-icons/react";
+import {
+  Image as ImageIcon,
+  Plus,
+  Shapes,
+  Stack,
+  VideoCamera,
+} from "@phosphor-icons/react";
 import {
   closestCenter,
   DndContext,
@@ -42,19 +48,20 @@ const SHADER_SECTIONS: Array<{
   {
     label: "Texture Effects",
     items: [
-      { type: "pixelation",  label: "Pixelation" },
-      { type: "halftone",    label: "Halftone" },
-      { type: "ascii",       label: "ASCII" },
-      { type: "dithering",   label: "Dithering" },
-      { type: "grain",       label: "Grain" },
+      { type: "pixelation", label: "Pixelation" },
+      { type: "halftone", label: "Halftone" },
+      { type: "ascii", label: "ASCII" },
+      { type: "dithering", label: "Dithering" },
+      { type: "masonry", label: "Masonry" },
+      { type: "grain", label: "Grain" },
     ],
   },
   {
     label: "Optical Effects",
     items: [
-      { type: "bloom",             label: "Bloom" },
-      { type: "fluted-glass",      label: "Fluted Glass" },
-      { type: "progressive-blur",  label: "Progressive Blur" },
+      { type: "bloom", label: "Bloom" },
+      { type: "fluted-glass", label: "Fluted Glass" },
+      { type: "progressive-blur", label: "Progressive Blur" },
     ],
   },
 ];
@@ -64,16 +71,16 @@ const SHADER_SECTIONS: Array<{
 // ─────────────────────────────────────────────────────────────────────────────
 
 function AddLayerMenu() {
-  const addLayer      = useLayerStore((s) => s.addLayer);
+  const addLayer = useLayerStore((s) => s.addLayer);
   const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
 
   const imageInputRef = React.useRef<HTMLInputElement>(null);
   const videoInputRef = React.useRef<HTMLInputElement>(null);
 
   function handleMediaFile(file: File) {
-    const url     = URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
     const isVideo = file.type.startsWith("video/");
-    const id      = addLayer(isVideo ? "video" : "image");
+    const id = addLayer(isVideo ? "video" : "image");
     setLayerMedia(id, url, isVideo ? "video" : "image");
   }
 
@@ -96,7 +103,10 @@ function AddLayerMenu() {
                   key={item.type}
                   onSelect={() => addLayer("shader", item.type)}
                 >
-                  <Shapes size={13} className="shrink-0 text-[var(--color-fg-tertiary)]" />
+                  <Shapes
+                    size={13}
+                    className="shrink-0 text-[var(--color-fg-tertiary)]"
+                  />
                   {item.label}
                 </DropdownMenuItem>
               ))}
@@ -107,12 +117,18 @@ function AddLayerMenu() {
           <DropdownMenuLabel>Media</DropdownMenuLabel>
 
           <DropdownMenuItem onSelect={() => imageInputRef.current?.click()}>
-            <ImageIcon size={13} className="shrink-0 text-[var(--color-fg-tertiary)]" />
+            <ImageIcon
+              size={13}
+              className="shrink-0 text-[var(--color-fg-tertiary)]"
+            />
             Import Image
           </DropdownMenuItem>
 
           <DropdownMenuItem onSelect={() => videoInputRef.current?.click()}>
-            <VideoCamera size={13} className="shrink-0 text-[var(--color-fg-tertiary)]" />
+            <VideoCamera
+              size={13}
+              className="shrink-0 text-[var(--color-fg-tertiary)]"
+            />
             Import Video
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -149,12 +165,14 @@ function AddLayerMenu() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function LayerPanel() {
-  const layers        = useLayerStore((s) => s.layers);
+  const layers = useLayerStore((s) => s.layers);
   const reorderLayers = useLayerStore((s) => s.reorderLayers);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
   function handleDragEnd({ active, over }: DragEndEvent) {
@@ -166,7 +184,6 @@ export function LayerPanel() {
 
   return (
     <div className="flex h-full flex-col">
-
       {/* Header */}
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-xs">
         <div className="flex items-center gap-3xs">
@@ -194,7 +211,10 @@ export function LayerPanel() {
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={layers.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext
+              items={layers.map((l) => l.id)}
+              strategy={verticalListSortingStrategy}
+            >
               {layers.map((layer) => (
                 <LayerItem key={layer.id} layer={layer} />
               ))}

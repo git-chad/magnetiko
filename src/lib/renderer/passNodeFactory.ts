@@ -7,6 +7,7 @@ import { FlutedGlassPass } from "@/lib/shaders/flutedGlass.tsl";
 import { ProgressiveBlurPass } from "@/lib/shaders/progressiveBlur.tsl";
 import { GrainPass } from "@/lib/shaders/grain.tsl";
 import { InteractivityPass } from "@/lib/shaders/interactivity.tsl";
+import { MasonryPass } from "@/lib/shaders/masonry.tsl";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Factory
@@ -26,6 +27,7 @@ export function createPassNode(layerId: string, shaderType?: string): PassNode {
     case "progressive-blur":  return new ProgressiveBlurPass(layerId);
     case "grain":             return new GrainPass(layerId);
     case "interactivity":     return new InteractivityPass(layerId);
+    case "masonry":           return new MasonryPass(layerId);
     default:                  return new PassNode(layerId);
   }
 }
