@@ -38,6 +38,20 @@ export interface PipelineManagerCallbacks {
   onOutOfMemory?: (error: Error) => void;
 }
 
+export type ExportImageFormat = "png" | "jpeg";
+
+export interface ExportImageOptions {
+  width?: number;
+  height?: number;
+  format?: ExportImageFormat;
+  /** JPEG quality from 0-1. Ignored for PNG. */
+  quality?: number;
+  /** Master toggle for non-pipeline UI overlays. */
+  includeUiOverlays?: boolean;
+  /** Draws editor grid overlay when includeUiOverlays is enabled. */
+  includeGridOverlay?: boolean;
+}
+
 const PIPELINE_RT_OPTIONS = {
   minFilter: THREE.LinearFilter,
   magFilter: THREE.LinearFilter,
@@ -117,6 +131,61 @@ function isLikelyOutOfMemoryError(error: Error): boolean {
   );
 }
 
+function clampExportDimension(value: number | undefined, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(16_384, Math.round(value)));
+}
+
+function clampJpegQuality(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0.92;
+  return Math.max(0.05, Math.min(1, value));
+}
+
+function drawGridOverlay(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  const minDimension = Math.max(Math.min(width, height), 1);
+  const majorDivisions = 8;
+  const majorStepX = width / majorDivisions;
+  const majorStepY = height / majorDivisions;
+  const minorStep = Math.max(Math.round(minDimension / 40), 12);
+
+  ctx.save();
+  ctx.lineCap = "square";
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.10)";
+  ctx.lineWidth = Math.max(minDimension / 1200, 1);
+  for (let x = minorStep; x < width; x += minorStep) {
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, height);
+    ctx.stroke();
+  }
+  for (let y = minorStep; y < height; y += minorStep) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(width, y + 0.5);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+  ctx.lineWidth = Math.max(minDimension / 700, 1.25);
+  for (let i = 1; i < majorDivisions; i++) {
+    const x = i * majorStepX;
+    const y = i * majorStepY;
+
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, height);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(width, y + 0.5);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PipelineManager
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,6 +237,7 @@ export class PipelineManager {
   private _lastPointerActive = false;
   private _lastPointerX = 0.5;
   private _lastPointerY = 0.5;
+  private _isExporting = false;
   private readonly _uniformRecompileWarned = new Set<string>();
   private readonly _shaderErrorNotified = new Set<string>();
 
@@ -453,6 +523,10 @@ export class PipelineManager {
   render(time: number, delta: number): boolean {
     const renderer = this._renderer;
 
+    if (this._isExporting) {
+      return false;
+    }
+
     const activePasses = this._passes.filter((p) => p.enabled);
     const needsContinuous = activePasses.some((pass) => pass.needsContinuousRender());
 
@@ -481,11 +555,35 @@ export class PipelineManager {
    * empty/cleared frames in some browsers.
    */
   async exportPngBlob(time: number, delta: number): Promise<Blob> {
-    const width = Math.max(this._width, 1);
-    const height = Math.max(this._height, 1);
+    return this.exportImageBlob(time, delta, { format: "png" });
+  }
+
+  /**
+   * Render the current pipeline to an offscreen target and return an image
+   * blob (PNG/JPEG) with optional high-res dimensions and UI overlay controls.
+   */
+  async exportImageBlob(
+    time: number,
+    delta: number,
+    options: ExportImageOptions = {},
+  ): Promise<Blob> {
+    const originalWidth = Math.max(this._width, 1);
+    const originalHeight = Math.max(this._height, 1);
+    const width = clampExportDimension(options.width, originalWidth);
+    const height = clampExportDimension(options.height, originalHeight);
+    const format = options.format ?? "png";
+    const mimeType = format === "jpeg" ? "image/jpeg" : "image/png";
+    const jpegQuality = clampJpegQuality(options.quality);
+    const shouldDrawGridOverlay = Boolean(options.includeUiOverlays && options.includeGridOverlay);
+    const needsResize = width !== originalWidth || height !== originalHeight;
     const exportTarget = sharedRenderTargetPool.acquire(width, height, PIPELINE_RT_OPTIONS);
 
     try {
+      this._isExporting = true;
+      if (needsResize) {
+        this.resize(width, height);
+      }
+
       const activePasses = this._passes.filter((p) => p.enabled);
       this._renderFrame(activePasses, time, delta, exportTarget);
 
@@ -511,18 +609,27 @@ export class PipelineManager {
       imageData.data.set(rgba);
       ctx.putImageData(imageData, 0, 0);
 
+      if (shouldDrawGridOverlay) {
+        drawGridOverlay(ctx, width, height);
+      }
+
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((next) => {
           if (!next) {
-            reject(new Error("Failed to encode PNG blob."));
+            reject(new Error(`Failed to encode ${format.toUpperCase()} blob.`));
             return;
           }
           resolve(next);
-        }, "image/png");
+        }, mimeType, format === "jpeg" ? jpegQuality : undefined);
       });
 
       return blob;
     } finally {
+      if (needsResize) {
+        this.resize(originalWidth, originalHeight);
+      }
+      this._isExporting = false;
+      this._dirty = true;
       sharedRenderTargetPool.release(exportTarget);
     }
   }

@@ -5,7 +5,7 @@ import * as THREE from "three/webgpu";
 import { ArrowSquareIn, ImageSquare } from "@phosphor-icons/react";
 import { isWebGPUSupported } from "@/lib/renderer/WebGPURenderer";
 import { PipelineManager } from "@/lib/renderer/PipelineManager";
-import type { PipelineLayer } from "@/lib/renderer/PipelineManager";
+import type { ExportImageOptions, PipelineLayer } from "@/lib/renderer/PipelineManager";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useMediaStore } from "@/store/mediaStore";
@@ -17,6 +17,7 @@ import type { Layer } from "@/types";
 // ─────────────────────────────────────────────────────────────────────────────
 declare global {
   interface Window {
+    __magnetikoExportImage?: (options?: ExportImageOptions) => Promise<Blob>;
     __magnetikoExportPng?: () => Promise<Blob>;
   }
 }
@@ -437,6 +438,12 @@ export function Canvas({ className }: CanvasProps) {
 
   React.useEffect(() => {
     if (status !== "ready") return;
+    window.__magnetikoExportImage = async (options = {}) => {
+      const pipeline = pipelineRef.current;
+      if (!pipeline) throw new Error("Renderer pipeline is not ready.");
+      const nowSec = performance.now() / 1000;
+      return pipeline.exportImageBlob(nowSec, 1 / 60, options);
+    };
     window.__magnetikoExportPng = async () => {
       const pipeline = pipelineRef.current;
       if (!pipeline) throw new Error("Renderer pipeline is not ready.");
@@ -444,6 +451,7 @@ export function Canvas({ className }: CanvasProps) {
       return pipeline.exportPngBlob(nowSec, 1 / 60);
     };
     return () => {
+      if (window.__magnetikoExportImage) delete window.__magnetikoExportImage;
       if (window.__magnetikoExportPng) delete window.__magnetikoExportPng;
     };
   }, [status]);

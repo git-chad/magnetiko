@@ -875,11 +875,11 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 9.1 Image Export
 
-- [!] Capture current canvas frame as PNG or JPEG _(PNG export implemented via WebGPU offscreen readback; JPEG still pending)_
-- [ ] Resolution options: 1×, 2×, 4× current viewport, or custom dimensions
-- [ ] Quality slider for JPEG
+- [x] Capture current canvas frame as PNG or JPEG (WebGPU offscreen readback)
+- [x] Resolution options: 1×, 2×, 4× current viewport, or custom dimensions
+- [x] Quality slider for JPEG
 - [x] Download via browser save dialog
-- [ ] Include/exclude UI overlays (interaction cursors, grid)
+- [x] Include/exclude UI overlays (grid overlay toggle; cursor overlays prepared for future)
 
 **Done when:** Exports a clean, high-resolution image that matches the canvas exactly.
 
@@ -1035,7 +1035,7 @@ Tasks can be marked with:
 | 6 | Media Input | 3 | 2 | 🔵 In progress |
 | 7 | Interactivity | 3 | 3 | ✅ Complete (scope-adjusted) |
 | 8 | Polish & Perf | 5 | 3 | 🔵 In progress |
-| 9 | Export | 3 | 0 | 🔵 In progress |
+| 9 | Export | 3 | 1 | 🔵 In progress |
 | 10 | Stretch | — | 0 | ⬜ Future |
 
 **Total: 51 tasks across 10 phases**

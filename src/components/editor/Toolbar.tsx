@@ -16,13 +16,28 @@ import {
 } from "@phosphor-icons/react";
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
   Separator,
+  Switch,
   ThemeToggle,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
+import type { ExportImageFormat, ExportImageOptions } from "@/lib/renderer/PipelineManager";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore, registerHistoryShortcuts } from "@/store/historyStore";
 import { useLayerStore } from "@/store/layerStore";
@@ -31,6 +46,7 @@ import { useMediaUpload } from "@/hooks/useMediaUpload";
 // ─────────────────────────────────────────────────────────────────────────────
 declare global {
   interface Window {
+    __magnetikoExportImage?: (options?: ExportImageOptions) => Promise<Blob>;
     __magnetikoExportPng?: () => Promise<Blob>;
   }
 }
@@ -39,6 +55,36 @@ declare global {
 
 const ZOOM_STEP = 1.25;
 const RENDER_SCALE_OPTIONS: Array<1 | 0.75 | 0.5> = [1, 0.75, 0.5];
+const EXPORT_SCALE_OPTIONS = [
+  { value: "viewport-1x", label: "Viewport 1x" },
+  { value: "viewport-2x", label: "Viewport 2x" },
+  { value: "viewport-4x", label: "Viewport 4x" },
+  { value: "custom", label: "Custom" },
+] as const;
+
+type ExportScaleMode = (typeof EXPORT_SCALE_OPTIONS)[number]["value"];
+
+function _clampPositiveInt(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(16_384, Math.round(value)));
+}
+
+function _readViewportExportSize(fallbackWidth: number, fallbackHeight: number): {
+  width: number;
+  height: number;
+} {
+  const canvas = document.getElementById("editor-canvas");
+  if (!(canvas instanceof HTMLCanvasElement)) {
+    return {
+      width: _clampPositiveInt(fallbackWidth, 1920),
+      height: _clampPositiveInt(fallbackHeight, 1080),
+    };
+  }
+  return {
+    width: _clampPositiveInt(canvas.width, fallbackWidth),
+    height: _clampPositiveInt(canvas.height, fallbackHeight),
+  };
+}
 
 function _isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -68,6 +114,8 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
   const fps           = useEditorStore((s) => s.fps);
   const renderScale   = useEditorStore((s) => s.renderScale);
   const setRenderScale = useEditorStore((s) => s.setRenderScale);
+  const canvasSize = useEditorStore((s) => s.canvasSize);
+  const showGrid = useEditorStore((s) => s.showGrid);
 
   // History state
   const canUndo = useHistoryStore((s) => s.past.length > 0);
@@ -110,9 +158,54 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
   function handleZoomIn()  { setZoom(zoom * ZOOM_STEP); }
   function handleZoomOut() { setZoom(zoom / ZOOM_STEP); }
 
-  const handleExport = React.useCallback(async () => {
-    const exportPng = window.__magnetikoExportPng;
-    if (!exportPng) {
+  // ── Export ───────────────────────────────────────────────────────────────
+  const [exportDialogOpen, setExportDialogOpen] = React.useState(false);
+  const [exportFormat, setExportFormat] = React.useState<ExportImageFormat>("png");
+  const [exportScaleMode, setExportScaleMode] = React.useState<ExportScaleMode>("viewport-1x");
+  const [customWidthInput, setCustomWidthInput] = React.useState(String(canvasSize.width));
+  const [customHeightInput, setCustomHeightInput] = React.useState(String(canvasSize.height));
+  const [viewportExportBase, setViewportExportBase] = React.useState(() => ({
+    width: _clampPositiveInt(canvasSize.width, 1920),
+    height: _clampPositiveInt(canvasSize.height, 1080),
+  }));
+  const [jpegQuality, setJpegQuality] = React.useState(0.92);
+  const [includeUiOverlays, setIncludeUiOverlays] = React.useState(false);
+  const [includeGridOverlay, setIncludeGridOverlay] = React.useState(showGrid);
+  const [isExporting, setIsExporting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!exportDialogOpen) return;
+    const base = _readViewportExportSize(canvasSize.width, canvasSize.height);
+    setViewportExportBase(base);
+    setCustomWidthInput(String(base.width));
+    setCustomHeightInput(String(base.height));
+    setIncludeGridOverlay(showGrid);
+  }, [canvasSize.height, canvasSize.width, exportDialogOpen, showGrid]);
+
+  const resolvedExportSize = React.useMemo(() => {
+    const baseWidth = _clampPositiveInt(viewportExportBase.width, 1920);
+    const baseHeight = _clampPositiveInt(viewportExportBase.height, 1080);
+
+    if (exportScaleMode === "viewport-2x") {
+      return { width: baseWidth * 2, height: baseHeight * 2 };
+    }
+    if (exportScaleMode === "viewport-4x") {
+      return { width: baseWidth * 4, height: baseHeight * 4 };
+    }
+    if (exportScaleMode === "custom") {
+      return {
+        width: _clampPositiveInt(Number.parseInt(customWidthInput, 10), baseWidth),
+        height: _clampPositiveInt(Number.parseInt(customHeightInput, 10), baseHeight),
+      };
+    }
+    return { width: baseWidth, height: baseHeight };
+  }, [customHeightInput, customWidthInput, exportScaleMode, viewportExportBase.height, viewportExportBase.width]);
+
+  const runExport = React.useCallback(async (closeDialogOnSuccess: boolean) => {
+    if (isExporting) return;
+
+    const exportImage = window.__magnetikoExportImage;
+    if (!exportImage) {
       toast({
         variant: "error",
         title: "Export failed",
@@ -121,20 +214,70 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
       return;
     }
 
+    const viewportBase = _readViewportExportSize(canvasSize.width, canvasSize.height);
+    let width = viewportBase.width;
+    let height = viewportBase.height;
+
+    if (exportScaleMode === "viewport-2x") {
+      width = viewportBase.width * 2;
+      height = viewportBase.height * 2;
+    } else if (exportScaleMode === "viewport-4x") {
+      width = viewportBase.width * 4;
+      height = viewportBase.height * 4;
+    } else if (exportScaleMode === "custom") {
+      const parsedWidth = Number.parseInt(customWidthInput, 10);
+      const parsedHeight = Number.parseInt(customHeightInput, 10);
+      if (!Number.isFinite(parsedWidth) || parsedWidth <= 0) {
+        toast({
+          variant: "error",
+          title: "Invalid export size",
+          description: "Width must be a positive number.",
+        });
+        return;
+      }
+      if (!Number.isFinite(parsedHeight) || parsedHeight <= 0) {
+        toast({
+          variant: "error",
+          title: "Invalid export size",
+          description: "Height must be a positive number.",
+        });
+        return;
+      }
+      width = parsedWidth;
+      height = parsedHeight;
+    }
+
+    const request: ExportImageOptions = {
+      format: exportFormat,
+      width: _clampPositiveInt(width, viewportBase.width),
+      height: _clampPositiveInt(height, viewportBase.height),
+      includeUiOverlays,
+      includeGridOverlay: includeUiOverlays && includeGridOverlay,
+    };
+    if (exportFormat === "jpeg") {
+      request.quality = jpegQuality;
+    }
+
+    setIsExporting(true);
     try {
-      const blob = await exportPng();
+      const blob = await exportImage(request);
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
-      link.download = `magnetiko-${stamp}.png`;
+      const ext = exportFormat === "jpeg" ? "jpg" : "png";
+      link.download = `magnetiko-${stamp}.${ext}`;
       link.href = url;
       link.click();
       queueMicrotask(() => URL.revokeObjectURL(url));
 
+      if (closeDialogOnSuccess) {
+        setExportDialogOpen(false);
+      }
+
       toast({
         variant: "success",
-        title: "Exported PNG",
-        description: "Saved current canvas frame.",
+        title: `Exported ${exportFormat.toUpperCase()}`,
+        description: `Saved ${request.width}x${request.height} image.`,
       });
     } catch (err) {
       toast({
@@ -142,8 +285,22 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
         title: "Export failed",
         description: err instanceof Error ? err.message : "Could not export image.",
       });
+    } finally {
+      setIsExporting(false);
     }
-  }, [toast]);
+  }, [
+    canvasSize.height,
+    canvasSize.width,
+    customHeightInput,
+    customWidthInput,
+    exportFormat,
+    exportScaleMode,
+    includeGridOverlay,
+    includeUiOverlays,
+    isExporting,
+    jpegQuality,
+    toast,
+  ]);
 
   React.useEffect(() => {
     function handleSaveShortcut(event: KeyboardEvent) {
@@ -152,15 +309,18 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
       if (!mod || event.shiftKey || event.altKey || event.key.toLowerCase() !== "s") return;
       if (_isEditableTarget(event.target)) return;
       event.preventDefault();
-      handleExport();
+      void runExport(false);
     }
     window.addEventListener("keydown", handleSaveShortcut);
     return () => window.removeEventListener("keydown", handleSaveShortcut);
-  }, [handleExport]);
+  }, [runExport]);
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  const isCustomScale = exportScaleMode === "custom";
+
   return (
+    <>
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg-raised)] px-xs">
 
       {/* ── Left: sidebar toggle · logo · import ──────────────────────── */}
@@ -336,11 +496,16 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button size="icon-sm" variant="ghost" aria-label="Export PNG" onClick={handleExport}>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Open export settings"
+              onClick={() => setExportDialogOpen(true)}
+            >
               <Export size={15} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Export PNG (⌘/Ctrl+S)</TooltipContent>
+          <TooltipContent>Export image (⌘/Ctrl+S)</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -370,5 +535,140 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
         </Tooltip>
       </div>
     </header>
+    <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+      <DialogContent className="max-w-[30rem]">
+        <DialogHeader>
+          <DialogTitle>Export Image</DialogTitle>
+          <DialogDescription>
+            Export the current frame as PNG or JPEG with custom resolution.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-xs">
+          <div className="flex items-center gap-xs">
+            <span className="w-24 text-xs font-medium text-[var(--color-fg-secondary)]">Format</span>
+            <Select
+              value={exportFormat}
+              onValueChange={(value) => setExportFormat(value as ExportImageFormat)}
+            >
+              <SelectTrigger className="h-8 flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="png">PNG</SelectItem>
+                <SelectItem value="jpeg">JPEG</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-xs">
+            <span className="w-24 text-xs font-medium text-[var(--color-fg-secondary)]">
+              Resolution
+            </span>
+            <Select
+              value={exportScaleMode}
+              onValueChange={(value) => setExportScaleMode(value as ExportScaleMode)}
+            >
+              <SelectTrigger className="h-8 flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EXPORT_SCALE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isCustomScale && (
+            <div className="grid grid-cols-2 gap-xs pl-[6.5rem]">
+              <Input
+                type="number"
+                min={1}
+                value={customWidthInput}
+                onChange={(event) => setCustomWidthInput(event.target.value)}
+                placeholder="Width"
+              />
+              <Input
+                type="number"
+                min={1}
+                value={customHeightInput}
+                onChange={(event) => setCustomHeightInput(event.target.value)}
+                placeholder="Height"
+              />
+            </div>
+          )}
+
+          {exportFormat === "jpeg" && (
+            <div className="flex items-center gap-xs">
+              <span className="w-24 text-xs font-medium text-[var(--color-fg-secondary)]">
+                Quality
+              </span>
+              <Slider
+                className="flex-1"
+                min={0.05}
+                max={1}
+                step={0.01}
+                value={[jpegQuality]}
+                onValueChange={([value]) => setJpegQuality(value)}
+              />
+              <span className="w-10 text-right font-mono text-[10px] text-[var(--color-fg-tertiary)]">
+                {Math.round(jpegQuality * 100)}%
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between rounded-sm border border-[var(--color-border)] px-xs py-2xs">
+            <span className="text-xs text-[var(--color-fg-secondary)]">Include UI overlays</span>
+            <Switch
+              checked={includeUiOverlays}
+              onCheckedChange={(checked) => {
+                const enabled = checked === true;
+                setIncludeUiOverlays(enabled);
+                if (!enabled) setIncludeGridOverlay(false);
+                if (enabled && showGrid) setIncludeGridOverlay(true);
+              }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-sm border border-[var(--color-border)] px-xs py-2xs">
+            <span className="text-xs text-[var(--color-fg-secondary)]">Include grid overlay</span>
+            <Switch
+              checked={includeGridOverlay}
+              disabled={!includeUiOverlays}
+              onCheckedChange={(checked) => setIncludeGridOverlay(checked === true)}
+            />
+          </div>
+
+          <div className="rounded-sm bg-[var(--color-bg-subtle)] px-xs py-2xs">
+            <p className="text-[11px] text-[var(--color-fg-tertiary)]">
+              Output: {resolvedExportSize.width} × {resolvedExportSize.height}
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setExportDialogOpen(false)}
+            disabled={isExporting}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void runExport(true)}
+            disabled={isExporting}
+          >
+            {isExporting ? "Exporting…" : "Export"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
