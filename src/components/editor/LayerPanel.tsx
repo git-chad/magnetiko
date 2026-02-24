@@ -66,6 +66,7 @@ const SHADER_SECTIONS: Array<{
       { type: "bloom", label: "Bloom" },
       { type: "fluted-glass", label: "Fluted Glass" },
       { type: "progressive-blur", label: "Progressive Blur" },
+      { type: "warp-distortion", label: "Warp Distortion" },
     ],
   },
 ];

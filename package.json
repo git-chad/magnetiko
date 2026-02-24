@@ -29,6 +29,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "gifenc": "^1.0.3",
     "gsap": "^3.14.2",
     "immer": "^11.1.4",
     "next": "16.1.6",

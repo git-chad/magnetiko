@@ -552,6 +552,84 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
         },
       ];
 
+    case "warp-distortion":
+      return [
+        {
+          key: "mode",
+          label: "Mode",
+          type: "enum",
+          value: "wave",
+          options: [
+            { label: "Bulge", value: "bulge" },
+            { label: "Wave", value: "wave" },
+          ],
+          group: "Distortion",
+        },
+        {
+          key: "strength",
+          label: "Strength",
+          type: "float",
+          value: 0.7,
+          min: -2,
+          max: 2,
+          step: 0.01,
+          group: "Distortion",
+          description: "Main distortion amount (lens amount for bulge)",
+        },
+        {
+          key: "radius",
+          label: "Radius",
+          type: "float",
+          value: 0.35,
+          min: 0.05,
+          max: 1,
+          step: 0.01,
+          group: "Distortion",
+          description: "Normalized influence radius around the center",
+        },
+        {
+          key: "center",
+          label: "Center",
+          type: "vec2",
+          value: [0.5, 0.5],
+          group: "Distortion",
+          description: "Normalized UV center of the effect",
+        },
+        {
+          key: "waveAmplitude",
+          label: "Wave Amplitude",
+          type: "float",
+          value: 0.015,
+          min: 0,
+          max: 0.08,
+          step: 0.001,
+          group: "Wave",
+          description: "UV displacement magnitude for wave mode",
+        },
+        {
+          key: "waveFrequency",
+          label: "Wave Frequency",
+          type: "float",
+          value: 5,
+          min: 0.5,
+          max: 20,
+          step: 0.1,
+          group: "Wave",
+          description: "Number of ripple bands within the radius",
+        },
+        {
+          key: "waveSpeed",
+          label: "Wave Speed",
+          type: "float",
+          value: 1,
+          min: -6,
+          max: 6,
+          step: 0.05,
+          group: "Wave",
+          description: "Animation speed for wave mode (0 = static)",
+        },
+      ];
+
     case "grain":
       return [
         {
@@ -765,6 +843,7 @@ export function getDefaultLayerName(
     bloom: "Bloom",
     "fluted-glass": "Fluted Glass",
     "progressive-blur": "Progressive Blur",
+    "warp-distortion": "Warp Distortion",
     grain: "Grain",
     interactivity: "Interactivity",
     masonry: "Masonry",

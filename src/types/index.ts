@@ -45,6 +45,7 @@ export type ShaderType =
   | "bloom"
   | "fluted-glass"
   | "progressive-blur"
+  | "warp-distortion"
   | "grain"
   | "interactivity"
   | "masonry";

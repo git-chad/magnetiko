@@ -85,16 +85,16 @@ src/
 
 ### Key Tech Decisions
 
-| Concern | Choice | Rationale |
-|---------|--------|-----------|
-| Framework | Next.js (App Router) | SSR shell, API routes for future backend, easy deployment |
-| 3D / GPU | Three.js WebGPURenderer + TSL | First-class WebGPU, node-based shader language, no raw WGSL needed |
-| State | Zustand | Minimal boilerplate, middleware for undo/redo, works outside React |
-| Styling | Tailwind + CSS custom properties | Design tokens as CSS vars, utility classes for layout |
-| UI primitives | Radix (headless) | Accessible, unstyled, composable |
-| Icons | Phosphor Icons (`@phosphor-icons/react`) | 6 weight variants, MIT, matches design spec |
-| Animation | GSAP | Timeline control for UI transitions, ScrollTrigger if needed |
-| Drag & drop | `@dnd-kit/core` | Layer reordering in the panel |
+| Concern       | Choice                                   | Rationale                                                          |
+| ------------- | ---------------------------------------- | ------------------------------------------------------------------ |
+| Framework     | Next.js (App Router)                     | SSR shell, API routes for future backend, easy deployment          |
+| 3D / GPU      | Three.js WebGPURenderer + TSL            | First-class WebGPU, node-based shader language, no raw WGSL needed |
+| State         | Zustand                                  | Minimal boilerplate, middleware for undo/redo, works outside React |
+| Styling       | Tailwind + CSS custom properties         | Design tokens as CSS vars, utility classes for layout              |
+| UI primitives | Radix (headless)                         | Accessible, unstyled, composable                                   |
+| Icons         | Phosphor Icons (`@phosphor-icons/react`) | 6 weight variants, MIT, matches design spec                        |
+| Animation     | GSAP                                     | Timeline control for UI transitions, ScrollTrigger if needed       |
+| Drag & drop   | `@dnd-kit/core`                          | Layer reordering in the panel                                      |
 
 ### The Filter Philosophy (Critical)
 
@@ -102,7 +102,7 @@ Every shader layer operates as a **filter pass** by default:
 
 1. The underlying media (or the output of all layers below) is rendered to an offscreen texture.
 2. The shader layer **samples** this texture, processes it (e.g., pixelates, dithers, halftones), and outputs the result.
-3. The next layer above receives this processed output as *its* input texture.
+3. The next layer above receives this processed output as _its_ input texture.
 
 This creates a **sequential filter chain**, not a compositing stack of independent layers. The order matters: a halftone on top of a bloom will look fundamentally different from bloom on top of halftone.
 
@@ -212,13 +212,13 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
   interface ShaderParam {
     key: string;
     label: string;
-    type: 'float' | 'int' | 'vec2' | 'vec3' | 'color' | 'enum' | 'bool';
+    type: "float" | "int" | "vec2" | "vec3" | "color" | "enum" | "bool";
     value: number | number[] | string | boolean;
     min?: number;
     max?: number;
     step?: number;
     options?: { label: string; value: string }[];
-    group?: string;       // for grouping controls in sidebar
+    group?: string; // for grouping controls in sidebar
     description?: string; // tooltip text
   }
   ```
@@ -229,17 +229,17 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
     name: string;
     kind: LayerKind;
     shaderType?: ShaderType;
-    filterMode: FilterMode;      // 'filter' by default
+    filterMode: FilterMode; // 'filter' by default
     visible: boolean;
-    solo: boolean;               // solo this layer (hide all others temporarily)
-    opacity: number;             // 0–1
+    solo: boolean; // solo this layer (hide all others temporarily)
+    opacity: number; // 0–1
     blendMode: BlendMode;
     params: ShaderParam[];
     locked: boolean;
-    expanded: boolean;           // UI: expanded in layer panel
+    expanded: boolean; // UI: expanded in layer panel
     mediaUrl?: string;
-    mediaType?: 'image' | 'video';
-    thumbnail?: string;          // base64 preview for layer panel
+    mediaType?: "image" | "video";
+    thumbnail?: string; // base64 preview for layer panel
   }
   ```
 - [x] Define `EditorState` interface (viewport zoom, pan, selected tool, canvas dimensions)
@@ -496,6 +496,7 @@ This is the **core architecture** for the filter chain.
 ### Critical Pattern: Filter Pre-processing
 
 Every filter-mode shader follows this pattern:
+
 1. Sample the input texture at the fragment's UV
 2. **Pre-process** (pixelate / quantize / grid-align) to match the effect's grid
 3. Apply the effect using the pre-processed color
@@ -515,6 +516,7 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 **Done when:** Pixelation renders at various cell sizes. Changing cellSize updates in real-time. Shape variants work. Input texture is correctly processed.
 
 **Acceptance criteria:**
+
 - [x] No visual artifacts at cell boundaries
 - [x] Smooth parameter transitions
 - [x] Works with both image and video input
@@ -529,7 +531,7 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 - [ ] Staggered grid (not yet implemented)
 - [x] Dot shapes: circle, square, diamond, line (select() branching on shape uniform)
 - [x] Color modes: source color per dot (white background), monochrome, duotone (light/dark color params)
-- [x] Contrast control: clamp(luma * contrast, 0, 1)
+- [x] Contrast control: clamp(luma \* contrast, 0, 1)
 - [x] Softness: anti-aliased dot edges (smoothstep with aa width scaled to gridSpacing)
 - [x] dotMin param: minimum dot radius so dots are visible even in dark areas
 - [x] Invert luma toggle (`invertLuma` bool param — swaps bright/dark dot sizing)
@@ -554,7 +556,7 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
   - [x] Custom: user-supplied string
 - [x] Render character by sampling a font texture atlas at the correct glyph position
 - [x] Color modes: source color, monochrome, green-terminal (classic CRT green on black)
-- [x] Background opacity control (source mode: bg = source * bgOpacity)
+- [x] Background opacity control (source mode: bg = source \* bgOpacity)
 - [x] Font weight variants: thin/regular/bold (CSS weight applied at atlas build time)
 - [x] Invert: swap light/dark character mapping
 
@@ -896,18 +898,18 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 9.2 Video/GIF Export (Stretch)
 
-- [ ] Record N seconds of the canvas output (for animated shaders/video input)
-- [ ] Use `MediaRecorder` API on the canvas stream
-- [ ] Format options: WebM, MP4 (if supported), GIF (via library)
-- [ ] Progress bar during recording/encoding
+- [x] Record N seconds of the canvas output (for animated shaders/video input)
+- [x] Use `MediaRecorder` API on the canvas stream
+- [x] Format options: WebM, MP4 (if supported), GIF (via library)
+- [x] Progress bar during recording/encoding
 
 **Done when:** Can export a 5-second loop of an animated shader as WebM. Quality is good.
 
 ### 9.3 Preset Export/Import
 
-- [ ] Export current layer stack as JSON (layer config, params — no media binary)
-- [ ] Import JSON to restore layer stack
-- [ ] Useful for sharing presets and templates
+- [x] Export current layer stack as JSON (layer config, params — no media binary)
+- [x] Import JSON to restore layer stack
+- [x] Useful for sharing presets and templates
 
 **Done when:** Export → close → import → identical layer stack (minus media, which would need re-upload).
 
@@ -921,8 +923,9 @@ These are not in the initial scope but designed to be easy to add given the arch
 - [ ] **Masking**: draw masks per layer (brush tool on a mask texture)
 - [ ] **LUT/Color grading layer**: upload a LUT file, apply as a filter
 - [ ] **Noise generators**: Perlin, Simplex, Voronoi as standalone shader layers
+- [ ] **SDF shapes**: Basic 3D Shapes (Sphere, Torus, Cube, Prism...), change their size, material, select animation (rotation, float, etc.) or Orbit Controls
 - [ ] **SDF shapes**: 2D/3D SDF primitives as layers
-- [ ] **Warp/Distortion layer**: UV displacement maps, swirl, bulge, wave
+- [x] **Warp/Distortion layer**: UV displacement maps, swirl, bulge, wave
 - [ ] **Mesh gradient layer**: configurable gradient with control points
 - [ ] **Guilloche patterns**: parametric engraving-style patterns
 - [ ] **Timeline**: keyframe animation of any param over time
@@ -935,6 +938,7 @@ These are not in the initial scope but designed to be easy to add given the arch
 ## Appendix A — Design System Quick Reference
 
 ### Colors
+
 ```
 Primary:     #364038  (shades: #0f120f → #2a322b, tints: #556257 → #dde0da)
 Secondary:   #526250  (shades: #141813 → #394638, tints: #70806f → #e5eae4)
@@ -946,16 +950,19 @@ Border (dark): rgba(221,229,216,0.14)
 ```
 
 ### Semantic
+
 ```
 Success: #22C55E | Warning: #F59E0B | Error: #EF4444 | Info: #3B82F6
 ```
 
 ### Spacing Scale (base: 24px)
+
 ```
 4xs:3 | 3xs:6 | 2xs:9 | xs:12 | sm:18 | md:24 | lg:36 | xl:48 | 2xl:72 | 3xl:96 | 4xl:144
 ```
 
 ### Type Scale (SF Pro)
+
 ```
 Caption:  12px / 400 / 15px LH / 0.01em LS
 Body:     14px / 400 / 18px LH / 0em LS
@@ -966,12 +973,14 @@ Display:  29px / 700 / 34px LH / -0.015em LS
 ```
 
 ### Border Radius
+
 ```
 xs:4 | sm:8 | md:12 | lg:16 | xl:20 | full:9999
 Buttons: sm(8) | Inputs: sm(8) | Cards: md(12) | Modals: lg(16) | Tooltips: xs(4) | Badges: full
 ```
 
 ### Elevation
+
 ```
 Low:  0 1px 1px rgba(18,24,18,0.04), 0 4px 8px rgba(18,24,18,0.06)
 Mid:  0 8px 24px rgba(18,24,18,0.10), 0 2px 8px rgba(18,24,18,0.08)
@@ -979,6 +988,7 @@ High: 0 18px 48px rgba(18,24,18,0.16), 0 6px 18px rgba(18,24,18,0.12)
 ```
 
 ### Motion
+
 ```
 Micro:  60ms  cubic-bezier(.2,1.4,.4,1)
 Base:   120ms cubic-bezier(.2,1.4,.4,1)
@@ -998,7 +1008,7 @@ Cursor has access to these pre-installed skills/resources:
 - **Performance skills** — rendering optimization, memory management
 - **Next.js best practices** — App Router patterns, SSR considerations
 - **Three.js R3F llms.txt** — `https://r3f.docs.pmnd.rs/llms-full.txt` (Three.js Fiber reference — useful even though we're using vanilla Three.js for WebGPU specifics)
-- **Three.js Drei llms.txt - `https://drei.docs.pmnd.rs/llms-full.txt`(Three.js Drei reference — useful even though we're using vanilla Three.js for WebGPU specifics)
+- \*\*Three.js Drei llms.txt - `https://drei.docs.pmnd.rs/llms-full.txt`(Three.js Drei reference — useful even though we're using vanilla Three.js for WebGPU specifics)
 - **Chrome Browser MCP** — catch runtime errors, inspect GPU performance, verify responsive layouts
 
 ### Usage Notes for Cursor
@@ -1026,6 +1036,7 @@ Every task (numbered X.Y) is considered **done** when:
 7. ✅ My explicit confirmation after testing
 
 Tasks can be marked with:
+
 - `[ ]` — Not started
 - `[~]` — In progress
 - `[x]` — Complete & confirmed
@@ -1035,18 +1046,18 @@ Tasks can be marked with:
 
 ## Progress Tracker
 
-| Phase | Name | Tasks | Done | Status |
-|-------|------|-------|------|--------|
-| 0 | Design System | 6 | 6 | ✅ Complete |
-| 1 | Data Model & State | 6 | 6 | ✅ Complete |
-| 2 | WebGPU Renderer | 6 | 6 | ✅ Complete |
-| 3 | Layer System UI | 6 | 6 | ✅ Complete |
-| 4 | Shader Library | 9 | 9 | ✅ Complete |
-| 5 | Controls & Sidebar | 4 | 4 | ✅ Complete |
-| 6 | Media Input | 4 | 3 | 🔵 In progress |
-| 7 | Interactivity | 3 | 3 | ✅ Complete (scope-adjusted) |
-| 8 | Polish & Perf | 6 | 4 | 🔵 In progress |
-| 9 | Export | 3 | 1 | 🔵 In progress |
-| 10 | Stretch | — | 0 | ⬜ Future |
+| Phase | Name               | Tasks | Done | Status                       |
+| ----- | ------------------ | ----- | ---- | ---------------------------- |
+| 0     | Design System      | 6     | 6    | ✅ Complete                  |
+| 1     | Data Model & State | 6     | 6    | ✅ Complete                  |
+| 2     | WebGPU Renderer    | 6     | 6    | ✅ Complete                  |
+| 3     | Layer System UI    | 6     | 6    | ✅ Complete                  |
+| 4     | Shader Library     | 9     | 9    | ✅ Complete                  |
+| 5     | Controls & Sidebar | 4     | 4    | ✅ Complete                  |
+| 6     | Media Input        | 4     | 3    | 🔵 In progress               |
+| 7     | Interactivity      | 3     | 3    | ✅ Complete (scope-adjusted) |
+| 8     | Polish & Perf      | 6     | 4    | 🔵 In progress               |
+| 9     | Export             | 3     | 3    | ✅ Complete                  |
+| 10    | Stretch            | —     | 1    | 🔵 In progress               |
 
 **Total: 53 tasks across 10 phases**
