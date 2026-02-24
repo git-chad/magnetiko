@@ -374,7 +374,7 @@ This is the **core architecture** for the filter chain.
 - [x] React to layer store changes: rebuild pipeline when layers are added, removed, reordered
 - [x] React to param changes: update uniforms without rebuilding pipeline
 - [x] **Media layers are first-class passes** — `MediaPass` subclass handles image/video in the chain; `PipelineLayer` interface now carries `kind` + `mediaUrl`; `syncLayers()` creates the correct node type per kind
-- [ ] **Performance:** only re-render if something changed (dirty flag system)
+- [x] **Performance:** only re-render if something changed (dirty flag system)
 
 **Done when:** With a single passthrough layer, the media displays unchanged. Adding a second passthrough layer still shows the media unchanged. Pipeline rebuilds when layers change. Console confirms pass count. ✓ Also fixed: media layers now fully participate in the stack — stacking, reordering, blend modes and opacity all work across both media and shader layers.
 
@@ -395,7 +395,7 @@ This is the **core architecture** for the filter chain.
 - [x] Use `useEffect` to initialize WebGPURenderer on mount, dispose on unmount
 - [x] Subscribe to `layerStore` — when layers change, update PipelineManager
 - [x] Subscribe to `editorStore` — handle zoom/pan by adjusting camera or container transform
-- [ ] Forward pointer events to the interactivity system (Phase 7)
+- [x] Forward pointer events to the interactivity system (Phase 7)
 - [x] Display FPS counter (dev mode)
 
 **Done when:** Canvas renders in the editor layout. Responds to window resize. Shows uploaded media through the pipeline. ✓ Fixed: layer sync timing, zoom pollution, FullscreenQuad TextureNode recompile, React effect dep-chain replaced with direct Zustand subscribe(). ✓ Fixed: `sync()` now passes ALL layers (media + shader) to `syncLayers()` — no separate media-loading side path.
@@ -795,7 +795,7 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 8.1 Performance
 
-- [ ] Dirty flag system: only re-render when state changes or video frame updates
+- [x] Dirty flag system: only re-render when state changes or video frame updates
 - [ ] Render target pooling: reuse render targets, don't allocate per frame
 - [ ] Uniform updates without material recompilation (TSL should handle this, verify)
 - [ ] FPS monitoring: warn user (toast) if dropping below 30fps, suggest reducing quality

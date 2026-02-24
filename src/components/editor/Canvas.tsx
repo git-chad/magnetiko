@@ -166,9 +166,8 @@ export function Canvas({ className }: CanvasProps) {
             pipeline!.addClickForInteractivity(click.uvX, click.uvY);
           }
 
-          pipeline!.render(timeSec, delta);
-
-          frames++;
+          const didRender = pipeline!.render(timeSec, delta);
+          if (didRender) frames++;
           if (timeSec - lastFpsSec >= 1) {
             setFps(frames);
             frames = 0;

@@ -692,6 +692,14 @@ export class InteractivityPass extends PassNode {
     return this._displacementRT.texture;
   }
 
+  override needsContinuousRender(): boolean {
+    return (
+      this._effectU.value < 0.5 ||
+      this._mouseActiveU.value > 0.5 ||
+      this._splatQueue.length > 0
+    );
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   override render(

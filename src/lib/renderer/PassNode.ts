@@ -133,6 +133,14 @@ export class PassNode {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   resize(_width: number, _height: number): void {}
 
+  /**
+   * Returns true when this pass needs per-frame rendering even without
+   * parameter changes (e.g. video playback or fluid decay).
+   */
+  needsContinuousRender(): boolean {
+    return false;
+  }
+
   dispose(): void {
     this._scene.clear();
     this._material.dispose();
@@ -166,4 +174,3 @@ export class PassNode {
     ) as any;
   }
 }
-

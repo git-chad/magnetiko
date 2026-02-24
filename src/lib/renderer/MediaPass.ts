@@ -153,6 +153,10 @@ export class MediaPass extends PassNode {
     }
   }
 
+  override needsContinuousRender(): boolean {
+    return this._videoTex !== null;
+  }
+
   override dispose(): void {
     this._releaseCurrentMedia();
     this._placeholder.dispose();

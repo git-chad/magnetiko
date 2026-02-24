@@ -69,6 +69,10 @@ export class PipelineManager {
   // ── Current canvas dimensions (needed to size new passes) ─────────────────
   private _width: number;
   private _height: number;
+  private _dirty = true;
+  private _lastPointerActive = false;
+  private _lastPointerX = 0.5;
+  private _lastPointerY = 0.5;
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -147,16 +151,21 @@ export class PipelineManager {
       if ((layer.kind === "image" || layer.kind === "video") && layer.mediaUrl) {
         const mediaPass = pass as MediaPass;
         if (mediaPass.loadedUrl !== layer.mediaUrl) {
-          mediaPass.setMedia(layer.mediaUrl, layer.kind);
+          void mediaPass.setMedia(layer.mediaUrl, layer.kind).finally(() => {
+            this._dirty = true;
+          });
         }
       }
       if (layer.kind === "webcam") {
-        (pass as MediaPass).startWebcam();
+        void (pass as MediaPass).startWebcam().finally(() => {
+          this._dirty = true;
+        });
       }
     }
 
     // Re-order to match layer stack (bottom → top)
     this._passes = layers.map((l) => this._passMap.get(l.id)!);
+    this._dirty = true;
 
   }
 
@@ -166,6 +175,7 @@ export class PipelineManager {
    */
   updateLayerParams(layerId: string, params: ShaderParam[]): void {
     this._passMap.get(layerId)?.updateUniforms(params);
+    this._dirty = true;
   }
 
   /**
@@ -192,6 +202,21 @@ export class PipelineManager {
         (pass as any).setPointer(uvX, uvY, duvX, duvY, isActive);
       }
     }
+    const pointerMoved =
+      Math.abs(duvX) > 1e-7 ||
+      Math.abs(duvY) > 1e-7 ||
+      Math.abs(uvX - this._lastPointerX) > 1e-7 ||
+      Math.abs(uvY - this._lastPointerY) > 1e-7;
+    const activeChanged = isActive !== this._lastPointerActive;
+    if (
+      activeChanged ||
+      (isActive && pointerMoved)
+    ) {
+      this._dirty = true;
+    }
+    this._lastPointerActive = isActive;
+    this._lastPointerX = uvX;
+    this._lastPointerY = uvY;
   }
 
   /**
@@ -208,6 +233,7 @@ export class PipelineManager {
         (pass as any).addClick(uvX, uvY);
       }
     }
+    this._dirty = true;
   }
 
   /**
@@ -245,17 +271,26 @@ export class PipelineManager {
    *
    * With 0 visible passes: renders base media directly to screen (fast path).
    * With N passes: base → RT A → pass 0 → RT B → pass 1 → RT A → … → screen.
+   *
+   * Returns `true` when a frame was rendered, `false` when skipped by the
+   * dirty/continuous-render gate.
    */
-  render(time: number, delta: number): void {
+  render(time: number, delta: number): boolean {
     const renderer = this._renderer;
 
     const activePasses = this._passes.filter((p) => p.enabled);
+    const needsContinuous = activePasses.some((pass) => pass.needsContinuousRender());
+
+    if (!this._dirty && !needsContinuous) {
+      return false;
+    }
 
     if (activePasses.length === 0) {
       // Fast path: no layers → base straight to screen
       renderer.setRenderTarget(null);
       renderer.render(this._baseScene, this._baseCamera);
-      return;
+      this._dirty = false;
+      return true;
     }
 
     // Step 1 — base media → RT A
@@ -278,6 +313,8 @@ export class PipelineManager {
     this._blitInputNode.value = read.texture;
     renderer.setRenderTarget(null);
     renderer.render(this._blitScene, this._blitCamera);
+    this._dirty = false;
+    return true;
   }
 
   /**
@@ -293,6 +330,7 @@ export class PipelineManager {
     for (const pass of this._passMap.values()) {
       pass.resize(width, height);
     }
+    this._dirty = true;
   }
 
   dispose(): void {
