@@ -151,6 +151,10 @@ export function MediaTexturePreview() {
 
     try {
       const asset = await loadAsset(file);
+      if (asset.type === "model") {
+        console.warn("[MediaTexturePreview] 3D models are not supported in this preview panel.");
+        return;
+      }
       await loadMediaFromUrl(
         asset.url,
         asset.type,

@@ -29,7 +29,7 @@ interface CanvasProps {
 }
 
 type SourceMedia = {
-  kind: "image" | "video" | "webcam";
+  kind: "image" | "video" | "webcam" | "model";
   url: string | null;
 };
 
@@ -51,7 +51,7 @@ const OOM_WARN_COOLDOWN_MS = 8000;
 
 function toSourceMedia(layer: Layer): SourceMedia | null {
   if (layer.kind === "webcam") return { kind: "webcam", url: null };
-  if ((layer.kind === "image" || layer.kind === "video") && layer.mediaUrl) {
+  if ((layer.kind === "image" || layer.kind === "video" || layer.kind === "model") && layer.mediaUrl) {
     return { kind: layer.kind, url: layer.mediaUrl };
   }
   return null;
@@ -225,7 +225,7 @@ export function Canvas({ className }: CanvasProps) {
     s.layers.some(
       (l) =>
         l.kind === "webcam" ||
-        ((l.kind === "image" || l.kind === "video") && Boolean(l.mediaUrl)),
+        ((l.kind === "image" || l.kind === "video" || l.kind === "model") && Boolean(l.mediaUrl)),
     ),
   );
   const layerCount = useLayerStore((s) => s.layers.length);
@@ -467,6 +467,11 @@ export function Canvas({ className }: CanvasProps) {
 
       if (sourceMedia.kind === "webcam") {
         setSourceAspect(fallbackAspect);
+        return;
+      }
+      if (sourceMedia.kind === "model") {
+        setSourceAspect(1);
+        setCanvasSize(1, 1);
         return;
       }
 
@@ -730,6 +735,7 @@ export function Canvas({ className }: CanvasProps) {
         params:     l.params,
         shaderType: l.shaderType,
         mediaUrl:   l.mediaUrl,
+        mediaName:  l.mediaName,
         mediaVersion: l.mediaVersion,
       }));
 

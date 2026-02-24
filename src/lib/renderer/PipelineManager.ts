@@ -3,6 +3,7 @@ import { uv, vec2, float, texture as tslTexture } from "three/tsl";
 import { FullscreenQuad } from "./MediaTexture";
 import { PassNode } from "./PassNode";
 import { MediaPass } from "./MediaPass";
+import { ModelPass } from "./ModelPass";
 import { createPassNode } from "./passNodeFactory";
 import { sharedRenderTargetPool } from "./RenderTargetPool";
 import type { ShaderParam } from "@/types";
@@ -15,7 +16,7 @@ import type { ShaderParam } from "@/types";
 export interface PipelineLayer {
   id: string;
   /** Determines which PassNode subclass to create for this layer. */
-  kind: "shader" | "image" | "video" | "webcam";
+  kind: "shader" | "image" | "video" | "webcam" | "model";
   visible: boolean;
   opacity: number;
   blendMode: string;
@@ -24,6 +25,8 @@ export interface PipelineLayer {
   shaderType?: string;
   /** Image or video URL — only set for kind='image'|'video' layers. Webcam layers don't use this. */
   mediaUrl?: string;
+  /** Original uploaded filename (used for media/model format hints). */
+  mediaName?: string;
   /** Increment to force media reload retry without changing URL. */
   mediaVersion?: number;
 }
@@ -313,7 +316,11 @@ export class PipelineManager {
       if (!pass) {
         try {
           pass =
-            layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam"
+            layer.kind === "model"
+              ? new ModelPass(layer.id)
+              : layer.kind === "image" ||
+                  layer.kind === "video" ||
+                  layer.kind === "webcam"
               ? new MediaPass(layer.id)
               : createPassNode(layer.id, layer.shaderType);
           pass.resize(this._width, this._height);
@@ -371,6 +378,31 @@ export class PipelineManager {
           this._callbacks.onMediaStatus?.(layer.id, "loading");
           void mediaPass
             .setMedia(layer.mediaUrl, layer.kind)
+            .then(() => {
+              this._callbacks.onMediaStatus?.(layer.id, "ready");
+              this._dirty = true;
+            })
+            .catch((err) => {
+              const error = toError(err);
+              this._callbacks.onMediaStatus?.(layer.id, "error", error.message);
+              if (isLikelyOutOfMemoryError(error)) {
+                this._callbacks.onOutOfMemory?.(error);
+              }
+              this._dirty = true;
+            });
+        }
+      }
+
+      if (layer.kind === "model") {
+        const modelPass = pass as ModelPass;
+        const requestedVersion = layer.mediaVersion ?? 0;
+        const lastVersion = this._mediaRequestVersion.get(layer.id);
+
+        if (layer.mediaUrl && lastVersion !== requestedVersion) {
+          this._mediaRequestVersion.set(layer.id, requestedVersion);
+          this._callbacks.onMediaStatus?.(layer.id, "loading");
+          void modelPass
+            .setModel(layer.mediaUrl, layer.mediaName)
             .then(() => {
               this._callbacks.onMediaStatus?.(layer.id, "ready");
               this._dirty = true;
@@ -710,7 +742,7 @@ export class PipelineManager {
         const kind = this._layerKindById.get(layerId);
         if (kind === "shader") {
           this._notifyShaderError(layerId, error);
-        } else if (kind === "image" || kind === "video" || kind === "webcam") {
+        } else if (kind === "image" || kind === "video" || kind === "webcam" || kind === "model") {
           this._callbacks.onMediaStatus?.(layerId, "error", error.message);
         }
         if (isLikelyOutOfMemoryError(error)) {

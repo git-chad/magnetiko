@@ -24,7 +24,7 @@ export type BlendMode =
 
 // ── Layer kind ────────────────────────────────────────────────────────────────
 
-export type LayerKind = "shader" | "image" | "video" | "webcam";
+export type LayerKind = "shader" | "image" | "video" | "webcam" | "model";
 
 // ── Filter vs mask mode ───────────────────────────────────────────────────────
 
@@ -102,7 +102,7 @@ export interface Layer {
   /** UI: expanded in the layer panel */
   expanded: boolean;
   mediaUrl?: string;
-  mediaType?: "image" | "video" | "webcam";
+  mediaType?: "image" | "video" | "webcam" | "model";
   /** Upload/render lifecycle for media layers. */
   mediaStatus?: "idle" | "loading" | "ready" | "error";
   /** Human-readable media error when mediaStatus === 'error'. */
@@ -113,6 +113,7 @@ export interface Layer {
   runtimeError?: string;
   /** Base-64 thumbnail preview for the layer panel row */
   thumbnail?: string;
+  mediaName?: string;
 }
 
 export interface LayerGroup {
@@ -153,7 +154,7 @@ export interface MediaAsset {
   name: string;
   /** Object URL created from the uploaded File */
   url: string;
-  type: "image" | "video";
+  type: "image" | "video" | "model";
   width: number;
   height: number;
   /** Video duration in seconds, if applicable */

@@ -6,6 +6,7 @@ import {
   Camera,
   CaretDown,
   CaretRight,
+  Cube,
   Image as ImageIcon,
   LockSimple,
   LockSimpleOpen,
@@ -36,7 +37,7 @@ import { useLayerStore } from "@/store/layerStore";
 import { useHistoryStore } from "@/store/historyStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useMediaStore } from "@/store/mediaStore";
-import { getDefaultParams } from "@/lib/utils/defaultParams";
+import { getDefaultParamsForLayer } from "@/lib/utils/defaultParams";
 import { ParamControl } from "@/components/shared/ParamControl";
 import { cn } from "@/lib/utils";
 import type { BlendMode, FilterMode, FrameAspectMode, Layer, LayerGroup, ShaderParam } from "@/types";
@@ -167,7 +168,7 @@ export function PropertiesPanel() {
           {layer ? (
             <>
               <_GeneralSection layer={layer} />
-              {layer.kind === "shader" && layer.params.length > 0 && (
+              {layer.params.length > 0 && (
                 <_ParamsSection layer={layer} />
               )}
               <_ActionsSection layer={layer} />
@@ -237,6 +238,7 @@ function _LayerHeader({ layer }: { layer: Layer }) {
         {layer.kind === "image"   ? <ImageIcon   size={14} className="text-[var(--color-fg-tertiary)]" /> :
          layer.kind === "video"   ? <VideoCamera size={14} className="text-[var(--color-fg-tertiary)]" /> :
          layer.kind === "webcam"  ? <Camera      size={14} className="text-[var(--color-fg-tertiary)]" /> :
+         layer.kind === "model"   ? <Cube        size={14} className="text-[var(--color-fg-tertiary)]" /> :
          <Shapes size={14} className="text-[var(--color-fg-tertiary)]" />}
       </div>
 
@@ -693,11 +695,11 @@ function _ParamsSection({ layer }: { layer: Layer }) {
 
   // Default params map for reset buttons — keyed by param.key
   const defaultParamsMap = React.useMemo(() => {
-    if (!layer.shaderType) return {} as Record<string, ShaderParam>;
+    if (layer.params.length === 0) return {} as Record<string, ShaderParam>;
     return Object.fromEntries(
-      getDefaultParams(layer.shaderType).map((p) => [p.key, p]),
+      getDefaultParamsForLayer(layer.kind, layer.shaderType).map((p) => [p.key, p]),
     );
-  }, [layer.shaderType]);
+  }, [layer.kind, layer.params.length, layer.shaderType]);
 
   // Expanded state per group — reset to all-open when the selected layer changes
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>(() =>
@@ -795,7 +797,7 @@ function _ActionsSection({ layer }: { layer: Layer }) {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-xs px-xs py-xs">
-      {layer.kind === "shader" && (
+      {layer.params.length > 0 && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

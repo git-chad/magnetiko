@@ -4,6 +4,7 @@ import * as React from "react";
 import gsap from "gsap";
 import {
   Camera,
+  Cube,
   CaretDown,
   CaretRight,
   DotsThreeVertical,
@@ -98,6 +99,7 @@ function AddLayerMenu() {
 
   const imageInputRef = React.useRef<HTMLInputElement>(null);
   const videoInputRef = React.useRef<HTMLInputElement>(null);
+  const modelInputRef = React.useRef<HTMLInputElement>(null);
 
   const notifyLayerLimit = React.useCallback(() => {
     toast({
@@ -108,7 +110,7 @@ function AddLayerMenu() {
   }, [toast]);
 
   const tryAddLayer = React.useCallback(
-    (kind: "shader" | "image" | "video" | "webcam", shaderType?: ShaderType): string | null => {
+    (kind: "shader" | "image" | "video" | "webcam" | "model", shaderType?: ShaderType): string | null => {
       const id = addLayer(kind, shaderType);
       if (!id) notifyLayerLimit();
       return id;
@@ -121,11 +123,20 @@ function AddLayerMenu() {
   }, [createGroup]);
 
   function handleMediaFile(file: File) {
-    const isVideo = file.type.startsWith("video/");
-    const id = tryAddLayer(isVideo ? "video" : "image");
+    const lowerName = file.name.toLowerCase();
+    const kind =
+      file.type.startsWith("video/")
+        ? "video"
+        : file.type.startsWith("image/")
+          ? "image"
+          : lowerName.endsWith(".glb") || lowerName.endsWith(".gltf") || lowerName.endsWith(".obj")
+            ? "model"
+            : null;
+    if (!kind) return;
+    const id = tryAddLayer(kind);
     if (!id) return;
     const url = URL.createObjectURL(file);
-    setLayerMedia(id, url, isVideo ? "video" : "image");
+    setLayerMedia(id, url, kind, file.name);
   }
 
   return (
@@ -188,6 +199,14 @@ function AddLayerMenu() {
             Import Video
           </DropdownMenuItem>
 
+          <DropdownMenuItem onSelect={() => modelInputRef.current?.click()}>
+            <Cube
+              size={13}
+              className="shrink-0 text-[var(--color-fg-tertiary)]"
+            />
+            Import 3D Model
+          </DropdownMenuItem>
+
           <DropdownMenuItem onSelect={() => { tryAddLayer("webcam"); }}>
             <Camera
               size={13}
@@ -213,6 +232,17 @@ function AddLayerMenu() {
         ref={videoInputRef}
         type="file"
         accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleMediaFile(f);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={modelInputRef}
+        type="file"
+        accept=".glb,.gltf,.obj,model/*,application/octet-stream"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];

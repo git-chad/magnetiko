@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/toast";
  *
  * - Validates the file via mediaStore (type, size)
  * - Creates a tracked MediaAsset (object URL + metadata)
- * - Adds an image/video layer to layerStore pointing at the asset
+ * - Adds an image/video/model layer to layerStore pointing at the asset
  * - Shows an error toast on validation or load failure
  */
 export function useMediaUpload() {
@@ -33,7 +33,13 @@ export function useMediaUpload() {
       setIsLoading(true);
       try {
         const asset = await loadAsset(file);
-        const id    = addLayer(asset.type === "video" ? "video" : "image");
+        const id = addLayer(
+          asset.type === "video"
+            ? "video"
+            : asset.type === "model"
+              ? "model"
+              : "image",
+        );
         if (!id) {
           removeAsset(asset.id);
           toast({
@@ -43,7 +49,7 @@ export function useMediaUpload() {
           });
           return;
         }
-        setLayerMedia(id, asset.url, asset.type);
+        setLayerMedia(id, asset.url, asset.type, asset.name);
       } catch (err) {
         toast({
           variant:     "error",

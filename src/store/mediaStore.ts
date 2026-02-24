@@ -14,6 +14,10 @@ const ACCEPTED_TYPES = new Set([
   "image/gif",
   "video/mp4",
   "video/webm",
+  "model/gltf-binary",
+  "model/gltf+json",
+  "model/obj",
+  "application/octet-stream",
 ]);
 
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
@@ -39,10 +43,32 @@ type MediaStore = MediaState & MediaActions;
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function validateFile(file: File): void {
-  if (!ACCEPTED_TYPES.has(file.type)) {
+function inferMediaType(file: File): "image" | "video" | "model" | null {
+  const mime = file.type.toLowerCase();
+  const name = file.name.toLowerCase();
+
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+
+  if (
+    name.endsWith(".glb") ||
+    name.endsWith(".gltf") ||
+    name.endsWith(".obj") ||
+    mime === "model/gltf-binary" ||
+    mime === "model/gltf+json" ||
+    mime === "model/obj"
+  ) {
+    return "model";
+  }
+
+  return null;
+}
+
+function validateFile(file: File): "image" | "video" | "model" {
+  const mediaType = inferMediaType(file);
+  if (!mediaType || (!ACCEPTED_TYPES.has(file.type) && mediaType !== "model")) {
     throw new Error(
-      `Unsupported file type "${file.type}". Accepted: PNG, JPG, WebP, GIF, MP4, WebM.`,
+      `Unsupported file type "${file.type || "unknown"}". Accepted: PNG, JPG, WebP, GIF, MP4, WebM, GLB, GLTF, OBJ.`,
     );
   }
   if (file.size > MAX_SIZE_BYTES) {
@@ -50,6 +76,7 @@ function validateFile(file: File): void {
       `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 50 MB.`,
     );
   }
+  return mediaType;
 }
 
 function loadImageDimensions(url: string): Promise<{ width: number; height: number }> {
@@ -87,15 +114,14 @@ export const useMediaStore = create<MediaStore>()(
     assets: [],
 
     async loadAsset(file) {
-      validateFile(file);
+      const mediaType = validateFile(file);
 
       const url = URL.createObjectURL(file);
-      const isVideo = file.type.startsWith("video/");
       const id = uuidv4();
 
       let asset: MediaAsset;
 
-      if (isVideo) {
+      if (mediaType === "video") {
         const { width, height, duration } = await loadVideoDimensions(url);
         asset = {
           id,
@@ -106,7 +132,7 @@ export const useMediaStore = create<MediaStore>()(
           height,
           duration,
         };
-      } else {
+      } else if (mediaType === "image") {
         const { width, height } = await loadImageDimensions(url);
         asset = {
           id,
@@ -115,6 +141,16 @@ export const useMediaStore = create<MediaStore>()(
           type: "image",
           width,
           height,
+        };
+      } else {
+        asset = {
+          id,
+          name: file.name,
+          url,
+          type: "model",
+          // Models are rendered in a 3D viewport; no intrinsic 2D dimensions.
+          width: 1,
+          height: 1,
         };
       }
 

@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   ArrowClockwise,
   Camera,
+  Cube,
   Copy,
   DotsThreeVertical,
   DotsSixVertical,
@@ -41,6 +42,8 @@ function LayerIcon({ layer }: { layer: Layer }) {
     );
   if (layer.kind === "webcam")
     return <Camera size={14} className="text-[var(--color-fg-tertiary)]" />;
+  if (layer.kind === "model")
+    return <Cube size={14} className="text-[var(--color-fg-tertiary)]" />;
   return <Shapes size={14} className="text-[var(--color-fg-tertiary)]" />;
 }
 
@@ -206,7 +209,8 @@ export function LayerItem({
         )}
         {(layer.kind === "image" ||
           layer.kind === "video" ||
-          layer.kind === "webcam") &&
+          layer.kind === "webcam" ||
+          layer.kind === "model") &&
           layer.mediaStatus === "loading" && (
             <span className="truncate text-[10px] leading-none text-[var(--color-fg-disabled)]">
               loading media…
@@ -214,7 +218,8 @@ export function LayerItem({
           )}
         {(layer.kind === "image" ||
           layer.kind === "video" ||
-          layer.kind === "webcam") &&
+          layer.kind === "webcam" ||
+          layer.kind === "model") &&
           layer.mediaStatus === "error" && (
             <span className="truncate text-[10px] leading-none text-[var(--color-error)]">
               {layer.mediaError ?? "media failed"}
@@ -271,7 +276,8 @@ export function LayerItem({
           )}
           {(layer.kind === "image" ||
             layer.kind === "video" ||
-            layer.kind === "webcam") &&
+            layer.kind === "webcam" ||
+            layer.kind === "model") &&
             layer.mediaStatus === "error" && (
               <DropdownMenuItem onSelect={() => retryLayerMedia(layer.id)}>
                 <ArrowClockwise size={13} />

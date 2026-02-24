@@ -10,7 +10,6 @@ import {
   cos,
   abs,
   length,
-  sqrt,
   dot,
   min,
   max,
@@ -19,7 +18,6 @@ import {
   mix,
   select,
   exp,
-  texture as tslTexture,
   screenSize,
 } from "three/tsl";
 import { PassNode } from "@/lib/renderer/PassNode";
@@ -142,12 +140,15 @@ export class SdfShapesPass extends PassNode {
 
   protected override _buildEffectNode(): /* TSL Node */ any { // eslint-disable-line @typescript-eslint/no-explicit-any
     if (!this._modeU) return this._inputNode;
+    const mode = typeof this._modeU.value === "number" ? (this._modeU.value as number) : 0;
+    if (mode < 0.5) return this._build2DEffectNode();
+    return this._build3DEffectNode();
+  }
 
-    // Y-flipped UV (render-target convention).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const uvx: any = float(uv().x);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const uvy: any = float(float(1.0).sub(uv().y));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _build2DEffectNode(): any {
+    const uvx = float(uv().x);
+    const uvy = float(float(1.0).sub(uv().y));
     const src = this._inputNode;
 
     const aspect = screenSize.x.div(screenSize.y);
@@ -174,7 +175,6 @@ export class SdfShapesPass extends PassNode {
     const qy = float(localX.mul(s).add(localY.mul(c)));
     const q2 = vec2(qx, qy);
 
-    // ── 2D SDF primitives ─────────────────────────────────────────────────
     const circleD = float(length(q2).sub(this._radiusU));
 
     const boxHalf = vec2(this._sizeXU, this._sizeYU);
@@ -197,10 +197,45 @@ export class SdfShapesPass extends PassNode {
     );
 
     const soft2D = max(this._softnessU, float(0.0005));
-    let mask2D = float(1.0).sub(smoothstep(float(0.0), soft2D, sdf2D));
-    mask2D = select(this._invertU.greaterThan(float(0.5)), float(1.0).sub(mask2D), mask2D);
+    let mask = float(1.0).sub(smoothstep(float(0.0), soft2D, sdf2D));
+    mask = select(this._invertU.greaterThan(float(0.5)), float(1.0).sub(mask), mask);
 
-    // ── 3D SDF primitives (raymarch) ──────────────────────────────────────
+    const fg = vec3(this._colorRU, this._colorGU, this._colorBU);
+    const bg = vec3(this._bgRU, this._bgGU, this._bgBU);
+    const sdfColor = vec3(
+      mix(float(bg.x), float(fg.x), mask),
+      mix(float(bg.y), float(fg.y), mask),
+      mix(float(bg.z), float(fg.z), mask),
+    );
+
+    const outColor = vec3(
+      mix(float(src.r), float(sdfColor.x), this._intensityU),
+      mix(float(src.g), float(sdfColor.y), this._intensityU),
+      mix(float(src.b), float(sdfColor.z), this._intensityU),
+    );
+
+    return vec4(outColor, float(1.0));
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _build3DEffectNode(): any {
+    const uvx = float(uv().x);
+    const uvy = float(float(1.0).sub(uv().y));
+    const src = this._inputNode;
+
+    const aspect = screenSize.x.div(screenSize.y);
+    const x = float(uvx.sub(float(0.5)).mul(float(2.0)).mul(aspect));
+    const y = float(uvy.sub(float(0.5)).mul(float(2.0)));
+
+    const t = float(
+      select(
+        this._animateU.greaterThan(float(0.5)),
+        this._timeU.mul(this._speedU),
+        float(0.0),
+      ),
+    );
+    const rot = float(this._rotationU.add(t));
+
     const ro = vec3(float(0.0), float(0.0), float(2.6));
     const rdRaw = vec3(x, y, float(-1.8));
     const rdLen = max(length(rdRaw), float(0.0001));
@@ -247,7 +282,7 @@ export class SdfShapesPass extends PassNode {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let hitMask: any = float(0.0);
 
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 28; i++) {
       const p = ro.add(rd.mul(travel));
       const d = sdf3D(p);
       const isHit = d.lessThan(float(0.0015));
@@ -273,22 +308,16 @@ export class SdfShapesPass extends PassNode {
     const diffuse = clamp(dot(n, lightDir), float(0.0), float(1.0));
     const fog = clamp(exp(travel.mul(float(-0.18))), float(0.0), float(1.0));
 
-    let mask3D = hitMask.mul(fog);
-    mask3D = select(this._invertU.greaterThan(float(0.5)), float(1.0).sub(mask3D), mask3D);
+    let mask = hitMask.mul(fog);
+    mask = select(this._invertU.greaterThan(float(0.5)), float(1.0).sub(mask), mask);
+    const shade = float(0.2).add(diffuse.mul(float(0.8)));
 
-    const modeMask = select(this._modeU.lessThan(float(0.5)), mask2D, mask3D);
-    const shapeShade = select(
-      this._modeU.lessThan(float(0.5)),
-      float(1.0),
-      float(0.2).add(diffuse.mul(float(0.8))),
-    );
-
-    const fg = vec3(this._colorRU, this._colorGU, this._colorBU).mul(shapeShade);
+    const fg = vec3(this._colorRU, this._colorGU, this._colorBU).mul(shade);
     const bg = vec3(this._bgRU, this._bgGU, this._bgBU);
     const sdfColor = vec3(
-      mix(float(bg.x), float(fg.x), modeMask),
-      mix(float(bg.y), float(fg.y), modeMask),
-      mix(float(bg.z), float(fg.z), modeMask),
+      mix(float(bg.x), float(fg.x), mask),
+      mix(float(bg.y), float(fg.y), mask),
+      mix(float(bg.z), float(fg.z), mask),
     );
 
     const outColor = vec3(
@@ -301,6 +330,8 @@ export class SdfShapesPass extends PassNode {
   }
 
   override updateUniforms(params: ShaderParam[]): void {
+    const prevMode = (this._modeU.value as number) ?? 0;
+    let nextMode = prevMode;
     let animate = this._animateU.value > 0.5;
     let speed = this._speedU.value as number;
 
@@ -308,7 +339,7 @@ export class SdfShapesPass extends PassNode {
       switch (p.key) {
         case "mode": {
           const map: Record<string, number> = { "2d": 0, "3d": 1 };
-          this._modeU.value = map[p.value as string] ?? 0;
+          nextMode = map[p.value as string] ?? 0;
           break;
         }
         case "shape2d": {
@@ -381,6 +412,13 @@ export class SdfShapesPass extends PassNode {
           setColorUniforms(p.value as string, this._bgRU, this._bgGU, this._bgBU);
           break;
       }
+    }
+
+    this._modeU.value = nextMode;
+    if (Math.abs(nextMode - prevMode) > 1e-6) {
+      this._effectNode = this._buildEffectNode();
+      this._rebuildColorNode();
+      this._material.needsUpdate = true;
     }
 
     this._needsAnimation = animate && Math.abs(speed) > 1e-6;

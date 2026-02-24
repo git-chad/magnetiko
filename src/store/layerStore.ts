@@ -3,7 +3,7 @@ import { immer } from "zustand/middleware/immer";
 import { v4 as uuidv4 } from "uuid";
 import type { Layer, LayerGroup, LayerKind, ShaderType, BlendMode, FilterMode } from "@/types";
 import {
-  getDefaultParams,
+  getDefaultParamsForLayer,
   getDefaultLayerName,
 } from "@/lib/utils/defaultParams";
 
@@ -38,7 +38,7 @@ interface LayerActions {
   renameLayer(id: string, name: string): void;
   updateParam(layerId: string, paramKey: string, value: Layer["params"][number]["value"]): void;
   resetParams(layerId: string): void;
-  setLayerMedia(id: string, url: string, type: "image" | "video"): void;
+  setLayerMedia(id: string, url: string, type: "image" | "video" | "model", name?: string): void;
   setLayerMediaStatus(
     id: string,
     status: "idle" | "loading" | "ready" | "error",
@@ -86,10 +86,12 @@ function createDefaultLayer(
       ? getDefaultLayerName(shaderType, existingCount)
       : kind === "image"
         ? "Image"
-        : kind === "video"
+      : kind === "video"
           ? "Video"
           : kind === "webcam"
             ? "Webcam"
+            : kind === "model"
+              ? "3D Model"
             : "Layer",
     kind,
     shaderType,
@@ -98,7 +100,7 @@ function createDefaultLayer(
     solo: false,
     opacity: 1,
     blendMode: "normal",
-    params: shaderType ? getDefaultParams(shaderType) : [],
+    params: getDefaultParamsForLayer(kind, shaderType),
     locked: false,
     expanded: true,
     mediaStatus: "idle",
@@ -269,18 +271,20 @@ export const useLayerStore = create<LayerStore>()(
     resetParams(layerId) {
       set((state) => {
         const layer = state.layers.find((l) => l.id === layerId);
-        if (!layer?.shaderType) return;
-        layer.params = getDefaultParams(layer.shaderType);
+        if (!layer) return;
+        if (layer.kind !== "shader" && layer.kind !== "model") return;
+        layer.params = getDefaultParamsForLayer(layer.kind, layer.shaderType);
         layer.runtimeError = undefined;
       });
     },
 
-    setLayerMedia(id, url, type) {
+    setLayerMedia(id, url, type, name) {
       set((state) => {
         const layer = state.layers.find((l) => l.id === id);
         if (layer) {
           layer.mediaUrl = url;
           layer.mediaType = type;
+          layer.mediaName = name;
           layer.mediaStatus = "loading";
           layer.mediaError = undefined;
           layer.mediaVersion = (layer.mediaVersion ?? 0) + 1;

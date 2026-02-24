@@ -263,7 +263,11 @@ function _parsePresetPayload(input: unknown): { layers: Layer[]; selectedLayerId
 
     const rawKind = item.kind;
     const kind =
-      rawKind === "shader" || rawKind === "image" || rawKind === "video" || rawKind === "webcam"
+      rawKind === "shader" ||
+      rawKind === "image" ||
+      rawKind === "video" ||
+      rawKind === "webcam" ||
+      rawKind === "model"
         ? rawKind
         : null;
     if (!kind) continue;
@@ -278,7 +282,10 @@ function _parsePresetPayload(input: unknown): { layers: Layer[]; selectedLayerId
         : "normal";
     const rawFilterMode = item.filterMode === "mask" ? "mask" : "filter";
     const rawMediaType =
-      item.mediaType === "image" || item.mediaType === "video" || item.mediaType === "webcam"
+      item.mediaType === "image" ||
+      item.mediaType === "video" ||
+      item.mediaType === "webcam" ||
+      item.mediaType === "model"
         ? item.mediaType
         : undefined;
     const rawParams = Array.isArray(item.params) ? (item.params as Layer["params"]) : [];
@@ -298,6 +305,7 @@ function _parsePresetPayload(input: unknown): { layers: Layer[]; selectedLayerId
       expanded: item.expanded !== false,
       mediaUrl: _safePresetMediaUrl(typeof item.mediaUrl === "string" ? item.mediaUrl : undefined),
       mediaType: rawMediaType,
+      mediaName: typeof item.mediaName === "string" ? item.mediaName : undefined,
       mediaStatus: kind === "shader" ? undefined : "idle",
       mediaError: undefined,
       mediaVersion: 0,
@@ -896,7 +904,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
+          accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,.glb,.gltf,.obj,model/*,application/octet-stream"
           className="hidden"
           onChange={handleFileChange}
         />
