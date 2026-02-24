@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { v4 as uuidv4 } from "uuid";
-import type { Layer, LayerKind, ShaderType, BlendMode, FilterMode } from "@/types";
+import type { Layer, LayerGroup, LayerKind, ShaderType, BlendMode, FilterMode } from "@/types";
 import {
   getDefaultParams,
   getDefaultLayerName,
@@ -13,6 +13,7 @@ import {
 
 interface LayerState {
   layers: Layer[];
+  groups: LayerGroup[];
   selectedLayerId: string | null;
   hoveredLayerId: string | null;
 }
@@ -46,6 +47,11 @@ interface LayerActions {
   retryLayerMedia(id: string): void;
   setLayerRuntimeError(id: string, error: string | null): void;
   setLayerThumbnail(id: string, thumbnail: string): void;
+  createGroup(name?: string, layerIds?: string[]): string | null;
+  removeGroup(groupId: string): void;
+  renameGroup(groupId: string, name: string): void;
+  toggleGroupCollapsed(groupId: string): void;
+  assignLayerToGroup(layerId: string, groupId: string | null): void;
   /** Restore a full snapshot (used by undo/redo). */
   setLayers(layers: Layer[], selectedLayerId: string | null): void;
 }
@@ -58,6 +64,7 @@ interface LayerSelectors {
   getSelectedLayer(): Layer | null;
   getVisibleLayers(): Layer[];
   getLayersByOrder(): Layer[];
+  getGroupById(groupId: string): LayerGroup | null;
   hasReachedLayerLimit(): boolean;
 }
 
@@ -103,6 +110,7 @@ export const useLayerStore = create<LayerStore>()(
   immer((set, get) => ({
     // ── Initial state ──────────────────────────────────────────────────────
     layers: [],
+    groups: [],
     selectedLayerId: null,
     hoveredLayerId: null,
 
@@ -135,6 +143,7 @@ export const useLayerStore = create<LayerStore>()(
         if (idx === -1) return;
 
         state.layers.splice(idx, 1);
+        pruneEmptyGroups(state);
 
         // Select nearest neighbor
         if (state.selectedLayerId === id) {
@@ -315,10 +324,84 @@ export const useLayerStore = create<LayerStore>()(
       });
     },
 
+    createGroup(name, layerIds) {
+      const { groups, layers, selectedLayerId } = get();
+      const nextGroupId = uuidv4();
+      const normalizedName = name?.trim();
+      const fallbackName = `Group ${groups.length + 1}`;
+      const selectedIds =
+        layerIds && layerIds.length > 0
+          ? layerIds
+          : selectedLayerId
+            ? [selectedLayerId]
+            : [];
+      const memberIds = selectedIds.filter((id) => layers.some((layer) => layer.id === id));
+
+      set((state) => {
+        state.groups.unshift({
+          id: nextGroupId,
+          name: normalizedName && normalizedName.length > 0 ? normalizedName : fallbackName,
+          collapsed: false,
+        });
+        if (memberIds.length > 0) {
+          for (const layer of state.layers) {
+            if (memberIds.includes(layer.id)) {
+              layer.groupId = nextGroupId;
+            }
+          }
+        }
+      });
+
+      return nextGroupId;
+    },
+
+    removeGroup(groupId) {
+      set((state) => {
+        state.groups = state.groups.filter((group) => group.id !== groupId);
+        for (const layer of state.layers) {
+          if (layer.groupId === groupId) layer.groupId = undefined;
+        }
+      });
+    },
+
+    renameGroup(groupId, name) {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      set((state) => {
+        const group = state.groups.find((g) => g.id === groupId);
+        if (group) group.name = trimmed;
+      });
+    },
+
+    toggleGroupCollapsed(groupId) {
+      set((state) => {
+        const group = state.groups.find((g) => g.id === groupId);
+        if (group) group.collapsed = !group.collapsed;
+      });
+    },
+
+    assignLayerToGroup(layerId, groupId) {
+      set((state) => {
+        const layer = state.layers.find((l) => l.id === layerId);
+        if (!layer) return;
+        if (!groupId) {
+          layer.groupId = undefined;
+          pruneEmptyGroups(state);
+          return;
+        }
+        if (!state.groups.some((group) => group.id === groupId)) return;
+        layer.groupId = groupId;
+      });
+    },
+
     setLayers(layers, selectedLayerId) {
       set((state) => {
         const nextLayers = layers.slice(0, MAX_LAYERS);
         state.layers = nextLayers;
+        const referencedGroupIds = new Set(
+          nextLayers.map((layer) => layer.groupId).filter((id): id is string => typeof id === "string"),
+        );
+        state.groups = state.groups.filter((group) => referencedGroupIds.has(group.id));
         state.selectedLayerId =
           selectedLayerId && nextLayers.some((layer) => layer.id === selectedLayerId)
             ? selectedLayerId
@@ -344,8 +427,19 @@ export const useLayerStore = create<LayerStore>()(
       return [...get().layers].reverse();
     },
 
+    getGroupById(groupId) {
+      return get().groups.find((group) => group.id === groupId) ?? null;
+    },
+
     hasReachedLayerLimit() {
       return get().layers.length >= MAX_LAYERS;
     },
   })),
 );
+
+function pruneEmptyGroups(state: LayerState): void {
+  const used = new Set(
+    state.layers.map((layer) => layer.groupId).filter((id): id is string => typeof id === "string"),
+  );
+  state.groups = state.groups.filter((group) => used.has(group.id));
+}

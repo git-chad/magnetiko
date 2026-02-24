@@ -49,6 +49,7 @@ function LayerIcon({ layer }: { layer: Layer }) {
 interface LayerItemProps {
   layer: Layer;
   tabIndex?: number;
+  rowClassName?: string;
   itemRef?: (node: HTMLDivElement | null) => void;
   onRowKeyDown?: (
     event: React.KeyboardEvent<HTMLDivElement>,
@@ -59,6 +60,7 @@ interface LayerItemProps {
 export function LayerItem({
   layer,
   tabIndex = -1,
+  rowClassName,
   itemRef,
   onRowKeyDown,
 }: LayerItemProps) {
@@ -142,6 +144,7 @@ export function LayerItem({
           : "hover:border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)]",
         isDragging && "opacity-50 shadow-mid",
         !isDragging && !layer.visible && "opacity-40",
+        rowClassName,
       )}
       onClick={() => selectLayer(layer.id)}
       onKeyDown={(e) => onRowKeyDown?.(e, layer)}

@@ -39,7 +39,7 @@ import { useMediaStore } from "@/store/mediaStore";
 import { getDefaultParams } from "@/lib/utils/defaultParams";
 import { ParamControl } from "@/components/shared/ParamControl";
 import { cn } from "@/lib/utils";
-import type { BlendMode, FilterMode, FrameAspectMode, Layer, ShaderParam } from "@/types";
+import type { BlendMode, FilterMode, FrameAspectMode, Layer, LayerGroup, ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Blend mode option groups (all 16 CSS blend modes, organised by category)
@@ -529,6 +529,9 @@ function _GeneralSection({ layer }: { layer: Layer }) {
   const setLayerOpacity     = useLayerStore((s) => s.setLayerOpacity);
   const setLayerBlendMode   = useLayerStore((s) => s.setLayerBlendMode);
   const setLayerFilterMode  = useLayerStore((s) => s.setLayerFilterMode);
+  const groups              = useLayerStore((s) => s.groups);
+  const assignLayerToGroup  = useLayerStore((s) => s.assignLayerToGroup);
+  const createGroup         = useLayerStore((s) => s.createGroup);
   const pushHistory         = usePushHistory();
 
   function handleOpacity(value: number) {
@@ -545,6 +548,26 @@ function _GeneralSection({ layer }: { layer: Layer }) {
     setLayerFilterMode(layer.id, mode);
     pushHistory("Change layer mode");
   }
+
+  function handleGroupChange(value: string) {
+    if (value === "__ungrouped") {
+      assignLayerToGroup(layer.id, null);
+      pushHistory("Ungroup layer");
+      return;
+    }
+    if (value === "__new_group") {
+      const groupId = createGroup(undefined, [layer.id]);
+      if (groupId) pushHistory("Create group");
+      return;
+    }
+    assignLayerToGroup(layer.id, value);
+    pushHistory("Move layer to group");
+  }
+
+  const sortedGroups = React.useMemo<LayerGroup[]>(
+    () => [...groups].sort((a, b) => a.name.localeCompare(b.name)),
+    [groups],
+  );
 
   return (
     <div>
@@ -619,6 +642,29 @@ function _GeneralSection({ layer }: { layer: Layer }) {
               Mask
             </Button>
           </div>
+        </div>
+
+        <div className="flex items-center gap-xs py-3xs">
+          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+            Group
+          </Text>
+          <Select
+            value={layer.groupId ?? "__ungrouped"}
+            onValueChange={handleGroupChange}
+          >
+            <SelectTrigger className="h-7 flex-1 text-caption">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__ungrouped">Ungrouped</SelectItem>
+              {sortedGroups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
+              ))}
+              <SelectItem value="__new_group">New group from layer</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <Separator />

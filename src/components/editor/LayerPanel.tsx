@@ -4,10 +4,16 @@ import * as React from "react";
 import gsap from "gsap";
 import {
   Camera,
+  CaretDown,
+  CaretRight,
+  DotsThreeVertical,
+  FolderSimple,
   Image as ImageIcon,
+  PencilSimple,
   Plus,
   Shapes,
   Stack,
+  Trash,
   VideoCamera,
 } from "@phosphor-icons/react";
 import {
@@ -39,7 +45,11 @@ import { useToast } from "@/components/ui/toast";
 import { useLayerStore } from "@/store/layerStore";
 import { MAX_LAYERS } from "@/store/layerStore";
 import { LayerItem } from "./LayerItem";
-import type { ShaderType } from "@/types";
+import type { Layer, LayerGroup, ShaderType } from "@/types";
+
+type DisplayRow =
+  | { type: "group"; group: LayerGroup; childCount: number }
+  | { type: "layer"; layer: Layer; inGroup: boolean };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shader type menu data
@@ -75,11 +85,12 @@ const SHADER_SECTIONS: Array<{
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Add Layer dropdown (includes shader types + media import)
+// Add Layer dropdown (includes shader types + media import + groups)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function AddLayerMenu() {
   const addLayer = useLayerStore((s) => s.addLayer);
+  const createGroup = useLayerStore((s) => s.createGroup);
   const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
   const { toast } = useToast();
 
@@ -102,6 +113,10 @@ function AddLayerMenu() {
     },
     [addLayer, notifyLayerLimit],
   );
+
+  const handleCreateGroup = React.useCallback(() => {
+    createGroup();
+  }, [createGroup]);
 
   function handleMediaFile(file: File) {
     const isVideo = file.type.startsWith("video/");
@@ -141,6 +156,16 @@ function AddLayerMenu() {
               ))}
             </React.Fragment>
           ))}
+
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Grouping</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={handleCreateGroup}>
+            <FolderSimple
+              size={13}
+              className="shrink-0 text-[var(--color-fg-tertiary)]"
+            />
+            New Group
+          </DropdownMenuItem>
 
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Media</DropdownMenuLabel>
@@ -198,25 +223,149 @@ function AddLayerMenu() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Group row
+// ─────────────────────────────────────────────────────────────────────────────
+
+function GroupRow({
+  group,
+  childCount,
+  onToggle,
+  onRename,
+  onDelete,
+}: {
+  group: LayerGroup;
+  childCount: number;
+  onToggle: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      data-layer-row="true"
+      className="group mx-3xs my-[2px] flex items-center gap-2xs rounded-sm border border-transparent bg-[var(--color-bg-subtle)] py-[6px] pl-[8px] pr-xs"
+    >
+      <button
+        className="shrink-0 text-[var(--color-fg-tertiary)] transition-colors hover:text-[var(--color-fg-primary)]"
+        onClick={onToggle}
+        aria-label={group.collapsed ? "Expand group" : "Collapse group"}
+      >
+        {group.collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
+      </button>
+
+      <FolderSimple size={14} className="shrink-0 text-[var(--color-fg-tertiary)]" />
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium text-[var(--color-fg-primary)]">{group.name}</p>
+        <p className="text-[10px] leading-none text-[var(--color-fg-disabled)]">
+          {childCount} layer{childCount === 1 ? "" : "s"}
+        </p>
+      </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="shrink-0 text-[var(--color-fg-tertiary)] opacity-0 transition-colors hover:text-[var(--color-fg-primary)] group-hover:opacity-100"
+            aria-label="Group options"
+          >
+            <DotsThreeVertical size={14} weight="bold" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={4}>
+          <DropdownMenuItem onSelect={onRename}>
+            <PencilSimple size={13} />
+            Rename group
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem destructive onSelect={onDelete}>
+            <Trash size={13} />
+            Delete group
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // LayerPanel
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function LayerPanel() {
   const layers = useLayerStore((s) => s.layers);
+  const groups = useLayerStore((s) => s.groups);
   const selectedLayerId = useLayerStore((s) => s.selectedLayerId);
   const reorderLayers = useLayerStore((s) => s.reorderLayers);
   const selectLayer = useLayerStore((s) => s.selectLayer);
   const removeLayer = useLayerStore((s) => s.removeLayer);
   const setLayerVisibility = useLayerStore((s) => s.setLayerVisibility);
+  const renameGroup = useLayerStore((s) => s.renameGroup);
+  const removeGroup = useLayerStore((s) => s.removeGroup);
+  const toggleGroupCollapsed = useLayerStore((s) => s.toggleGroupCollapsed);
   const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
   const listRef = React.useRef<HTMLDivElement>(null);
-  const layerOrderKey = React.useMemo(() => layers.map((l) => l.id).join("|"), [layers]);
+  const layerOrderKey = React.useMemo(
+    () => `${layers.map((l) => `${l.id}:${l.groupId ?? "-"}`).join("|")}::${groups.map((g) => `${g.id}:${g.collapsed}`).join("|")}`,
+    [groups, layers],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
+  );
+
+  const childCountByGroup = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const group of groups) counts.set(group.id, 0);
+    for (const layer of layers) {
+      if (!layer.groupId) continue;
+      if (!counts.has(layer.groupId)) continue;
+      counts.set(layer.groupId, (counts.get(layer.groupId) ?? 0) + 1);
+    }
+    return counts;
+  }, [groups, layers]);
+
+  const rows = React.useMemo<DisplayRow[]>(() => {
+    const groupMap = new Map(groups.map((group) => [group.id, group]));
+    const emitted = new Set<string>();
+    const nextRows: DisplayRow[] = [];
+
+    for (const layer of layers) {
+      const groupId = layer.groupId;
+      const group = groupId ? groupMap.get(groupId) : undefined;
+      if (!group) {
+        nextRows.push({ type: "layer", layer, inGroup: false });
+        continue;
+      }
+      if (!emitted.has(group.id)) {
+        emitted.add(group.id);
+        nextRows.push({
+          type: "group",
+          group,
+          childCount: childCountByGroup.get(group.id) ?? 0,
+        });
+      }
+      if (!group.collapsed) {
+        nextRows.push({ type: "layer", layer, inGroup: true });
+      }
+    }
+
+    for (const group of groups) {
+      if (emitted.has(group.id)) continue;
+      nextRows.push({
+        type: "group",
+        group,
+        childCount: childCountByGroup.get(group.id) ?? 0,
+      });
+    }
+
+    return nextRows;
+  }, [childCountByGroup, groups, layers]);
+
+  const visibleLayerIds = React.useMemo(
+    () => rows.filter((row): row is Extract<DisplayRow, { type: "layer" }> => row.type === "layer").map((row) => row.layer.id),
+    [rows],
   );
 
   function handleDragEnd({ active, over }: DragEndEvent) {
@@ -240,7 +389,7 @@ export function LayerPanel() {
   const handleRowKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>, layerId: string) => {
       if (event.altKey || event.ctrlKey || event.metaKey) return;
-      const idx = layers.findIndex((l) => l.id === layerId);
+      const idx = visibleLayerIds.findIndex((id) => id === layerId);
       if (idx === -1) return;
 
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -248,11 +397,11 @@ export function LayerPanel() {
         const nextIndex =
           event.key === "ArrowUp"
             ? Math.max(0, idx - 1)
-            : Math.min(layers.length - 1, idx + 1);
-        const next = layers[nextIndex];
-        if (!next) return;
-        selectLayer(next.id);
-        focusRow(next.id);
+            : Math.min(visibleLayerIds.length - 1, idx + 1);
+        const nextId = visibleLayerIds[nextIndex];
+        if (!nextId) return;
+        selectLayer(nextId);
+        focusRow(nextId);
         return;
       }
 
@@ -264,7 +413,7 @@ export function LayerPanel() {
 
       if (event.key === " " || event.key === "Spacebar") {
         event.preventDefault();
-        const layer = layers[idx];
+        const layer = layers.find((l) => l.id === layerId);
         if (!layer) return;
         setLayerVisibility(layer.id, !layer.visible);
         return;
@@ -272,16 +421,26 @@ export function LayerPanel() {
 
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
-        const nextIndex = Math.min(idx, layers.length - 2);
-        const next = nextIndex >= 0 ? layers[nextIndex] : null;
+        const nextIndex = Math.min(idx, visibleLayerIds.length - 2);
+        const nextId = nextIndex >= 0 ? visibleLayerIds[nextIndex] : null;
         removeLayer(layerId);
-        if (next) {
-          selectLayer(next.id);
-          focusRow(next.id);
+        if (nextId) {
+          selectLayer(nextId);
+          focusRow(nextId);
         }
       }
     },
-    [focusRow, layers, removeLayer, selectLayer, setLayerVisibility],
+    [focusRow, layers, removeLayer, selectLayer, setLayerVisibility, visibleLayerIds],
+  );
+
+  const handleRenameGroup = React.useCallback(
+    (group: LayerGroup) => {
+      if (typeof window === "undefined") return;
+      const nextName = window.prompt("Rename group", group.name)?.trim();
+      if (!nextName) return;
+      renameGroup(group.id, nextName);
+    },
+    [renameGroup],
   );
 
   React.useEffect(() => {
@@ -301,7 +460,6 @@ export function LayerPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-xs">
         <div className="flex items-center gap-3xs">
           <Stack size={14} className="text-[var(--color-fg-tertiary)]" />
@@ -312,9 +470,8 @@ export function LayerPanel() {
         <AddLayerMenu />
       </div>
 
-      {/* Layer list */}
       <ScrollArea className="flex-1">
-        {layers.length === 0 ? (
+        {layers.length === 0 && groups.length === 0 ? (
           <div className="flex items-center justify-center px-md py-lg">
             <Text variant="caption" color="disabled" className="text-center">
               No layers yet.
@@ -330,26 +487,44 @@ export function LayerPanel() {
           >
             <div ref={listRef} role="listbox" aria-label="Layer stack">
               <SortableContext
-                items={layers.map((l) => l.id)}
+                items={visibleLayerIds}
                 strategy={verticalListSortingStrategy}
               >
-                {layers.map((layer, i) => (
-                  <LayerItem
-                    key={layer.id}
-                    layer={layer}
-                    tabIndex={
-                      selectedLayerId
-                        ? selectedLayerId === layer.id
-                          ? 0
-                          : -1
-                        : i === 0
-                          ? 0
-                          : -1
-                    }
-                    itemRef={(node) => registerRowRef(layer.id, node)}
-                    onRowKeyDown={(event) => handleRowKeyDown(event, layer.id)}
-                  />
-                ))}
+                {rows.map((row, i) => {
+                  if (row.type === "group") {
+                    return (
+                      <GroupRow
+                        key={`group-${row.group.id}`}
+                        group={row.group}
+                        childCount={row.childCount}
+                        onToggle={() => toggleGroupCollapsed(row.group.id)}
+                        onRename={() => handleRenameGroup(row.group)}
+                        onDelete={() => removeGroup(row.group.id)}
+                      />
+                    );
+                  }
+
+                  const layer = row.layer;
+                  const firstVisibleId = visibleLayerIds[0] ?? null;
+                  return (
+                    <LayerItem
+                      key={layer.id}
+                      layer={layer}
+                      rowClassName={row.inGroup ? "ml-sm" : undefined}
+                      tabIndex={
+                        selectedLayerId
+                          ? selectedLayerId === layer.id
+                            ? 0
+                            : -1
+                          : firstVisibleId === layer.id || (firstVisibleId === null && i === 0)
+                            ? 0
+                            : -1
+                      }
+                      itemRef={(node) => registerRowRef(layer.id, node)}
+                      onRowKeyDown={(event) => handleRowKeyDown(event, layer.id)}
+                    />
+                  );
+                })}
               </SortableContext>
             </div>
           </DndContext>

@@ -86,6 +86,7 @@ export interface Layer {
   id: string;
   name: string;
   kind: LayerKind;
+  groupId?: string;
   shaderType?: ShaderType;
   filterMode: FilterMode;
   visible: boolean;
@@ -110,6 +111,12 @@ export interface Layer {
   runtimeError?: string;
   /** Base-64 thumbnail preview for the layer panel row */
   thumbnail?: string;
+}
+
+export interface LayerGroup {
+  id: string;
+  name: string;
+  collapsed: boolean;
 }
 
 // ── Editor state ──────────────────────────────────────────────────────────────
