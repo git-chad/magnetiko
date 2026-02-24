@@ -95,6 +95,45 @@ export function createVideoTexture(url: string): Promise<VideoHandle> {
   });
 }
 
+/**
+ * Create a VideoTexture from the user's webcam via getUserMedia.
+ * Returns the same VideoHandle type as createVideoTexture — dispose() stops
+ * all stream tracks in addition to releasing GPU resources.
+ *
+ * Resolves on the `playing` event so the first real frame is decoded before
+ * the WebGPU backend tries to upload it.
+ */
+export async function createWebcamTexture(): Promise<VideoHandle> {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  const video = document.createElement("video");
+  video.srcObject = stream;
+  video.playsInline = true;
+
+  return new Promise((resolve, reject) => {
+    video.addEventListener(
+      "playing",
+      () => {
+        const tex = new THREE.VideoTexture(video);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        resolve({
+          texture: tex,
+          video,
+          dispose: () => {
+            tex.dispose();
+            video.pause();
+            video.srcObject = null;
+            stream.getTracks().forEach((t) => t.stop());
+          },
+        });
+      },
+      { once: true },
+    );
+
+    video.onerror = () => reject(new Error("Webcam video element error"));
+    video.play().catch(reject);
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FullscreenQuad
 // ─────────────────────────────────────────────────────────────────────────────

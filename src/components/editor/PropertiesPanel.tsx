@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   ArrowCounterClockwise,
+  Camera,
   CaretDown,
   CaretRight,
   Image as ImageIcon,
@@ -188,8 +189,9 @@ function _LayerHeader({ layer }: { layer: Layer }) {
     <div className="flex items-center gap-xs border-b border-[var(--color-border)] px-xs py-xs">
       {/* Kind icon */}
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xs border border-[var(--color-border)] bg-[var(--color-bg)]">
-        {layer.kind === "image"  ? <ImageIcon  size={14} className="text-[var(--color-fg-tertiary)]" /> :
-         layer.kind === "video"  ? <VideoCamera size={14} className="text-[var(--color-fg-tertiary)]" /> :
+        {layer.kind === "image"   ? <ImageIcon   size={14} className="text-[var(--color-fg-tertiary)]" /> :
+         layer.kind === "video"   ? <VideoCamera size={14} className="text-[var(--color-fg-tertiary)]" /> :
+         layer.kind === "webcam"  ? <Camera      size={14} className="text-[var(--color-fg-tertiary)]" /> :
          <Shapes size={14} className="text-[var(--color-fg-tertiary)]" />}
       </div>
 

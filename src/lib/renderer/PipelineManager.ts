@@ -14,14 +14,14 @@ import type { ShaderParam } from "@/types";
 export interface PipelineLayer {
   id: string;
   /** Determines which PassNode subclass to create for this layer. */
-  kind: "shader" | "image" | "video";
+  kind: "shader" | "image" | "video" | "webcam";
   visible: boolean;
   opacity: number;
   blendMode: string;
   filterMode: "filter" | "mask";
   params: ShaderParam[];
   shaderType?: string;
-  /** Image or video URL — only set for kind='image'|'video' layers. */
+  /** Image or video URL — only set for kind='image'|'video' layers. Webcam layers don't use this. */
   mediaUrl?: string;
 }
 
@@ -128,7 +128,7 @@ export class PipelineManager {
     for (const layer of layers) {
       if (!this._passMap.has(layer.id)) {
         let pass: PassNode;
-        if (layer.kind === "image" || layer.kind === "video") {
+        if (layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam") {
           pass = new MediaPass(layer.id);
         } else {
           pass = createPassNode(layer.id, layer.shaderType);
@@ -149,6 +149,9 @@ export class PipelineManager {
         if (mediaPass.loadedUrl !== layer.mediaUrl) {
           mediaPass.setMedia(layer.mediaUrl, layer.kind);
         }
+      }
+      if (layer.kind === "webcam") {
+        (pass as MediaPass).startWebcam();
       }
     }
 

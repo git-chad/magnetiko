@@ -24,7 +24,7 @@ export type BlendMode =
 
 // ── Layer kind ────────────────────────────────────────────────────────────────
 
-export type LayerKind = "shader" | "image" | "video";
+export type LayerKind = "shader" | "image" | "video" | "webcam";
 
 // ── Filter vs mask mode ───────────────────────────────────────────────────────
 
@@ -94,7 +94,7 @@ export interface Layer {
   /** UI: expanded in the layer panel */
   expanded: boolean;
   mediaUrl?: string;
-  mediaType?: "image" | "video";
+  mediaType?: "image" | "video" | "webcam";
   /** Base-64 thumbnail preview for the layer panel row */
   thumbnail?: string;
 }

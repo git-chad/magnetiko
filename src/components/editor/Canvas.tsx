@@ -74,7 +74,7 @@ export function Canvas({ className }: CanvasProps) {
 
   // True when at least one media layer with a loaded URL exists
   const hasMediaLayers = useLayerStore(
-    (s) => s.layers.some((l) => (l.kind === "image" || l.kind === "video") && l.mediaUrl),
+    (s) => s.layers.some((l) => l.kind === "webcam" || ((l.kind === "image" || l.kind === "video") && l.mediaUrl)),
   );
 
   // ── Drag-and-drop ──────────────────────────────────────────────────────────

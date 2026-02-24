@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  Camera,
   Copy,
   DotsThreeVertical,
   DotsSixVertical,
@@ -35,6 +36,8 @@ function LayerIcon({ layer }: { layer: Layer }) {
     return <ImageIcon size={14} className="text-[var(--color-fg-tertiary)]" />;
   if (layer.kind === "video")
     return <VideoCamera size={14} className="text-[var(--color-fg-tertiary)]" />;
+  if (layer.kind === "webcam")
+    return <Camera size={14} className="text-[var(--color-fg-tertiary)]" />;
   return <Shapes size={14} className="text-[var(--color-fg-tertiary)]" />;
 }
 

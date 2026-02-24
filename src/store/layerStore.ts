@@ -72,7 +72,9 @@ function createDefaultLayer(
         ? "Image"
         : kind === "video"
           ? "Video"
-          : "Layer",
+          : kind === "webcam"
+            ? "Webcam"
+            : "Layer",
     kind,
     shaderType,
     filterMode: "filter",

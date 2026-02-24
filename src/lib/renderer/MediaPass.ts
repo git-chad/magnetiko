@@ -7,9 +7,10 @@ import {
   texture as tslTexture,
   uniform,
   max,
+  mix,
 } from "three/tsl";
 import { PassNode } from "./PassNode";
-import { loadImageTexture, createVideoTexture } from "./MediaTexture";
+import { loadImageTexture, createVideoTexture, createWebcamTexture } from "./MediaTexture";
 import type { VideoHandle } from "./MediaTexture";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +50,8 @@ export class MediaPass extends PassNode {
   private _uTextureAspect: any;   // uniform(float) — set when media loads
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _mediaTexNode:   any;   // tslTexture node — .value swapped each frame
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uMirrorX:       any;   // uniform(float) — 1.0 for webcam, 0.0 otherwise
 
   private _placeholder: THREE.Texture;
 
@@ -66,6 +69,7 @@ export class MediaPass extends PassNode {
     this._placeholder    = new THREE.Texture();
     this._uCanvasAspect  = uniform(1.0);
     this._uTextureAspect = uniform(1.0);
+    this._uMirrorX       = uniform(0.0);
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
     this._material.needsUpdate = true;
@@ -84,6 +88,7 @@ export class MediaPass extends PassNode {
   async setMedia(url: string, type: "image" | "video"): Promise<void> {
     this._releaseCurrentMedia();
     this._loadedUrl = url;
+    if (this._uMirrorX) this._uMirrorX.value = 0.0;
     try {
       if (type === "image") {
         const tex = await loadImageTexture(url);
@@ -98,6 +103,28 @@ export class MediaPass extends PassNode {
       }
     } catch (err) {
       console.error("[MediaPass] failed to load media:", err);
+      this._loadedUrl = null;
+    }
+  }
+
+  /**
+   * Start a live webcam feed as the media source.
+   * Replaces any previously loaded media. Uses getUserMedia — the browser may
+   * prompt for camera permission. No-op if webcam is already active.
+   */
+  async startWebcam(): Promise<void> {
+    if (this._loadedUrl === "__webcam__") return;
+    this._releaseCurrentMedia();
+    this._loadedUrl = "__webcam__";
+    if (this._uMirrorX) this._uMirrorX.value = 1.0;
+    try {
+      const handle = await createWebcamTexture();
+      this._currentTex  = handle.texture;
+      this._videoTex    = handle.texture;
+      this._videoHandle = handle;
+      this._setAspect(handle.texture);
+    } catch (err) {
+      console.error("[MediaPass] failed to start webcam:", err);
       this._loadedUrl = null;
     }
   }
@@ -143,8 +170,10 @@ export class MediaPass extends PassNode {
     const centeredUV  = uv().sub(0.5);
     const coverScaleX = max(ratio, float(1.0));
     const coverScaleY = max(float(1.0).div(ratio), float(1.0));
+    const scaledX = centeredUV.x.div(coverScaleX);
+    const mirroredX = mix(scaledX, scaledX.negate(), this._uMirrorX);
     const coverUV = vec2(
-      centeredUV.x.div(coverScaleX),
+      mirroredX,
       centeredUV.y.div(coverScaleY),
     ).add(0.5);
 

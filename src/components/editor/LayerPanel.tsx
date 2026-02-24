@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  Camera,
   Image as ImageIcon,
   Plus,
   Shapes,
@@ -130,6 +131,14 @@ function AddLayerMenu() {
               className="shrink-0 text-[var(--color-fg-tertiary)]"
             />
             Import Video
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onSelect={() => addLayer("webcam")}>
+            <Camera
+              size={13}
+              className="shrink-0 text-[var(--color-fg-tertiary)]"
+            />
+            Use Webcam
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
