@@ -2,22 +2,20 @@
 
 import * as React from "react";
 import * as THREE from "three/webgpu";
-import { Badge, Button, Text } from "@/components/ui";
+import { Badge, Text } from "@/components/ui";
 import { isWebGPUSupported } from "@/lib/renderer/WebGPURenderer";
 import { PipelineManager } from "@/lib/renderer/PipelineManager";
 import type { ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-type EffectMode = "ripple" | "trail" | "glow";
+type EffectMode = "trail";
 
 const EFFECT_CONFIGS: Record<
   EffectMode,
   { label: string; hint: string; color: string; strength: number }
 > = {
-  ripple: { label: "Ripple", hint: "Click to spawn rings",  color: "#64ccff", strength: 0.8 },
   trail:  { label: "Trail",  hint: "Move mouse to paint",   color: "#ffffff", strength: 1.0 },
-  glow:   { label: "Glow",   hint: "Move cursor for glow",  color: "#ff9940", strength: 1.0 },
 };
 
 function buildParams(effect: EffectMode): ShaderParam[] {
@@ -41,7 +39,7 @@ function buildParams(effect: EffectMode): ShaderParam[] {
  * Creates its own WebGPURenderer + PipelineManager with a single
  * InteractivityPass (not connected to the global layerStore).
  * Mouse events are forwarded directly to the pass via
- * PipelineManager.setPointerForInteractivity() / addClickForInteractivity().
+ * PipelineManager.setPointerForInteractivity().
  */
 export function TrailPreview() {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -51,7 +49,7 @@ export function TrailPreview() {
 
   const [status, setStatus] = React.useState<"loading" | "ok" | "unsupported" | "error">("loading");
   const [fps,    setFps   ] = React.useState(0);
-  const [mode,   setMode  ] = React.useState<EffectMode>("trail");
+  const mode: EffectMode = "trail";
 
   // ── WebGPU init (once) ─────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -133,11 +131,6 @@ export function TrailPreview() {
     };
   }, []);
 
-  // Push new effect params whenever the mode button changes.
-  React.useEffect(() => {
-    pipelineRef.current?.updateLayerParams("trail-demo", buildParams(mode));
-  }, [mode]);
-
   // ── Pointer helpers ────────────────────────────────────────────────────────
 
   function getUV(e: React.MouseEvent<HTMLDivElement>): { uvX: number; uvY: number } {
@@ -163,14 +156,6 @@ export function TrailPreview() {
     p?.setPointerForInteractivity(pos.x, pos.y, 0, 0, false);
   }
 
-  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (mode !== "ripple") return;
-    const p = pipelineRef.current;
-    if (!p || !containerRef.current) return;
-    const { uvX, uvY } = getUV(e);
-    p.addClickForInteractivity(uvX, uvY);
-  }
-
   // ─────────────────────────────────────────────────────────────────────────
 
   const cfg = EFFECT_CONFIGS[mode];
@@ -183,7 +168,6 @@ export function TrailPreview() {
         className="relative h-64 w-full overflow-hidden rounded-sm border border-[var(--color-border)] bg-primary cursor-crosshair select-none"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        onClick={handleClick}
       >
         <canvas
           ref={canvasRef}
@@ -227,20 +211,6 @@ export function TrailPreview() {
             </div>
           </>
         )}
-      </div>
-
-      {/* Effect mode switcher */}
-      <div className="flex items-center gap-3xs">
-        {(["ripple", "trail", "glow"] as const).map((m) => (
-          <Button
-            key={m}
-            size="sm"
-            variant={mode === m ? "primary" : "secondary"}
-            onClick={() => setMode(m)}
-          >
-            {EFFECT_CONFIGS[m].label}
-          </Button>
-        ))}
       </div>
     </div>
   );

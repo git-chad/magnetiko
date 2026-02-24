@@ -20,11 +20,6 @@ import type { ShaderParam } from "@/types";
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MAX_RIPPLES = 16;
-const MAX_RIPPLE_AGE = 3.0;
-const WAVE_SPEED = 0.4;
-const RING_WIDTH = 0.3;
-
 const FLUID_SIM_RES = 1024;
 const FLUID_DYE_RES = 512;
 const FLUID_PRESSURE_ITERS = 12;
@@ -86,11 +81,10 @@ class DoubleFBO {
  * Interactive effects shader pass.
  *
  * Effects (_effectU):
- *   0 = ripple
- *   1 = trail    — full fluid simulation (velocity+density+pressure+curl)
- *   2 = repel
- *   3 = attract
- *   4 = glow
+ *   0 = trail    — full fluid simulation (velocity+density+pressure+curl)
+ *   1 = repel
+ *   2 = attract
+ *   3 = glow (passthrough; kept only for backward compatibility)
  *
  * The trail mode ports the WebGL multi-pass stack 1:1:
  *   splat → curl → vorticity → divergence → pressure solve → gradient subtract
@@ -124,15 +118,6 @@ export class InteractivityPass extends PassNode {
   private readonly _colorGU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _colorBU: any;
-
-  // ── Ripple history ─────────────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private readonly _rippleXU: any[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private readonly _rippleYU: any[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private readonly _rippleAgeU: any[];
-  private _rippleSlot = 0;
 
   // ── Pointer tracking for trail splats ─────────────────────────────────────
   private _canvasWidth = 1;
@@ -262,13 +247,6 @@ export class InteractivityPass extends PassNode {
     this._colorRU = uniform(100 / 255);
     this._colorGU = uniform(100 / 255);
     this._colorBU = uniform(58 / 255);
-
-    // ── Ripple slots ───────────────────────────────────────────────────────
-    this._rippleXU = Array.from({ length: MAX_RIPPLES }, () => uniform(-10.0));
-    this._rippleYU = Array.from({ length: MAX_RIPPLES }, () => uniform(-10.0));
-    this._rippleAgeU = Array.from({ length: MAX_RIPPLES }, () =>
-      uniform(999.0),
-    );
 
     // ── Fluid targets ──────────────────────────────────────────────────────
     this._density = new DoubleFBO(
@@ -644,14 +622,6 @@ export class InteractivityPass extends PassNode {
     }
   }
 
-  addClick(uvX: number, uvY: number): void {
-    const s = this._rippleSlot;
-    this._rippleXU[s].value = uvX;
-    this._rippleYU[s].value = uvY;
-    this._rippleAgeU[s].value = 0.0;
-    this._rippleSlot = (s + 1) % MAX_RIPPLES;
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   override render(
@@ -661,12 +631,8 @@ export class InteractivityPass extends PassNode {
     time: number,
     delta: number,
   ): void {
-    for (let i = 0; i < MAX_RIPPLES; i++) {
-      const age = this._rippleAgeU[i].value as number;
-      if (age < MAX_RIPPLE_AGE) {
-        this._rippleAgeU[i].value = age + delta;
-      }
-    }
+    void time;
+    void delta;
 
     this._runFluidSimulation(renderer);
 
@@ -715,62 +681,6 @@ export class InteractivityPass extends PassNode {
     const mDist: any = float(length((vec2 as any)(mdx, mdy))).add(float(1e-5));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mGauss: any = exp(mDistSq.negate().div(radSq));
-
-    // ── Ripple ─────────────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let rippleSum: any = float(0.0);
-    for (let i = 0; i < MAX_RIPPLES; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rdx: any = uvx.sub(this._rippleXU[i]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rdy: any = uvy.sub(this._rippleYU[i]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rDist: any = float(length((vec2 as any)(rdx, rdy)));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const age: any = this._rippleAgeU[i];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ringR: any = age.mul(float(WAVE_SPEED)).add(float(0.005));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fade: any = clamp(
-        float(1.0).sub(age.div(float(MAX_RIPPLE_AGE))),
-        float(0.0),
-        float(1.0),
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ringDelta: any = rDist.sub(ringR);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ring: any = exp(
-        ringDelta
-          .negate()
-          .mul(ringDelta)
-          .div(float(RING_WIDTH * RING_WIDTH)),
-      );
-      rippleSum = rippleSum.add(ring.mul(fade));
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rippleIntensity: any = clamp(rippleSum, float(0.0), float(1.0)).mul(
-      this._strengthU,
-    );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rippleResult: any = vec4(
-      clamp(
-        float(src.r).add(this._colorRU.mul(rippleIntensity)),
-        float(0.0),
-        float(1.0),
-      ),
-      clamp(
-        float(src.g).add(this._colorGU.mul(rippleIntensity)),
-        float(0.0),
-        float(1.0),
-      ),
-      clamp(
-        float(src.b).add(this._colorBU.mul(rippleIntensity)),
-        float(0.0),
-        float(1.0),
-      ),
-      float(1.0),
-    );
-
     // ── Trail (full fluid density texture) ────────────────────────────────
     // Sample with RT-space UV so trail aligns with the main source frame.
     this._fluidDisplayNode = tslTexture(new THREE.Texture(), rtUV);
@@ -819,39 +729,19 @@ export class InteractivityPass extends PassNode {
       float(1.0),
     );
 
-    // ── Glow ───────────────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const glowVal: any = mGauss.mul(this._strengthU).mul(this._mouseActiveU);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const glowResult: any = vec4(
-      clamp(
-        float(src.r).add(this._colorRU.mul(glowVal)),
-        float(0.0),
-        float(1.0),
-      ),
-      clamp(
-        float(src.g).add(this._colorGU.mul(glowVal)),
-        float(0.0),
-        float(1.0),
-      ),
-      clamp(
-        float(src.b).add(this._colorBU.mul(glowVal)),
-        float(0.0),
-        float(1.0),
-      ),
-      float(1.0),
-    );
+    // ── Glow removed (passthrough kept for backward compatibility) ────────
+    const glowResult = src;
 
     return select(
       this._effectU.lessThan(float(0.5)),
-      rippleResult,
+      trailResult,
       select(
         this._effectU.lessThan(float(1.5)),
-        trailResult,
+        repelResult,
         select(
           this._effectU.lessThan(float(2.5)),
-          repelResult,
-          select(this._effectU.lessThan(float(3.5)), attractResult, glowResult),
+          attractResult,
+          glowResult,
         ),
       ),
     );
@@ -864,11 +754,11 @@ export class InteractivityPass extends PassNode {
       switch (p.key) {
         case "effect": {
           const map: Record<string, number> = {
-            ripple: 0,
-            trail: 1,
-            repel: 2,
-            attract: 3,
-            glow: 4,
+            trail: 0,
+            repel: 1,
+            attract: 2,
+            glow: 3,
+            ripple: 0, // backward compatibility for older saved presets
           };
           this._effectU.value = map[p.value as string] ?? 0;
           break;
