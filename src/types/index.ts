@@ -48,6 +48,7 @@ export type ShaderType =
   | "warp-distortion"
   | "noise-generator"
   | "mesh-gradient"
+  | "guilloche"
   | "grain"
   | "interactivity"
   | "masonry";

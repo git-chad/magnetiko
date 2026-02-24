@@ -69,6 +69,7 @@ const SHADER_SECTIONS: Array<{
       { type: "progressive-blur", label: "Progressive Blur" },
       { type: "warp-distortion", label: "Warp Distortion" },
       { type: "mesh-gradient", label: "Mesh Gradient" },
+      { type: "guilloche", label: "Guilloche" },
     ],
   },
 ];

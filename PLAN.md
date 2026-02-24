@@ -923,13 +923,12 @@ These are not in the initial scope but designed to be easy to add given the arch
 - [ ] **Masking**: draw masks per layer (brush tool on a mask texture)
 - [ ] **LUT/Color grading layer**: upload a LUT file, apply as a filter
 - [x] **Noise generators**: Perlin, Simplex, Voronoi as standalone shader layers
-- [ ] **SDF shapes**: Basic 3D Shapes (Sphere, Torus, Cube, Prism...), change their size, material, select animation (rotation, float, etc.) or Orbit Controls
+- [ ] **3D Shapes**: Basic 3D Shapes (Sphere, Torus, Cube, Prism...), change their size, material, select animation (rotation, float, etc.) or Orbit Controls
 - [ ] **SDF shapes**: 2D/3D SDF primitives as layers
 - [x] **Warp/Distortion layer**: UV displacement maps, swirl, bulge, wave
 - [x] **Mesh gradient layer**: configurable gradient with control points
-- [ ] **Guilloche patterns**: parametric engraving-style patterns
+- [x] **Guilloche patterns**: parametric engraving-style patterns
 - [ ] **Timeline**: keyframe animation of any param over time
-- [ ] **Collaboration**: real-time multiplayer editing (would require backend)
 - [ ] **Plugin system**: allow users to write custom TSL shaders
 - [ ] **AI assistance**: describe a shader effect in natural language, generate params
 
@@ -1058,6 +1057,6 @@ Tasks can be marked with:
 | 7     | Interactivity      | 3     | 3    | ✅ Complete (scope-adjusted) |
 | 8     | Polish & Perf      | 6     | 4    | 🔵 In progress               |
 | 9     | Export             | 3     | 3    | ✅ Complete                  |
-| 10    | Stretch            | —     | 3    | 🔵 In progress               |
+| 10    | Stretch            | —     | 4    | 🔵 In progress               |
 
 **Total: 53 tasks across 10 phases**
