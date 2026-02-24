@@ -926,7 +926,7 @@ These are not in the initial scope but designed to be easy to add given the arch
 - [ ] **SDF shapes**: Basic 3D Shapes (Sphere, Torus, Cube, Prism...), change their size, material, select animation (rotation, float, etc.) or Orbit Controls
 - [ ] **SDF shapes**: 2D/3D SDF primitives as layers
 - [x] **Warp/Distortion layer**: UV displacement maps, swirl, bulge, wave
-- [ ] **Mesh gradient layer**: configurable gradient with control points
+- [x] **Mesh gradient layer**: configurable gradient with control points
 - [ ] **Guilloche patterns**: parametric engraving-style patterns
 - [ ] **Timeline**: keyframe animation of any param over time
 - [ ] **Collaboration**: real-time multiplayer editing (would require backend)
@@ -1058,6 +1058,6 @@ Tasks can be marked with:
 | 7     | Interactivity      | 3     | 3    | ✅ Complete (scope-adjusted) |
 | 8     | Polish & Perf      | 6     | 4    | 🔵 In progress               |
 | 9     | Export             | 3     | 3    | ✅ Complete                  |
-| 10    | Stretch            | —     | 2    | 🔵 In progress               |
+| 10    | Stretch            | —     | 3    | 🔵 In progress               |
 
 **Total: 53 tasks across 10 phases**

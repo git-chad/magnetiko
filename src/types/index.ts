@@ -47,6 +47,7 @@ export type ShaderType =
   | "progressive-blur"
   | "warp-distortion"
   | "noise-generator"
+  | "mesh-gradient"
   | "grain"
   | "interactivity"
   | "masonry";

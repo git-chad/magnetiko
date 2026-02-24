@@ -93,6 +93,7 @@ const VALID_SHADER_TYPES = new Set<ShaderType>([
   "progressive-blur",
   "warp-distortion",
   "noise-generator",
+  "mesh-gradient",
   "grain",
   "interactivity",
   "masonry",
