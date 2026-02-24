@@ -9,6 +9,7 @@ import type { PipelineLayer } from "@/lib/renderer/PipelineManager";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
+import { useMouseInteraction } from "@/hooks/useMouseInteraction";
 import type { Layer } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ export function Canvas({ className }: CanvasProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const pipelineRef = React.useRef<PipelineManager | null>(null);
   const rendererRef = React.useRef<THREE.WebGPURenderer | null>(null);
+  const interaction = useMouseInteraction({ targetRef: outerRef });
 
   const [status, setStatus] = React.useState<"loading" | "ready" | "unsupported" | "error">(
     "loading",
@@ -151,6 +153,18 @@ export function Canvas({ className }: CanvasProps) {
           const timeSec = timeMs / 1000;
           const delta = prevTimeSec > 0 ? timeSec - prevTimeSec : 0;
           prevTimeSec = timeSec;
+
+          const pointer = interaction.getFrameData();
+          pipeline!.setPointerForInteractivity(
+            pointer.uvX,
+            pointer.uvY,
+            pointer.duvX,
+            pointer.duvY,
+            pointer.isActive,
+          );
+          for (const click of interaction.consumeClicks()) {
+            pipeline!.addClickForInteractivity(click.uvX, click.uvY);
+          }
 
           pipeline!.render(timeSec, delta);
 

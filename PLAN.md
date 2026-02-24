@@ -757,12 +757,12 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 7.1 Pointer Data Hook (`src/hooks/useMouseInteraction.ts`)
 
-- [ ] Track normalized mouse position (0–1 UV space relative to canvas)
-- [ ] Track mouse velocity
-- [ ] Maintain a position history buffer (last N positions for trail effects)
-- [ ] Track click/touch events with timestamps (for ripple origins)
-- [ ] Handle touch events for mobile
-- [ ] Throttle updates to animation frame rate
+- [x] Track normalized mouse position (0–1 UV space relative to canvas)
+- [x] Track mouse velocity
+- [x] Maintain a position history buffer (last N positions for trail effects)
+- [x] Track click/touch events with timestamps (for ripple origins)
+- [x] Handle touch events for mobile
+- [x] Throttle updates to animation frame rate
 
 **Done when:** Hook provides accurate, real-time pointer data in UV space. Works on desktop and mobile.
 
