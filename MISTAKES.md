@@ -37,6 +37,8 @@ Prefix titles with severity:
 - ALWAYS add a minimum radius/size param to halftone/dot effects — without `dotMin`, dark areas produce zero-size dots (invisible), giving the incorrect appearance of "random dots not everywhere".
 - NEVER use per-pixel input texture as the halftone background in source mode — for smooth images dotColor ≈ bgColor → invisible effect. Use a solid background (white for source mode) so dots are always visible against it.
 - NEVER call TSL `If()` or `.toVar()` outside a `Fn()` shader function context — they are null at build time and crash with "Cannot read properties of null". Instead, build a pure functional DAG: JS-time `for` loop + `select(cond, a, b)` + `max(a, b)` to fold results statically.
+- NEVER make media layers a special case outside the render pipeline — they must be first-class `PassNode` passes in `syncLayers()`, same as shader layers. A `baseQuad` singleton that one component controls is always a wrong pattern for a layer-based compositor.
+- ALWAYS check `l.visible` when selecting which layer to use as a source — skipping the visibility check means hidden layers still affect the output.
 
 <!-- 
 Example of what this section will look like:
@@ -89,6 +91,24 @@ Example of what this section will look like:
 **What went wrong:** Initial halftone `_buildEffectNode()` returned a `vec3`. While `buildBlendNode` can sometimes handle this, it caused TypeScript type inference issues and was inconsistent with the pixelation pass (which returns `vec4`).
 **The fix:** Changed return to `vec4(mix(bgColor, dotColor, mask), float(1.0))`. This matches the established pattern and keeps the blend node's `.rgb` accessor working correctly.
 **Rule:** ALWAYS return `vec4` from `_buildEffectNode()` subclass overrides.
+
+### 🔴 [2.3] Media layers not first-class pipeline passes — compositor fundamentally broken
+**Date:** 2026-02-23
+**Task:** Phase 6 — multi-image stacking, reorder, blend modes between media layers
+**What went wrong:** Uploading multiple images always showed the first one. Hiding a layer had no effect. Blend modes and opacity didn't apply between media layers. The user correctly identified the core issue: the entire point of a layer system is stacking/reordering/compositing, and none of that worked for media.
+**Why it happened:** The original architecture had a single `baseQuad` (a `FullscreenQuad`) controlled directly by `Canvas.tsx`. `PipelineManager.syncLayers()` only accepted shader layers. Media layers lived in a completely separate code path that bypassed the render chain. Two compounding bugs:
+1. `ordered.find()` in the sync function picked the **bottommost** media layer, not the most recently added one — new uploads go to the top so the first-ever upload always won
+2. `l.visible` was not checked — hidden media layers still drove the canvas
+**The fix:** `MediaPass` — a `PassNode` subclass that samples its image/video texture with aspect-ratio cover UVs, blends it over the running composite using the layer's blend mode + opacity. `PipelineManager.syncLayers()` now handles all layer kinds (`kind: 'shader'|'image'|'video'`), creates `MediaPass` for media layers, and calls `setMedia(url, type)` when the URL changes. `Canvas.tsx sync()` maps ALL layers to `PipelineLayer` and calls `syncLayers()` once. The separate `baseQuad` / `_loadBaseMedia` side path is deleted.
+**Rule:** NEVER make one layer type a special case outside the main render pipeline. Every layer kind must participate in `syncLayers()` so stacking, reordering, visibility, opacity, and blend modes all work uniformly.
+
+### 🟢 [6.1] `l.visible` not checked in media layer selection
+**Date:** 2026-02-23
+**Task:** Canvas sync — media layer source selection
+**What went wrong:** Hiding a media layer had no effect on the canvas. The hidden layer continued to drive the base texture.
+**Why it happened:** `ordered.find((l) => l.kind === 'image' || l.kind === 'video')` — `l.visible` not included in the predicate.
+**The fix:** Added `&& l.visible` to the find predicate (later made irrelevant by the full MediaPass refactor, which correctly uses `pass.enabled = layer.visible`).
+**Rule:** ALWAYS check `l.visible` when selecting which layer drives any output. Invisible layers must be invisible.
 
 ### 🔴 [4.2] TSL `If()` / `.toVar()` crash outside `Fn()` context
 **Date:** 2026-02-23
@@ -154,6 +174,14 @@ These are common pitfalls in this tech stack. Not mistakes yet, but things to be
 ## Session Notes
 
 > Quick notes from each work session. Not full mistake entries — just context for continuity.
+
+### Session 2026-02-23 (continued)
+- Fixed: media layers are now first-class `PassNode` passes (`MediaPass`) in the pipeline — previously only the bottommost media layer was shown via a `baseQuad` singleton, making stacking/reordering/blend-modes between media layers completely broken
+- Fixed: `sync()` in Canvas.tsx no longer has a separate media-loading side path — all layers (media + shader) go through `syncLayers()`, which creates the correct pass type per `kind`
+- Fixed: `l.visible` not checked in media layer selection — hidden layers were still driving the canvas
+- Fixed: always-first-image bug — `ordered.find()` returned the bottommost (first-uploaded) media layer regardless of what was added later (compounded with the visibility bug)
+- **KEY LESSON — MediaPass visibility of the bug:** The original `baseQuad` design was fine for a simple "one image + shader stack" demo but fundamentally wrong for a real compositor. The signal: any time you have a "special case" path for one layer type that lives outside the main render loop, it will fail when users try to use that layer type the same way as all others.
+- **KEY LESSON — Y-flip in MediaPass:** Image/video textures have Y=0 at the bottom (standard image convention). Render-target textures have Y=0 at the TOP (WebGPU convention). `_inputNode` in PassNode applies the flip for RT-to-RT sampling. `MediaPass._buildEffectNode()` must use regular `uv()` (no flip) because it samples a fresh image, not an RT. Getting this wrong would cause media layers to appear upside-down.
 
 ### Session 2026-02-23
 - Completed: Halftone enhancements — invert luma toggle + 3×3 dot overflow (neighbor cells)

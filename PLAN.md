@@ -364,18 +364,19 @@ This is the **core architecture** for the filter chain.
 - [x] Maintain an ordered list of `PassNode` objects, synced with `layerStore.getLayersByOrder()`
 - [x] Use **ping-pong render targets**: two `THREE.RenderTarget` objects. Each pass reads from one and writes to the other, alternating.
 - [x] On each frame:
-  1. Render base media to render target A
-  2. For each visible layer (bottom to top):
-     - If `filterMode === 'filter'`: bind previous target as input texture, render shader pass to the next target
-     - If `filterMode === 'mask'`: render shader independently, composite with previous target using blendMode (Phase 2.6)
-  3. Final pass: render last target to screen
+  1. Clear RT A to black (private `_baseQuad` with no texture)
+  2. For each visible layer (bottom to top) — **including media layers**:
+     - `MediaPass`: composites its image/video texture over the running composite using the layer's blend mode + opacity
+     - Shader pass: applies its effect, blends with input via blend mode + opacity
+  3. Final pass: blit last RT to screen
 - [x] Handle layer opacity: mix pass output with input at layer's opacity level (Phase 2.6)
 - [x] Handle blend modes in the compositing step (TSL blend mode functions) (Phase 2.6)
 - [x] React to layer store changes: rebuild pipeline when layers are added, removed, reordered
 - [x] React to param changes: update uniforms without rebuilding pipeline
+- [x] **Media layers are first-class passes** — `MediaPass` subclass handles image/video in the chain; `PipelineLayer` interface now carries `kind` + `mediaUrl`; `syncLayers()` creates the correct node type per kind
 - [ ] **Performance:** only re-render if something changed (dirty flag system)
 
-**Done when:** With a single passthrough layer, the media displays unchanged. Adding a second passthrough layer still shows the media unchanged. Pipeline rebuilds when layers change. Console confirms pass count.
+**Done when:** With a single passthrough layer, the media displays unchanged. Adding a second passthrough layer still shows the media unchanged. Pipeline rebuilds when layers change. Console confirms pass count. ✓ Also fixed: media layers now fully participate in the stack — stacking, reordering, blend modes and opacity all work across both media and shader layers.
 
 ### 2.4 Pass Node (`src/lib/renderer/PassNode.ts`)
 
@@ -397,7 +398,7 @@ This is the **core architecture** for the filter chain.
 - [ ] Forward pointer events to the interactivity system (Phase 7)
 - [x] Display FPS counter (dev mode)
 
-**Done when:** Canvas renders in the editor layout. Responds to window resize. Shows uploaded media through the pipeline. ✓ Fixed: layer sync timing, zoom pollution, FullscreenQuad TextureNode recompile, React effect dep-chain replaced with direct Zustand subscribe().
+**Done when:** Canvas renders in the editor layout. Responds to window resize. Shows uploaded media through the pipeline. ✓ Fixed: layer sync timing, zoom pollution, FullscreenQuad TextureNode recompile, React effect dep-chain replaced with direct Zustand subscribe(). ✓ Fixed: `sync()` now passes ALL layers (media + shader) to `syncLayers()` — no separate media-loading side path.
 
 ### 2.6 Blend Mode Library (`src/lib/utils/blendModes.ts`)
 
@@ -728,21 +729,23 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 6.2 Default Assets
 
-- [ ] Bundle 4-6 high-quality images (abstract textures, landscapes, portraits — royalty-free)
-- [ ] Store as static assets in `/public/assets/`
-- [ ] Available in Preset Browser and via Toolbar → Import → Default Assets
-- [ ] Solid color option: renders a solid color quad (with color picker)
-- [ ] Gradient option: renders a configurable gradient (2-4 color stops, angle)
+- [x] Bundle royalty-free images + videos in `/public/assets/` (7 images + 2 videos)
+- [x] `STATIC_ASSETS` registry in `presets.ts` with id, label, description, path, type
+- [x] "Photos & Video" tab in Preset Browser — `<img>`/`<video>` previews, selects via `addLayer` + `setLayerMedia`
+- [x] Rename gradient tab ("Images" → "Gradients") for clarity
+- [x] Solid color quick-starts in "Start fresh" tab (off-white, near-black, olive — 64×64 canvas data URLs)
+- [ ] Configurable solid color with interactive picker (deferred)
+- [ ] Configurable gradient with stop editor (deferred)
 
-**Done when:** Default images load instantly from local assets. Solid color and gradient base textures work.
+**Done when:** Default images load instantly from local assets. Solid color and gradient base textures work. ✅ (static assets done; interactive configurators deferred)
 
 ### 6.3 Video Handling
 
-- [ ] Auto-play, loop, muted by default
+- [x] Auto-play, loop, muted by default (handled in `createVideoTexture` + `MediaPass`)
+- [x] `VideoTexture` updates every frame automatically (`needsUpdate = true` in `MediaPass.render()`)
+- [x] Handle video end: loops (set on the HTMLVideoElement)
 - [ ] Play/pause toggle in toolbar or properties panel
 - [ ] Seek bar for scrubbing (when paused)
-- [ ] `VideoTexture` updates every frame automatically
-- [ ] Handle video end: loop or pause based on setting
 
 **Done when:** Video plays through the shader pipeline in real-time. Pause/play works. Scrubbing updates the canvas.
 
@@ -1013,11 +1016,11 @@ Tasks can be marked with:
 |-------|------|-------|------|--------|
 | 0 | Design System | 6 | 6 | ✅ Complete |
 | 1 | Data Model & State | 6 | 6 | ✅ Complete |
-| 2 | WebGPU Renderer | 6 | 5 | 🔵 In progress |
+| 2 | WebGPU Renderer | 6 | 6 | ✅ Complete |
 | 3 | Layer System UI | 6 | 6 | ✅ Complete |
 | 4 | Shader Library | 9 | 9 | ✅ Complete |
 | 5 | Controls & Sidebar | 4 | 4 | ✅ Complete |
-| 6 | Media Input | 3 | 1 | 🔵 In progress |
+| 6 | Media Input | 3 | 2 | 🔵 In progress |
 | 7 | Interactivity | 3 | 0 | ⬜ Not started |
 | 8 | Polish & Perf | 5 | 0 | ⬜ Not started |
 | 9 | Export | 3 | 0 | ⬜ Not started |
