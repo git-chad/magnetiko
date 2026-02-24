@@ -31,6 +31,7 @@ const FLUID_RADIUS = 2.45;
 const FLUID_DT = 0.032;
 const POINTER_SPLAT_MULTIPLIER = 3;
 const MIN_SPLAT_DELTA_PX = 0.05;
+const MIN_CANVAS_SIZE = 1;
 
 type Splat = {
   x: number;
@@ -102,6 +103,8 @@ export class InteractivityPass extends PassNode {
   private readonly _mouseDYU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _mouseActiveU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _canvasAspectU: any;
 
   // ── Effect params ──────────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,6 +145,7 @@ export class InteractivityPass extends PassNode {
   private readonly _pressure: DoubleFBO;
   private readonly _divergenceRT: THREE.WebGLRenderTarget;
   private readonly _curlRT: THREE.WebGLRenderTarget;
+  private readonly _displacementRT: THREE.WebGLRenderTarget;
 
   // ── Fluid fullscreen scene ────────────────────────────────────────────────
   private readonly _fluidScene: THREE.Scene;
@@ -158,6 +162,7 @@ export class InteractivityPass extends PassNode {
   private readonly _vorticityMat: THREE.MeshBasicNodeMaterial;
   private readonly _pressureMat: THREE.MeshBasicNodeMaterial;
   private readonly _gradientSubtractMat: THREE.MeshBasicNodeMaterial;
+  private readonly _displacementMat: THREE.MeshBasicNodeMaterial;
 
   // ── Fluid uniforms / texture nodes (mutable .value) ───────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,6 +226,9 @@ export class InteractivityPass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _gradientVelocityNode: any;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _displacementDisplayNode: any = null;
+
   // ── Display nodes ──────────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _fluidDisplayNode: any = null;
@@ -238,6 +246,7 @@ export class InteractivityPass extends PassNode {
     this._mouseDXU = uniform(0.0);
     this._mouseDYU = uniform(0.0);
     this._mouseActiveU = uniform(0.0);
+    this._canvasAspectU = uniform(1.0);
 
     // ── Params ─────────────────────────────────────────────────────────────
     this._effectU = uniform(0.0);
@@ -273,6 +282,11 @@ export class InteractivityPass extends PassNode {
       FLUID_SIM_RES,
       FLUID_SIM_RES,
       THREE.NearestFilter,
+    );
+    this._displacementRT = makeFluidRT(
+      MIN_CANVAS_SIZE,
+      MIN_CANVAS_SIZE,
+      THREE.LinearFilter,
     );
 
     // ── Shared uniforms for fluid graph ───────────────────────────────────
@@ -551,6 +565,54 @@ export class InteractivityPass extends PassNode {
     );
     this._gradientSubtractMat = makeNodeMaterial(gradientNode);
 
+    // ── Displacement field pass (repel/attract source texture) ─────────────
+    // This is recomputed every frame from pointer uniforms.
+    // Other passes can consume it as a GPU texture without touching CPU state.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispDX: any = fuvx.sub(this._mouseXU);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispDY: any = fuvy.sub(this._mouseYU);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispAspect = this._canvasAspectU;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispPX: any = dispDX.mul(dispAspect);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispRadUV: any = this._radiusPxU.div(screenSize.x);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispRadSq: any = dispRadUV.mul(dispRadUV).add(float(1e-6));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispDistSq: any = dispPX.mul(dispPX).add(dispDY.mul(dispDY));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispDist: any = float(
+      length((vec2 as any)(dispPX, dispDY)),
+    ).add(float(1e-5));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispGauss: any = exp(dispDistSq.negate().div(dispRadSq));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pointerSpeed: any = float(
+      length((vec2 as any)(this._mouseDXU.mul(dispAspect), this._mouseDYU)),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pointerGain: any = clamp(
+      pointerSpeed.mul(float(12.0)).add(float(1.0)),
+      float(1.0),
+      float(3.0),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dispStrength: any = dispGauss
+      .mul(dispRadUV)
+      .mul(this._strengthU)
+      .mul(pointerGain)
+      .mul(this._mouseActiveU);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const displacementNode: any = vec4(
+      clamp(dispDX.div(dispDist).mul(dispStrength), float(-0.25), float(0.25)),
+      clamp(dispDY.div(dispDist).mul(dispStrength), float(-0.25), float(0.25)),
+      dispGauss.mul(this._mouseActiveU),
+      float(1.0),
+    );
+    this._displacementMat = makeNodeMaterial(displacementNode);
+
     // ── Shared fullscreen quad for all fluid sub-passes ───────────────────
     this._fluidGeometry = new THREE.PlaneGeometry(2, 2);
     this._fluidQuad = new THREE.Mesh(this._fluidGeometry, this._clearMat);
@@ -622,6 +684,14 @@ export class InteractivityPass extends PassNode {
     }
   }
 
+  getTrailTexture(): THREE.Texture {
+    return this._density.texture;
+  }
+
+  getDisplacementTexture(): THREE.Texture {
+    return this._displacementRT.texture;
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   override render(
@@ -634,10 +704,14 @@ export class InteractivityPass extends PassNode {
     void time;
     void delta;
 
+    this._canvasAspectU.value = this._canvasWidth / this._canvasHeight;
+    this._renderFluidMaterial(renderer, this._displacementMat, this._displacementRT);
     this._runFluidSimulation(renderer);
 
-    if (this._fluidDisplayNode)
-      this._fluidDisplayNode.value = this._density.texture;
+    if (this._fluidDisplayNode) this._fluidDisplayNode.value = this._density.texture;
+    if (this._displacementDisplayNode) {
+      this._displacementDisplayNode.value = this._displacementRT.texture;
+    }
     if (this._repelNode) this._repelNode.value = inputTex;
     if (this._attractNode) this._attractNode.value = inputTex;
 
@@ -647,8 +721,10 @@ export class InteractivityPass extends PassNode {
   // ── Resize ─────────────────────────────────────────────────────────────────
 
   override resize(width: number, height: number): void {
-    this._canvasWidth = Math.max(width, 1);
-    this._canvasHeight = Math.max(height, 1);
+    this._canvasWidth = Math.max(width, MIN_CANVAS_SIZE);
+    this._canvasHeight = Math.max(height, MIN_CANVAS_SIZE);
+    this._canvasAspectU.value = this._canvasWidth / this._canvasHeight;
+    this._displacementRT.setSize(this._canvasWidth, this._canvasHeight);
     this._fluidNeedsInit = true;
   }
 
@@ -666,21 +742,13 @@ export class InteractivityPass extends PassNode {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const src: any = this._inputNode;
 
+    this._displacementDisplayNode = tslTexture(new THREE.Texture(), rtUV);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const radUV: any = this._radiusPxU.div(screenSize.x);
+    const disp: any = this._displacementDisplayNode;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const radSq: any = radUV.mul(radUV);
-
+    const dispX: any = float(disp.r);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mdx: any = uvx.sub(this._mouseXU);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mdy: any = uvy.sub(this._mouseYU);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mDistSq: any = mdx.mul(mdx).add(mdy.mul(mdy));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mDist: any = float(length((vec2 as any)(mdx, mdy))).add(float(1e-5));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mGauss: any = exp(mDistSq.negate().div(radSq));
+    const dispY: any = float(disp.g);
     // ── Trail (full fluid density texture) ────────────────────────────────
     // Sample with RT-space UV so trail aligns with the main source frame.
     this._fluidDisplayNode = tslTexture(new THREE.Texture(), rtUV);
@@ -696,14 +764,9 @@ export class InteractivityPass extends PassNode {
 
     // ── Repel ──────────────────────────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const repelForce: any = mGauss
-      .mul(radUV)
-      .mul(this._strengthU)
-      .mul(this._mouseActiveU);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const repelUV: any = (vec2 as any)(
-      uvx.add(mdx.div(mDist).mul(repelForce)),
-      uvy.add(mdy.div(mDist).mul(repelForce)),
+      clamp(uvx.add(dispX), float(0.0), float(1.0)),
+      clamp(uvy.add(dispY), float(0.0), float(1.0)),
     );
     this._repelNode = tslTexture(new THREE.Texture(), repelUV);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -717,8 +780,8 @@ export class InteractivityPass extends PassNode {
     // ── Attract ────────────────────────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const attractUV: any = (vec2 as any)(
-      uvx.sub(mdx.div(mDist).mul(repelForce)),
-      uvy.sub(mdy.div(mDist).mul(repelForce)),
+      clamp(uvx.sub(dispX), float(0.0), float(1.0)),
+      clamp(uvy.sub(dispY), float(0.0), float(1.0)),
     );
     this._attractNode = tslTexture(new THREE.Texture(), attractUV);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -806,6 +869,7 @@ export class InteractivityPass extends PassNode {
     this._pressure.dispose();
     this._divergenceRT.dispose();
     this._curlRT.dispose();
+    this._displacementRT.dispose();
 
     this._clearMat.dispose();
     this._splatMat.dispose();
@@ -815,6 +879,7 @@ export class InteractivityPass extends PassNode {
     this._vorticityMat.dispose();
     this._pressureMat.dispose();
     this._gradientSubtractMat.dispose();
+    this._displacementMat.dispose();
 
     this._fluidGeometry.dispose();
     this._fluidScene.clear();

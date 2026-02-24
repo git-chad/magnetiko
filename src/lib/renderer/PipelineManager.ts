@@ -211,6 +211,36 @@ export class PipelineManager {
   }
 
   /**
+   * Returns the latest fluid trail texture from the first interactivity pass.
+   * Useful for feeding interaction data into other shader passes.
+   */
+  getInteractivityTrailTexture(): THREE.Texture | null {
+    for (const pass of this._passes) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (typeof (pass as any).getTrailTexture === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (pass as any).getTrailTexture() as THREE.Texture;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns the latest repel/attract displacement field texture from the first
+   * interactivity pass.
+   */
+  getInteractivityDisplacementTexture(): THREE.Texture | null {
+    for (const pass of this._passes) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (typeof (pass as any).getDisplacementTexture === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (pass as any).getDisplacementTexture() as THREE.Texture;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Main render entry point — call from the animation loop.
    *
    * With 0 visible passes: renders base media directly to screen (fast path).

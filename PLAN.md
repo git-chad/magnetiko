@@ -768,24 +768,24 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 
 ### 7.2 Interaction Data Buffer
 
-- [ ] GPU-side: maintain a buffer/texture that stores interaction state
-- [ ] For ripples: array of {origin, startTime, active} — max 10 concurrent
-- [ ] For trails: texture that gets painted at mouse position each frame, with decay
-- [ ] For repel/attract: displacement field computed from mouse position + radius
-- [ ] Updated every frame from the hook data
+- [x] GPU-side: maintain a buffer/texture that stores interaction state
+- [!] For ripples: array of {origin, startTime, active} — max 10 concurrent _(removed from scope per product direction)_
+- [x] For trails: texture that gets painted at mouse position each frame, with decay
+- [x] For repel/attract: displacement field computed from mouse position + radius
+- [x] Updated every frame from the hook data
 
 **Done when:** The interaction data is available as a uniform/texture in the shader pass. Multiple simultaneous interactions work.
 
 ### 7.3 Interactive Effects
 
-- [ ] Ripple: ring distortion that expands and fades
-- [ ] Trail: soft brush stroke that follows cursor, fading over time
-- [ ] Repel: pushes underlying texture pixels away from cursor
-- [ ] Attract: pulls underlying texture pixels toward cursor
-- [ ] Glow: bright spot that follows cursor
-- [ ] Each effect composites with the underlying filtered texture
+- [!] Ripple: ring distortion that expands and fades _(removed from scope per product direction)_
+- [x] Trail: soft brush stroke that follows cursor, fading over time
+- [x] Repel: pushes underlying texture pixels away from cursor
+- [x] Attract: pulls underlying texture pixels toward cursor
+- [!] Glow: bright spot that follows cursor _(removed from scope per product direction)_
+- [x] Each effect composites with the underlying filtered texture
 
-**Done when:** All 5 interactive effects work and feel responsive (<16ms latency from pointer move to visual update). Effects combine with other shader layers correctly.
+**Done when:** Active interactive effects (trail, repel, attract) feel responsive (<16ms latency from pointer move to visual update). Effects combine with other shader layers correctly.
 
 ---
 
