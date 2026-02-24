@@ -14,7 +14,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "flex items-end gap-0 border-b border-[var(--color-border)]",
+      "flex items-center gap-3xs rounded-md border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3xs",
       className,
     )}
     {...props}
@@ -29,17 +29,13 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "relative px-xs pb-xs pt-3xs",
+      "relative rounded-sm px-xs py-3xs",
       "text-caption font-medium text-[var(--color-fg-tertiary)]",
-      "transition-colors duration-micro ease-micro",
+      "transition-[color,background-color] duration-base ease-micro",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]",
       "disabled:pointer-events-none disabled:opacity-40",
       "hover:text-[var(--color-fg-secondary)]",
-      // active indicator bar
-      "after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px",
-      "after:rounded-full after:transition-colors after:duration-micro",
-      "data-[state=active]:text-[var(--color-fg)] data-[state=active]:after:bg-accent",
-      "data-[state=inactive]:after:bg-transparent",
+      "data-[state=active]:bg-[var(--color-bg-raised)] data-[state=active]:text-[var(--color-fg)]",
       className,
     )}
     {...props}

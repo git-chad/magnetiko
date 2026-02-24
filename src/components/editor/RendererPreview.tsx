@@ -79,7 +79,7 @@ export function RendererPreview() {
         const plasma = wave1.add(wave2).add(wave3).div(3.0).mul(0.5).add(0.5);
 
         const colDark   = color("#1d1d1c"); // --primary
-        const colAccent = color("#64643a"); // --accent
+        const colAccent = color("#ff6a1f"); // --accent
         const colLight  = color("#d4d4cf"); // --primary-300
 
         // double-mix gives a richer palette sweep than a single lerp

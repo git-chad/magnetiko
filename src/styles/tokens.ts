@@ -11,63 +11,63 @@
 
 export const colors = {
   primary: {
-    950: '#10100f',
-    900: '#141413',
-    800: '#171716',
-    700: '#1a1a19',
-    DEFAULT: '#1d1d1c',
-    500: '#4d4d46',
-    400: '#7a7a73',
-    300: '#a7a7a2',
-    200: '#c8c8c3',
-    100: '#d4d4cf',
-    50: '#eaeae7',
+    950: '#0f120f',
+    900: '#171b17',
+    800: '#1f2520',
+    700: '#2a322b',
+    DEFAULT: '#364038',
+    500: '#556257',
+    400: '#778377',
+    300: '#99a398',
+    200: '#bdc3bb',
+    100: '#dde0da',
+    50: '#f1f4ef',
   },
 
   secondary: {
-    950: '#151510',
-    900: '#252520',
-    800: '#383832',
-    700: '#515142',
-    DEFAULT: '#656553',
-    500: '#878772',
-    400: '#a8a896',
-    300: '#c5c5b8',
-    200: '#d8d8cf',
-    100: '#e0e0dd',
-    50: '#f0f0ed',
+    950: '#141813',
+    900: '#1c231c',
+    800: '#273126',
+    700: '#394638',
+    DEFAULT: '#526250',
+    500: '#70806f',
+    400: '#8f9c8e',
+    300: '#afbaae',
+    200: '#ced6cd',
+    100: '#e5eae4',
+    50: '#f4f7f3',
   },
 
   accent: {
-    950: '#15150b',
-    900: '#222215',
-    800: '#32321a',
-    700: '#51512d',
-    DEFAULT: '#64643a',
-    500: '#8d8d58',
-    400: '#adad80',
-    300: '#c8c8a8',
-    200: '#d8d8c4',
-    100: '#e0e0d8',
-    50: '#f0f0ec',
+    950: '#2d1202',
+    900: '#4d2106',
+    800: '#6f3009',
+    700: '#99410f',
+    DEFAULT: '#ff6a1f',
+    500: '#ff8d4b',
+    400: '#ffae79',
+    300: '#ffccaa',
+    200: '#ffe3d0',
+    100: '#fff1e8',
+    50: '#fff8f3',
   },
 
   // Named semantic surfaces
   surface: {
-    base: '#F5F5F0',
-    raised: '#c5c5a6',
-    overlay: '#94945e',
-    sunken: '#4b4b2e',
+    base: '#f1f4f9',
+    raised: '#ffffff',
+    overlay: '#e8edf5',
+    sunken: '#d8dfeb',
   },
 
   text: {
-    primary: '#111110',
-    secondary: '#444440',
-    tertiary: '#88887e',
-    disabled: '#bbbbbb',
-    onPrimary: '#F5F5F0',
-    onSecondary: '#F5F5F0',
-    onAccent: '#F5F5F0',
+    primary: '#1b231c',
+    secondary: '#445242',
+    tertiary: '#718070',
+    disabled: '#a3aca2',
+    onPrimary: '#f8fbff',
+    onSecondary: '#f8fbff',
+    onAccent: '#fffaf6',
   },
 
   semantic: {
@@ -83,12 +83,12 @@ export const colors = {
 
   // Interactive state overlays (applied as bg color additions)
   interactive: {
-    hoverBg: 'rgba(0, 0, 0, 0.04)',
-    activeBg: 'rgba(0, 0, 0, 0.08)',
-    selectedBg: 'rgba(100, 100, 58, 0.12)', // accent with opacity
-    focusRing: 'rgba(100, 100, 58, 0.4)',
-    disabledBg: 'rgba(0, 0, 0, 0.06)',
-    disabledText: '#bbbbbb',
+    hoverBg: 'rgba(19, 33, 20, 0.06)',
+    activeBg: 'rgba(19, 33, 20, 0.11)',
+    selectedBg: 'rgba(255, 106, 31, 0.16)',
+    focusRing: 'rgba(255, 106, 31, 0.28)',
+    disabledBg: 'rgba(19, 33, 20, 0.08)',
+    disabledText: '#a3aca2',
   },
 } as const;
 
@@ -129,47 +129,49 @@ export interface TypeStyle {
   letterSpacing: string;
 }
 
+const appleSans = "'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', sans-serif";
+
 export const typography: Record<TypeVariant, TypeStyle> = {
   caption: {
-    fontFamily: "'Inter', system-ui, sans-serif",
+    fontFamily: appleSans,
     fontSize: '12px',
     fontWeight: 400,
-    lineHeight: '24px',
+    lineHeight: '15px',
     letterSpacing: '0.01em',
   },
   body: {
-    fontFamily: "'Inter', system-ui, sans-serif",
+    fontFamily: appleSans,
     fontSize: '14px',
     fontWeight: 400,
-    lineHeight: '24px',
+    lineHeight: '18px',
     letterSpacing: '0em',
   },
   subhead: {
-    fontFamily: "'Inter', system-ui, sans-serif",
+    fontFamily: appleSans,
     fontSize: '17px',
     fontWeight: 500,
-    lineHeight: '24px',
+    lineHeight: '20px',
     letterSpacing: '0em',
   },
   title: {
-    fontFamily: "'Inter', system-ui, sans-serif",
+    fontFamily: appleSans,
     fontSize: '20px',
     fontWeight: 600,
     lineHeight: '24px',
     letterSpacing: '-0.005em',
   },
   headline: {
-    fontFamily: "'Inter', system-ui, sans-serif",
+    fontFamily: appleSans,
     fontSize: '24px',
     fontWeight: 700,
-    lineHeight: '32px',
+    lineHeight: '30px',
     letterSpacing: '-0.01em',
   },
   display: {
-    fontFamily: "'Inter', system-ui, sans-serif",
+    fontFamily: appleSans,
     fontSize: '29px',
     fontWeight: 700,
-    lineHeight: '40px',
+    lineHeight: '34px',
     letterSpacing: '-0.015em',
   },
 } as const;
@@ -179,11 +181,11 @@ export const typography: Record<TypeVariant, TypeStyle> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const radius = {
-  xs: '2px',
-  sm: '4px',
-  md: '8px',
-  lg: '12px',
-  xl: '16px',
+  xs: '4px',
+  sm: '8px',
+  md: '12px',
+  lg: '16px',
+  xl: '20px',
   full: '9999px',
 } as const;
 
@@ -208,9 +210,9 @@ export const radiusComponent = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const elevation = {
-  low: '0 1px 3px 0px rgba(0,0,0,0.047)',
-  mid: '0 3px 8px 0px rgba(0,0,0,0.08)',
-  high: '0 7px 18px 0px rgba(0,0,0,0.119)',
+  low: '0 1px 1px rgba(18, 24, 18, 0.04), 0 4px 8px rgba(18, 24, 18, 0.06)',
+  mid: '0 8px 24px rgba(18, 24, 18, 0.1), 0 2px 8px rgba(18, 24, 18, 0.08)',
+  high: '0 18px 48px rgba(18, 24, 18, 0.16), 0 6px 18px rgba(18, 24, 18, 0.12)',
   none: 'none',
 } as const;
 
@@ -252,10 +254,10 @@ export const transition = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const border = {
-  base: 'rgba(0,0,0,0.04)',
-  divider: 'rgba(0,0,0,0.08)',
-  hover: 'rgba(0,0,0,0.14)',
-  focus: 'rgba(100,100,58,0.6)', // accent-based
+  base: 'rgba(19,33,20,0.1)',
+  divider: 'rgba(19,33,20,0.14)',
+  hover: 'rgba(19,33,20,0.22)',
+  focus: 'rgba(255,106,31,0.62)',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -264,11 +266,11 @@ export const border = {
 
 export const overlay = {
   /** Modal backdrop — semi-opaque dark */
-  backdrop: 'rgba(17,17,16,0.55)',
+  backdrop: 'rgba(12,17,13,0.42)',
   /** Uniform overlay for disabled states */
-  uniform: 'rgba(17,17,16,0.12)',
+  uniform: 'rgba(12,17,13,0.12)',
   /** Frosted-glass backdrop filter value (used with CSS backdrop-filter) */
   blur: 'blur(12px)',
   /** Bottom-to-top scrim gradient for image captions and video overlays */
-  scrim: 'linear-gradient(to top, rgba(17,17,16,0.72) 0%, rgba(17,17,16,0) 100%)',
+  scrim: 'linear-gradient(to top, rgba(12,17,13,0.72) 0%, rgba(12,17,13,0) 100%)',
 } as const;

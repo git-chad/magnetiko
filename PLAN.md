@@ -258,7 +258,7 @@ Build each as a thin wrapper around Radix primitives, styled with Tailwind using
 - [x] **Fluted Glass** defaults: flutes (int, 2–100, default 20), orientation (enum: vertical/horizontal/radial), distortionStrength (float, 0–2, default 0.5), refractionIndex (float, 1–2, default 1.3), tint (color, transparent), blur (float, 0–5, default 0.5)
 - [x] **Progressive Blur** defaults: direction (enum: top-to-bottom/bottom-to-top/left-to-right/right-to-left/center-out/radial), startStrength (float, 0), endStrength (float, 0–20, default 8), falloff (enum: linear/ease-in/ease-out/ease-in-out), focusPoint (vec2, [0.5, 0.5]), focusSize (float, 0–1, default 0.3)
 - [x] **Grain** defaults: intensity (float, 0–1, default 0.15), size (float, 0.5–3, default 1), speed (float, 0–2, default 1, for animated grain), monochrome (bool, true), blendMode (enum: overlay/soft-light/add)
-- [x] **Interactivity** defaults: effect (enum: ripple/trail/repel/attract/glow), radius (float, 10–200, default 50), strength (float, 0–2, default 0.5), decay (float, 0–1, default 0.95), color (color, #64643a), trailLength (int, 5–50, default 20)
+- [x] **Interactivity** defaults: effect (enum: trail/repel/attract), radius (float, 10–200, default 50), strength (float, 0–2, default 0.5), decay (float, 0–1, default 0.95), color (color, #ff6a1f), trailLength (int, 5–50, default 20)
 
 **Done when:** Every shader type returns a complete, typed array of ShaderParam. No missing defaults.
 
@@ -824,6 +824,7 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 - [x] Toast enter/exit: per design spec
 - [x] Stagger: 30ms per child in lists
 - [x] Reduced motion: respect `prefers-reduced-motion`
+- [x] Preset browser tab-jump stabilized using fixed modal min-height (`min-h-[660px]`); dynamic tab height tween intentionally removed after UX regression
 
 **Done when:** All UI transitions match the design system motion spec exactly. No janky animations. Reduced motion kills all.
 
@@ -866,6 +867,16 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 - [x] Sidebar overflow guard: frame controls no longer clip in narrow right panels
 
 **Done when:** Every error case shows a helpful message, not a blank screen or cryptic error.
+
+### 8.6 Visual Refresh (Apple-inspired, orange accent)
+
+- [x] Full UI restyle away from default shadcn feel (glass surfaces, softer depth, tighter spacing rhythm)
+- [x] Accent system switched from olive to orange (`#ff6a1f`) across controls, previews, defaults, and shader params
+- [x] Dark theme shifted from blue-tinted navy to cold olive-grey (`#1d201e`) with matching neutralized shadows/overlays
+- [x] Typography updated to SF Pro stack with tighter leading for caption/body/subhead/title/headline/display
+- [x] Preset card text structure fixed (title/description no longer collapse inline)
+
+**Done when:** Visual language feels cohesive and premium in both themes, with no residual blue cast in dark mode and improved text density.
 
 ---
 
@@ -925,13 +936,13 @@ These are not in the initial scope but designed to be easy to add given the arch
 
 ### Colors
 ```
-Primary:     #1d1d1c  (shades: #10100f → #171716, tints: #4d4d46 → #d4d4cf)
-Secondary:   #656553  (shades: #151510 → #515142, tints: #878772 → #e0e0dd)
-Accent:      #64643a  (shades: #15150b → #51512d, tints: #8d8d58 → #e0e0d8)
-Background:  #F5F5F0
-Surfaces:    #c5c5a6 / #94945e / #4b4b2e
-Text:        #111110 (primary) / #444440 (secondary) / #88887e (tertiary) / #bbbbbb (disabled)
-Border:      rgba(0,0,0,0.04)
+Primary:     #364038  (shades: #0f120f → #2a322b, tints: #556257 → #dde0da)
+Secondary:   #526250  (shades: #141813 → #394638, tints: #70806f → #e5eae4)
+Accent:      #ff6a1f  (shades: #2d1202 → #99410f, tints: #ff8d4b → #fff1e8)
+Light BG:    #eff3f9
+Dark BG:     #1d201e
+Text (dark): #e8ede8 / #c0c9be / #8f9b8d / #5f6a5d
+Border (dark): rgba(221,229,216,0.14)
 ```
 
 ### Semantic
@@ -944,27 +955,27 @@ Success: #22C55E | Warning: #F59E0B | Error: #EF4444 | Info: #3B82F6
 4xs:3 | 3xs:6 | 2xs:9 | xs:12 | sm:18 | md:24 | lg:36 | xl:48 | 2xl:72 | 3xl:96 | 4xl:144
 ```
 
-### Type Scale (Inter)
+### Type Scale (SF Pro)
 ```
-Caption:  12px / 400 / 24px LH / 0.01em LS
-Body:     14px / 400 / 24px LH / 0em LS
-Subhead:  17px / 500 / 24px LH / 0em LS
+Caption:  12px / 400 / 15px LH / 0.01em LS
+Body:     14px / 400 / 18px LH / 0em LS
+Subhead:  17px / 500 / 20px LH / 0em LS
 Title:    20px / 600 / 24px LH / -0.005em LS
-Headline: 24px / 700 / 32px LH / -0.01em LS
-Display:  29px / 700 / 40px LH / -0.015em LS
+Headline: 24px / 700 / 30px LH / -0.01em LS
+Display:  29px / 700 / 34px LH / -0.015em LS
 ```
 
 ### Border Radius
 ```
-xs:2 | sm:4 | md:8 | lg:12 | xl:16 | full:9999
-Buttons: sm(4) | Inputs: sm(4) | Cards: md(8) | Modals: lg(12) | Tooltips: xs(2) | Badges: full
+xs:4 | sm:8 | md:12 | lg:16 | xl:20 | full:9999
+Buttons: sm(8) | Inputs: sm(8) | Cards: md(12) | Modals: lg(16) | Tooltips: xs(4) | Badges: full
 ```
 
 ### Elevation
 ```
-Low:  0 1px 3px 0px rgba(0,0,0,0.047)
-Mid:  0 3px 8px 0px rgba(0,0,0,0.08)
-High: 0 7px 18px 0px rgba(0,0,0,0.119)
+Low:  0 1px 1px rgba(18,24,18,0.04), 0 4px 8px rgba(18,24,18,0.06)
+Mid:  0 8px 24px rgba(18,24,18,0.10), 0 2px 8px rgba(18,24,18,0.08)
+High: 0 18px 48px rgba(18,24,18,0.16), 0 6px 18px rgba(18,24,18,0.12)
 ```
 
 ### Motion
@@ -1032,10 +1043,10 @@ Tasks can be marked with:
 | 3 | Layer System UI | 6 | 6 | ✅ Complete |
 | 4 | Shader Library | 9 | 9 | ✅ Complete |
 | 5 | Controls & Sidebar | 4 | 4 | ✅ Complete |
-| 6 | Media Input | 3 | 2 | 🔵 In progress |
+| 6 | Media Input | 4 | 3 | 🔵 In progress |
 | 7 | Interactivity | 3 | 3 | ✅ Complete (scope-adjusted) |
-| 8 | Polish & Perf | 5 | 3 | 🔵 In progress |
+| 8 | Polish & Perf | 6 | 4 | 🔵 In progress |
 | 9 | Export | 3 | 1 | 🔵 In progress |
 | 10 | Stretch | — | 0 | ⬜ Future |
 
-**Total: 51 tasks across 10 phases**
+**Total: 53 tasks across 10 phases**

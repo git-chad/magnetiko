@@ -298,7 +298,7 @@ export function LayerPanel() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-xs">
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-xs">
         <div className="flex items-center gap-3xs">
           <Stack size={14} className="text-[var(--color-fg-tertiary)]" />
           <Text variant="caption" color="secondary" className="font-medium">

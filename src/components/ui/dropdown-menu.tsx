@@ -44,8 +44,8 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-xs",
-      "border border-[var(--color-border)] bg-[var(--color-bg-raised)]",
+      "z-50 min-w-[8rem] overflow-hidden rounded-md",
+      "border border-[var(--color-border)] bg-[var(--color-bg-raised)]/95 backdrop-blur-xl",
       "p-3xs shadow-mid",
       "data-[state=open]:animate-[dropdown-enter_120ms_var(--ease-enter)_both]",
       "data-[state=closed]:animate-[fade-in_72ms_var(--ease-exit)_reverse_both]",
@@ -65,8 +65,8 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 min-w-[10rem] overflow-hidden rounded-xs",
-        "border border-[var(--color-border)] bg-[var(--color-bg-raised)]",
+        "z-50 min-w-[10rem] overflow-hidden rounded-md",
+        "border border-[var(--color-border)] bg-[var(--color-bg-raised)]/95 backdrop-blur-xl",
         "p-3xs shadow-mid",
         "data-[state=open]:animate-[dropdown-enter_120ms_var(--ease-enter)_both]",
         "data-[state=closed]:animate-[fade-in_72ms_var(--ease-exit)_reverse_both]",
@@ -88,12 +88,12 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center gap-2 rounded-xs",
+      "relative flex cursor-default select-none items-center gap-2 rounded-sm",
       "px-xs py-[5px]",
       "text-body outline-none transition-colors duration-micro",
       destructive
         ? "text-error focus:bg-error-subtle dark:focus:bg-error/20"
-        : "text-[var(--color-fg)] focus:bg-[var(--color-hover-bg)]",
+        : "text-[var(--color-fg)] focus:bg-[var(--color-selected-bg)]",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
       inset && "pl-[2rem]",
       className,
@@ -110,11 +110,11 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-xs",
+      "relative flex cursor-default select-none items-center rounded-sm",
       "py-[5px] pl-[2rem] pr-xs",
       "text-body text-[var(--color-fg)] outline-none",
       "transition-colors duration-micro",
-      "focus:bg-[var(--color-hover-bg)]",
+      "focus:bg-[var(--color-selected-bg)]",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
       className,
     )}
@@ -138,11 +138,11 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-xs",
+      "relative flex cursor-default select-none items-center rounded-sm",
       "py-[5px] pl-[2rem] pr-xs",
       "text-body text-[var(--color-fg)] outline-none",
       "transition-colors duration-micro",
-      "focus:bg-[var(--color-hover-bg)]",
+      "focus:bg-[var(--color-selected-bg)]",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
       className,
     )}

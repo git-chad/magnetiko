@@ -40,8 +40,8 @@ const DialogContent = React.forwardRef<
       className={cn(
         "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
         "w-full max-w-[32rem]",
-        "rounded-lg border border-[var(--color-border)]",
-        "bg-[var(--color-bg-raised)] shadow-high",
+        "rounded-xl border border-[var(--color-border)]",
+        "bg-[var(--color-bg-raised)]/95 backdrop-blur-2xl shadow-high",
         "p-md",
         "focus:outline-none",
         "data-[state=open]:animate-[modal-enter_150ms_var(--ease-enter)_both]",

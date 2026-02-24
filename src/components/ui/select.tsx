@@ -17,10 +17,11 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-8 w-full items-center justify-between rounded-sm",
-      "border border-[var(--color-border)] bg-[var(--color-bg-raised)]",
+      "flex h-9 w-full items-center justify-between rounded-md",
+      "border border-[var(--color-border)] bg-[var(--color-bg-raised)] backdrop-blur-sm",
       "px-xs text-body text-[var(--color-fg)]",
-      "transition-colors duration-micro ease-micro",
+      "shadow-[inset_0_1px_0_rgba(255,255,255,0.26)]",
+      "transition-[color,background-color,border-color,box-shadow] duration-base ease-micro",
       "placeholder:text-[var(--color-fg-tertiary)]",
       "focus:outline-none focus:border-[var(--color-border-focus)] focus:ring-2 focus:ring-[var(--color-focus-ring)]",
       "disabled:cursor-not-allowed disabled:opacity-40",
@@ -75,8 +76,8 @@ const SelectContent = React.forwardRef<
       ref={ref}
       className={cn(
         "relative z-50 min-w-[8rem] overflow-hidden",
-        "rounded-xs border border-[var(--color-border)]",
-        "bg-[var(--color-bg-raised)] shadow-mid",
+        "rounded-md border border-[var(--color-border)]",
+        "bg-[var(--color-bg-raised)] backdrop-blur-xl shadow-mid",
         "data-[state=open]:animate-[dropdown-enter_120ms_var(--ease-enter)_both]",
         "data-[state=closed]:animate-[fade-in_72ms_var(--ease-exit)_reverse_both]",
         position === "popper" && [
@@ -123,11 +124,11 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-xs",
-      "py-[5px] pl-xs pr-[2rem]",
+      "relative flex w-full cursor-default select-none items-center rounded-sm",
+      "py-[6px] pl-xs pr-[2rem]",
       "text-body text-[var(--color-fg)]",
       "outline-none",
-      "focus:bg-[var(--color-hover-bg)] focus:text-[var(--color-fg)]",
+      "focus:bg-[var(--color-selected-bg)] focus:text-[var(--color-fg)]",
       "data-[state=checked]:text-accent dark:data-[state=checked]:text-accent-300",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
       className,

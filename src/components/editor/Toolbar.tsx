@@ -321,7 +321,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
 
   return (
     <>
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg-raised)] px-xs">
+    <header className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg-raised)]/82 px-xs backdrop-blur-xl">
 
       {/* ── Left: sidebar toggle · logo · import ──────────────────────── */}
       <div className="flex items-center gap-2xs">
@@ -469,7 +469,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
         )}
 
         <div
-          className="hidden items-center gap-[2px] rounded-xs border border-[var(--color-border)] bg-[var(--color-bg)] p-[2px] lg:flex"
+          className="hidden items-center gap-[2px] rounded-md border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-[2px] lg:flex"
           role="group"
           aria-label="Render quality"
         >
@@ -482,7 +482,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
                 onClick={() => setRenderScale(scale)}
                 aria-pressed={active}
                 className={[
-                  "rounded-[2px] px-[6px] py-[2px] text-[10px] font-mono transition-colors",
+                  "rounded-[8px] px-[6px] py-[2px] text-[10px] font-mono transition-colors",
                   active
                     ? "bg-[var(--color-accent)] text-[var(--color-fg-on-accent)]"
                     : "text-[var(--color-fg-secondary)] hover:bg-[var(--color-hover-bg)]",

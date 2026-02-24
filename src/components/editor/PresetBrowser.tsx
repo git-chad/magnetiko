@@ -36,10 +36,14 @@ function gradientToDataUrl(preset: ImagePreset): string {
 
   // Convert CSS angle (0° = up, clockwise) to canvas coordinates
   const rad = ((preset.angle - 90) * Math.PI) / 180;
-  const cx = 256, cy = 256, r = 362; // r = half-diagonal ≈ sqrt(256²+256²)
+  const cx = 256,
+    cy = 256,
+    r = 362; // r = half-diagonal ≈ sqrt(256²+256²)
   const grad = ctx.createLinearGradient(
-    cx - r * Math.cos(rad), cy - r * Math.sin(rad),
-    cx + r * Math.cos(rad), cy + r * Math.sin(rad),
+    cx - r * Math.cos(rad),
+    cy - r * Math.sin(rad),
+    cx + r * Math.cos(rad),
+    cy + r * Math.sin(rad),
   );
   for (const stop of preset.stops) {
     grad.addColorStop(stop.position, stop.color);
@@ -79,7 +83,12 @@ interface PresetCardProps {
   onSelect: () => void;
 }
 
-function PresetCard({ label, description, preview, onSelect }: PresetCardProps) {
+function PresetCard({
+  label,
+  description,
+  preview,
+  onSelect,
+}: PresetCardProps) {
   return (
     <button
       className={cn(
@@ -94,16 +103,14 @@ function PresetCard({ label, description, preview, onSelect }: PresetCardProps) 
       onClick={onSelect}
     >
       {/* Preview — aspect-video */}
-      <div className="aspect-video w-full overflow-hidden">
-        {preview}
-      </div>
+      <div className="aspect-video w-full overflow-hidden">{preview}</div>
 
       {/* Label + description */}
-      <div className="px-xs py-2xs">
-        <Text variant="caption" color="primary" className="font-medium">
+      <div className="px-xs py-2xs flex flex-col">
+        <Text as="p" variant="caption" color="primary" className="font-medium">
           {label}
         </Text>
-        <Text variant="caption" color="tertiary" className="mt-[2px]">
+        <Text as="p" variant="caption" color="tertiary" className="mt-[2px]">
           {description}
         </Text>
       </div>
@@ -121,11 +128,11 @@ export interface PresetBrowserProps {
 }
 
 export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
-  const addLayer      = useLayerStore((s) => s.addLayer);
+  const addLayer = useLayerStore((s) => s.addLayer);
   const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
-  const setLayers     = useLayerStore((s) => s.setLayers);
-  const layersCount   = useLayerStore((s) => s.layers.length);
-  const { toast }     = useToast();
+  const setLayers = useLayerStore((s) => s.setLayers);
+  const layersCount = useLayerStore((s) => s.layers.length);
+  const { toast } = useToast();
 
   const addLayerWithLimit = React.useCallback(
     (kind: "image" | "video"): string | null => {
@@ -192,7 +199,9 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
       return;
     }
 
-    const newLayers = preset.layers.slice(0, availableSlots).map(buildShaderLayer);
+    const newLayers = preset.layers
+      .slice(0, availableSlots)
+      .map(buildShaderLayer);
     const existingLayers = useLayerStore.getState().layers;
     // Prepend new layers to the top of whatever is already in the stack
     setLayers([...newLayers, ...existingLayers], newLayers[0]?.id ?? null);
@@ -210,7 +219,7 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[48rem]">
+      <DialogContent className="max-w-[48rem] min-h-[660px]">
         <DialogHeader>
           <DialogTitle>Get Started</DialogTitle>
         </DialogHeader>
@@ -225,104 +234,135 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
 
           {/* ── Start fresh ──────────────────────────────────────────── */}
           <TabsContent value="fresh">
-            <div className="grid grid-cols-2 gap-xs sm:grid-cols-4">
-              <PresetCard
-                label="Empty Canvas"
-                description="Start blank — add layers and media manually"
-                preview={
-                  <div className="flex h-full w-full items-center justify-center bg-[var(--color-bg-subtle)]">
-                    <Sparkle size={28} weight="thin" className="text-[var(--color-fg-disabled)]" />
-                  </div>
-                }
-                onSelect={handleBlankCanvas}
-              />
-              {[
-                { hex: "#f5f5f0", label: "Off White",    description: "Neutral warm white" },
-                { hex: "#111110", label: "Near Black",   description: "Deep neutral dark" },
-                { hex: "#64643a", label: "Olive",        description: "App accent color" },
-              ].map(({ hex, label, description }) => (
+              <div className="grid grid-cols-2 gap-xs sm:grid-cols-4">
                 <PresetCard
-                  key={hex}
-                  label={label}
-                  description={description}
-                  preview={<div className="h-full w-full" style={{ background: hex }} />}
-                  onSelect={() => handleSolidColor(hex)}
+                  label="Empty Canvas"
+                  description="Start blank — add layers and media manually"
+                  preview={
+                    <div className="flex h-full w-full items-center justify-center bg-[var(--color-bg-subtle)]">
+                      <Sparkle
+                        size={28}
+                        weight="thin"
+                        className="text-[var(--color-fg-disabled)]"
+                      />
+                    </div>
+                  }
+                  onSelect={handleBlankCanvas}
                 />
-              ))}
-            </div>
-            <Text variant="caption" color="tertiary" className="mt-xs block">
-              Use the <span className="font-medium text-[var(--color-fg-secondary)]">+</span> button
-              in the layer panel to add effects, or import media from the toolbar.
-            </Text>
+                {[
+                  {
+                    hex: "#f5f5f0",
+                    label: "Off White",
+                    description: "Neutral warm white",
+                  },
+                  {
+                    hex: "#111110",
+                    label: "Near Black",
+                    description: "Deep neutral dark",
+                  },
+                  {
+                    hex: "#ff6a1f",
+                    label: "Orange",
+                    description: "App accent color",
+                  },
+                ].map(({ hex, label, description }) => (
+                  <PresetCard
+                    key={hex}
+                    label={label}
+                    description={description}
+                    preview={
+                      <div
+                        className="h-full w-full"
+                        style={{ background: hex }}
+                      />
+                    }
+                    onSelect={() => handleSolidColor(hex)}
+                  />
+                ))}
+              </div>
+              <Text variant="caption" color="tertiary" className="mt-xs block">
+                Use the{" "}
+                <span className="font-medium text-[var(--color-fg-secondary)]">
+                  +
+                </span>{" "}
+                button in the layer panel to add effects, or import media from
+                the toolbar.
+              </Text>
           </TabsContent>
 
           {/* ── Photos & Video ───────────────────────────────────────── */}
           <TabsContent value="photos">
-            <div className="grid grid-cols-3 gap-xs sm:grid-cols-4">
-              {STATIC_ASSETS.map((asset) => (
-                <PresetCard
-                  key={asset.id}
-                  label={asset.label}
-                  description={asset.description}
-                  preview={
-                    asset.type === "video" ? (
-                      <video
-                        src={asset.path}
-                        className="h-full w-full object-cover"
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        preload="metadata"
-                      />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={asset.path}
-                        alt={asset.label}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    )
-                  }
-                  onSelect={() => handleStaticAsset(asset)}
-                />
-              ))}
-            </div>
+              <div className="grid grid-cols-3 gap-xs sm:grid-cols-4">
+                {STATIC_ASSETS.map((asset) => (
+                  <PresetCard
+                    key={asset.id}
+                    label={asset.label}
+                    description={asset.description}
+                    preview={
+                      asset.type === "video" ? (
+                        <video
+                          src={asset.path}
+                          className="h-full w-full object-cover"
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          preload="metadata"
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={asset.path}
+                          alt={asset.label}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      )
+                    }
+                    onSelect={() => handleStaticAsset(asset)}
+                  />
+                ))}
+              </div>
           </TabsContent>
 
           {/* ── Gradients ────────────────────────────────────────────── */}
           <TabsContent value="images">
-            <div className="grid grid-cols-3 gap-xs sm:grid-cols-4">
-              {IMAGE_PRESETS.map((preset) => (
-                <PresetCard
-                  key={preset.id}
-                  label={preset.label}
-                  description={preset.description}
-                  preview={
-                    <div className="h-full w-full" style={{ background: preset.css }} />
-                  }
-                  onSelect={() => handleImagePreset(preset)}
-                />
-              ))}
-            </div>
+              <div className="grid grid-cols-3 gap-xs sm:grid-cols-4">
+                {IMAGE_PRESETS.map((preset) => (
+                  <PresetCard
+                    key={preset.id}
+                    label={preset.label}
+                    description={preset.description}
+                    preview={
+                      <div
+                        className="h-full w-full"
+                        style={{ background: preset.css }}
+                      />
+                    }
+                    onSelect={() => handleImagePreset(preset)}
+                  />
+                ))}
+              </div>
           </TabsContent>
 
           {/* ── Shader presets ───────────────────────────────────────── */}
           <TabsContent value="shaders">
-            <div className="grid grid-cols-3 gap-xs">
-              {SHADER_PRESETS.map((preset) => (
-                <PresetCard
-                  key={preset.id}
-                  label={preset.label}
-                  description={preset.description}
-                  preview={
-                    <div className="h-full w-full" style={{ background: preset.css }} />
-                  }
-                  onSelect={() => handleShaderPreset(preset)}
-                />
-              ))}
-            </div>
+              <div className="grid grid-cols-3 gap-xs">
+                {SHADER_PRESETS.map((preset) => (
+                  <PresetCard
+                    key={preset.id}
+                    label={preset.label}
+                    description={preset.description}
+                    preview={
+                      <div
+                        className="h-full w-full"
+                        style={{ background: preset.css }}
+                      />
+                    }
+                    onSelect={() => handleShaderPreset(preset)}
+                  />
+                ))}
+              </div>
           </TabsContent>
         </Tabs>
       </DialogContent>

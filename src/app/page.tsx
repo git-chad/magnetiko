@@ -124,7 +124,7 @@ export default function EditorPage() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-bg)]">
+      <div className="relative z-10 flex h-screen flex-col overflow-hidden bg-transparent">
         <a
           href="#editor-canvas-main"
           className="sr-only absolute left-2 top-2 z-[120] rounded-xs bg-[var(--color-bg-raised)] px-xs py-3xs text-caption text-[var(--color-fg-primary)] shadow-mid focus:not-sr-only"
@@ -145,7 +145,7 @@ export default function EditorPage() {
             ref={leftRef}
             style={{ width: LEFT_W }}
             className={[
-              "shrink-0 overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-bg-raised)]",
+              "shrink-0 overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-bg-raised)]/78 backdrop-blur-xl",
               // Mobile: fixed overlay starting off-screen
               "max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:top-12 max-lg:z-50 max-lg:shadow-mid",
               "max-lg:translate-x-[-280px]", // initial off-screen on mobile (GSAP takes over)
@@ -160,7 +160,7 @@ export default function EditorPage() {
           <main
             id="editor-canvas-main"
             tabIndex={-1}
-            className="relative min-w-0 flex-1 overflow-hidden"
+            className="relative min-w-0 flex-1 overflow-hidden bg-transparent"
           >
             <Canvas className="absolute inset-0 size-full" />
           </main>
@@ -170,7 +170,7 @@ export default function EditorPage() {
             ref={rightRef}
             style={{ width: RIGHT_W }}
             className={[
-              "shrink-0 overflow-hidden border-l border-[var(--color-border)] bg-[var(--color-bg-raised)]",
+              "shrink-0 overflow-hidden border-l border-[var(--color-border)] bg-[var(--color-bg-raised)]/78 backdrop-blur-xl",
               "max-lg:fixed max-lg:bottom-0 max-lg:right-0 max-lg:top-12 max-lg:z-50 max-lg:shadow-mid",
               "max-lg:translate-x-[320px]",
             ].join(" ")}

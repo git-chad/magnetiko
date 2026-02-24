@@ -70,19 +70,19 @@ const Slider = React.forwardRef<
         onKeyDown={handleKeyDown}
         {...props}
       >
-        <SliderPrimitive.Track className="relative h-[3px] w-full grow overflow-hidden rounded-full bg-primary-200 dark:bg-primary-700">
+        <SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-primary-100/80 dark:bg-primary-700/80">
           <SliderPrimitive.Range className="absolute h-full bg-accent" />
         </SliderPrimitive.Track>
         {currentValue.map((_, i) => (
           <SliderPrimitive.Thumb
             key={i}
             className={cn(
-              "block size-[14px] rounded-full bg-white shadow-mid",
-              "border border-primary-200 dark:border-primary-600",
-              "transition-colors duration-micro ease-micro",
+              "block size-4 rounded-full bg-white shadow-mid",
+              "border border-white/60 dark:border-primary-400/40",
+              "transition-[color,box-shadow,transform] duration-base ease-micro",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]",
               "disabled:pointer-events-none disabled:opacity-40",
-              "hover:bg-primary-50",
+              "hover:scale-105",
             )}
           />
         ))}

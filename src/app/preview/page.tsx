@@ -697,7 +697,7 @@ export default function PreviewPage() {
   const [demoParams, setDemoParams] = React.useState<import("@/types").ShaderParam[]>([
     { key: "cellSize",  label: "Cell Size",        type: "float",  value: 8,      min: 4,  max: 64,  step: 1,    description: "Size of each pixel cell in screen pixels" },
     { key: "invert",    label: "Invert",            type: "bool",   value: false },
-    { key: "color",     label: "Tint",              type: "color",  value: "#64643a" },
+    { key: "color",     label: "Tint",              type: "color",  value: "#ff6a1f" },
     { key: "shape",     label: "Shape",             type: "enum",   value: "circle",
       options: [{ label: "Square", value: "square" }, { label: "Circle", value: "circle" }, { label: "Diamond", value: "diamond" }] },
     { key: "focusPoint", label: "Focus Point",      type: "vec2",   value: [0.5, 0.5], min: 0, max: 1, step: 0.01, description: "Normalised position of the focus centre" },

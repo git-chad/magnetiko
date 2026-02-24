@@ -658,7 +658,7 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           key: "color",
           label: "Color",
           type: "color",
-          value: "#64643a",
+          value: "#ff6a1f",
           group: "Appearance",
         },
         {

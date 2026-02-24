@@ -36,7 +36,9 @@ function LayerIcon({ layer }: { layer: Layer }) {
   if (layer.kind === "image")
     return <ImageIcon size={14} className="text-[var(--color-fg-tertiary)]" />;
   if (layer.kind === "video")
-    return <VideoCamera size={14} className="text-[var(--color-fg-tertiary)]" />;
+    return (
+      <VideoCamera size={14} className="text-[var(--color-fg-tertiary)]" />
+    );
   if (layer.kind === "webcam")
     return <Camera size={14} className="text-[var(--color-fg-tertiary)]" />;
   return <Shapes size={14} className="text-[var(--color-fg-tertiary)]" />;
@@ -48,7 +50,10 @@ interface LayerItemProps {
   layer: Layer;
   tabIndex?: number;
   itemRef?: (node: HTMLDivElement | null) => void;
-  onRowKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>, layer: Layer) => void;
+  onRowKeyDown?: (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    layer: Layer,
+  ) => void;
 }
 
 export function LayerItem({
@@ -57,7 +62,14 @@ export function LayerItem({
   itemRef,
   onRowKeyDown,
 }: LayerItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: layer.id,
   });
 
@@ -65,20 +77,20 @@ export function LayerItem({
   const [draftName, setDraftName] = React.useState(layer.name);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  const selectedLayerId  = useLayerStore((s) => s.selectedLayerId);
-  const layers           = useLayerStore((s) => s.layers);
-  const selectLayer      = useLayerStore((s) => s.selectLayer);
+  const selectedLayerId = useLayerStore((s) => s.selectedLayerId);
+  const layers = useLayerStore((s) => s.layers);
+  const selectLayer = useLayerStore((s) => s.selectLayer);
   const setLayerVisibility = useLayerStore((s) => s.setLayerVisibility);
-  const setLayerLocked   = useLayerStore((s) => s.setLayerLocked);
-  const removeLayer      = useLayerStore((s) => s.removeLayer);
-  const duplicateLayer   = useLayerStore((s) => s.duplicateLayer);
-  const renameLayer      = useLayerStore((s) => s.renameLayer);
-  const resetParams      = useLayerStore((s) => s.resetParams);
-  const retryLayerMedia  = useLayerStore((s) => s.retryLayerMedia);
-  const reorderLayers    = useLayerStore((s) => s.reorderLayers);
+  const setLayerLocked = useLayerStore((s) => s.setLayerLocked);
+  const removeLayer = useLayerStore((s) => s.removeLayer);
+  const duplicateLayer = useLayerStore((s) => s.duplicateLayer);
+  const renameLayer = useLayerStore((s) => s.renameLayer);
+  const resetParams = useLayerStore((s) => s.resetParams);
+  const retryLayerMedia = useLayerStore((s) => s.retryLayerMedia);
+  const reorderLayers = useLayerStore((s) => s.reorderLayers);
 
   const isSelected = selectedLayerId === layer.id;
-  const myIndex    = layers.findIndex((l) => l.id === layer.id);
+  const myIndex = layers.findIndex((l) => l.id === layer.id);
 
   const style = { transform: CSS.Transform.toString(transform), transition };
   const setCombinedRef = React.useCallback(
@@ -105,7 +117,10 @@ export function LayerItem({
 
   function handleRenameKey(e: React.KeyboardEvent) {
     if (e.key === "Enter") commitRename();
-    if (e.key === "Escape") { setDraftName(layer.name); setIsRenaming(false); }
+    if (e.key === "Escape") {
+      setDraftName(layer.name);
+      setIsRenaming(false);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -120,11 +135,11 @@ export function LayerItem({
       aria-selected={isSelected}
       tabIndex={tabIndex}
       className={cn(
-        "group relative flex items-center gap-2xs py-[6px] pl-[6px] pr-xs",
-        "cursor-pointer select-none border-l-2 transition-colors",
+        "group relative mx-3xs my-[2px] flex items-center gap-2xs rounded-sm py-[6px] pl-[6px] pr-xs",
+        "cursor-pointer select-none border border-transparent transition-colors",
         isSelected
-          ? "border-l-[var(--color-accent)] bg-[var(--color-bg-subtle)]"
-          : "border-l-transparent hover:bg-[var(--color-bg-subtle)]",
+          ? "border-[color:rgba(255,106,31,0.35)] bg-[var(--color-selected-bg)]"
+          : "hover:border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)]",
         isDragging && "opacity-50 shadow-mid",
         !isDragging && !layer.visible && "opacity-40",
       )}
@@ -173,7 +188,10 @@ export function LayerItem({
         ) : (
           <span
             className="truncate text-xs font-medium text-[var(--color-fg-primary)]"
-            onDoubleClick={(e) => { e.stopPropagation(); startRename(); }}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              startRename();
+            }}
           >
             {layer.name}
           </span>
@@ -183,31 +201,28 @@ export function LayerItem({
             {layer.shaderType.replace(/-/g, " ")}
           </span>
         )}
-        {(layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam") && layer.mediaStatus === "loading" && (
-          <span className="truncate text-[10px] leading-none text-[var(--color-fg-disabled)]">
-            loading media…
-          </span>
-        )}
-        {(layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam") && layer.mediaStatus === "error" && (
-          <span className="truncate text-[10px] leading-none text-[var(--color-error)]">
-            {layer.mediaError ?? "media failed"}
-          </span>
-        )}
+        {(layer.kind === "image" ||
+          layer.kind === "video" ||
+          layer.kind === "webcam") &&
+          layer.mediaStatus === "loading" && (
+            <span className="truncate text-[10px] leading-none text-[var(--color-fg-disabled)]">
+              loading media…
+            </span>
+          )}
+        {(layer.kind === "image" ||
+          layer.kind === "video" ||
+          layer.kind === "webcam") &&
+          layer.mediaStatus === "error" && (
+            <span className="truncate text-[10px] leading-none text-[var(--color-error)]">
+              {layer.mediaError ?? "media failed"}
+            </span>
+          )}
         {layer.kind === "shader" && layer.runtimeError && (
           <span className="truncate text-[10px] leading-none text-[var(--color-error)]">
             shader disabled
           </span>
         )}
       </div>
-
-      {/* Visibility toggle */}
-      <button
-        className="shrink-0 text-[var(--color-fg-tertiary)] transition-colors hover:text-[var(--color-fg-primary)]"
-        aria-label={layer.visible ? "Hide layer" : "Show layer"}
-        onClick={(e) => { e.stopPropagation(); setLayerVisibility(layer.id, !layer.visible); }}
-      >
-        {layer.visible ? <Eye size={13} /> : <EyeSlash size={13} />}
-      </button>
 
       {/* Lock (always visible when locked; hover-only when unlocked) */}
       <button
@@ -218,7 +233,10 @@ export function LayerItem({
             : "text-[var(--color-fg-disabled)] opacity-0 hover:text-[var(--color-fg-tertiary)] group-hover:opacity-100",
         )}
         aria-label={layer.locked ? "Unlock layer" : "Lock layer"}
-        onClick={(e) => { e.stopPropagation(); setLayerLocked(layer.id, !layer.locked); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setLayerLocked(layer.id, !layer.locked);
+        }}
       >
         {layer.locked ? <LockSimple size={13} /> : <LockSimpleOpen size={13} />}
       </button>
@@ -248,7 +266,9 @@ export function LayerItem({
               Reset parameters
             </DropdownMenuItem>
           )}
-          {(layer.kind === "image" || layer.kind === "video" || layer.kind === "webcam") &&
+          {(layer.kind === "image" ||
+            layer.kind === "video" ||
+            layer.kind === "webcam") &&
             layer.mediaStatus === "error" && (
               <DropdownMenuItem onSelect={() => retryLayerMedia(layer.id)}>
                 <ArrowClockwise size={13} />
@@ -261,7 +281,9 @@ export function LayerItem({
             </DropdownMenuItem>
           )}
           {myIndex < layers.length - 1 && (
-            <DropdownMenuItem onSelect={() => reorderLayers(myIndex, layers.length - 1)}>
+            <DropdownMenuItem
+              onSelect={() => reorderLayers(myIndex, layers.length - 1)}
+            >
               Move to bottom
             </DropdownMenuItem>
           )}
@@ -272,6 +294,18 @@ export function LayerItem({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Visibility toggle */}
+      <button
+        className="shrink-0 text-[var(--color-fg-tertiary)] transition-colors hover:text-[var(--color-fg-primary)]"
+        aria-label={layer.visible ? "Hide layer" : "Show layer"}
+        onClick={(e) => {
+          e.stopPropagation();
+          setLayerVisibility(layer.id, !layer.visible);
+        }}
+      >
+        {layer.visible ? <Eye size={13} /> : <EyeSlash size={13} />}
+      </button>
     </div>
   );
 }

@@ -152,7 +152,7 @@ export function PropertiesPanel() {
   return (
     <div className="flex h-full flex-col">
       {/* Fixed header */}
-      <div className="flex h-11 shrink-0 items-center gap-3xs border-b border-[var(--color-border)] px-xs">
+      <div className="flex h-11 shrink-0 items-center gap-3xs border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-xs">
         <Sliders size={14} className="text-[var(--color-fg-tertiary)]" />
         <Text variant="caption" color="secondary" className="font-medium">
           Properties
@@ -231,7 +231,7 @@ function _LayerHeader({ layer }: { layer: Layer }) {
   }
 
   return (
-    <div className="flex items-center gap-xs border-b border-[var(--color-border)] px-xs py-xs">
+    <div className="flex items-center gap-xs border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-xs py-xs">
       {/* Kind icon */}
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xs border border-[var(--color-border)] bg-[var(--color-bg)]">
         {layer.kind === "image"   ? <ImageIcon   size={14} className="text-[var(--color-fg-tertiary)]" /> :

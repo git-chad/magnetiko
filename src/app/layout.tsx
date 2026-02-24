@@ -1,15 +1,8 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { ToastContextProvider, Toaster } from "@/components/ui/toast";
 import { ThemeProvider, COOKIE_NAME } from "@/components/ui/theme-provider";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Magnetiko — Shader Studio",
@@ -27,7 +20,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={theme} suppressHydrationWarning>
-      <body className={`${inter.variable} antialiased`}>
+      <body className="antialiased">
         <ThemeProvider defaultTheme={theme}>
           <ToastContextProvider>
             {children}

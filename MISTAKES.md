@@ -43,6 +43,7 @@ Prefix titles with severity:
 - ALWAYS account for WebGPU readback row padding (`bytesPerRow` aligned to 256) before writing to `ImageData`.
 - NEVER derive frame aspect from selected/top media layers implicitly — in auto mode, anchor to a stable base source and expose explicit frame-aspect modes.
 - ALWAYS design right-sidebar action rows to wrap on narrow widths; never assume inline labels plus multiple buttons will fit.
+- NEVER animate modal tab-content height unless measurements are fully stable; prefer fixed min-height when tab panes differ significantly.
 
 <!-- 
 Example of what this section will look like:
@@ -160,6 +161,14 @@ Each iteration builds a new static DAG node via `select`/`max` — no mutation, 
 **Why it happened:** Actions shared a single inline row with the current aspect label and had no wrapping behavior.
 **The fix:** Split the actions into a dedicated `flex-wrap` row under the current value line, so controls flow correctly at constrained widths.
 **Rule:** ALWAYS design right-sidebar action rows to wrap on narrow widths; never assume inline labels plus multiple buttons will fit.
+
+### 🟡 [8.2] Preset browser tab-height tween caused content crunching
+**Date:** 2026-02-24
+**Task:** Smooth tab transitions inside `PresetBrowser` modal
+**What went wrong:** GSAP height animation produced visible collapse/compression during tab changes ("jumping/shrinking" frames).
+**Why it happened:** Tab content measurement was not deterministic at switch time; animating container height between unstable intermediate values amplified the visual artifact.
+**The fix:** Removed the tab-height animation code and set a stable modal minimum height (`DialogContent min-h-[660px]`) to keep transitions visually consistent.
+**Rule:** NEVER animate modal tab-content height unless measurements are stable and deterministic; use fixed min-height when pane sizes vary a lot.
 
 <!--
 ### 🟡 [2.1] WebGPURenderer failed to initialize on Firefox
