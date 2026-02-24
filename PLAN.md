@@ -746,10 +746,10 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 - [x] Auto-play, loop, muted by default (handled in `createVideoTexture` + `MediaPass`)
 - [x] `VideoTexture` updates every frame automatically (`needsUpdate = true` in `MediaPass.render()`)
 - [x] Handle video end: loops (set on the HTMLVideoElement)
-- [ ] Play/pause toggle in toolbar or properties panel
-- [ ] Seek bar for scrubbing (when paused)
+- [!] Play/pause toggle in toolbar or properties panel _(not required for current product scope)_
+- [!] Seek bar for scrubbing (when paused) _(not required for current product scope)_
 
-**Done when:** Video plays through the shader pipeline in real-time. Pause/play works. Scrubbing updates the canvas.
+**Done when:** Video plays through the shader pipeline in real-time with stable render/export quality.
 
 ### 6.4 Frame Aspect Management
 
@@ -798,6 +798,15 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 - [x] Each effect composites with the underlying filtered texture
 
 **Done when:** Active interactive effects (trail, repel, attract) feel responsive (<16ms latency from pointer move to visual update). Effects combine with other shader layers correctly.
+
+### 7.4 Mouse Trail Production Port
+
+- [ ] Port the fluid mouse trail implementation as a dedicated production pass (not preview-only behavior)
+- [ ] Match reference look and controls: radius, curl strength, pressure iterations, velocity/density/pressure dissipation
+- [ ] Expose trail texture as a reusable pipeline input for other shader layers
+- [ ] Add routing modes: use trail as color source, mask, and displacement driver
+
+**Done when:** Mouse trail visuals match the reference quality and can be used as a stable texture source in other shaders without flicker/mirroring.
 
 ---
 
@@ -921,6 +930,13 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 These are not in the initial scope but designed to be easy to add given the architecture.
 
 - [x] **Layer groups**: nest layers in folders, collapsed/expanded
+- [~] **Layer groups reliability pass**: fix grouping/ungrouping edge cases, assignment UX, and reorder behavior so grouping always works predictably
+  - [x] Group assignment from layer context menu (`LayerItem` submenu)
+  - [x] Group action to add currently selected layer from group row options
+  - [x] Reorder behavior updated so grouped members move as a block in the layer stack
+  - [x] Group assignment keeps grouped members contiguous (no scattered group members)
+  - [ ] Add undo/redo parity for group metadata and group operations
+  - [ ] Add explicit group-level render controls (visibility/opacity/blend as one compositing unit)
 - [~] **Masking**: draw masks per layer (brush tool on a mask texture) _(mask/filter compositing path fixed; brush painting still pending)_
 - [ ] **LUT/Color grading layer**: upload a LUT file, apply as a filter
 - [x] **Noise generators**: Perlin, Simplex, Voronoi as standalone shader layers
@@ -929,9 +945,35 @@ These are not in the initial scope but designed to be easy to add given the arch
 - [x] **Warp/Distortion layer**: UV displacement maps, swirl, bulge, wave
 - [x] **Mesh gradient layer**: configurable gradient with control points
 - [x] **Guilloche patterns**: parametric engraving-style patterns _(needs visual revisit)_
+- [ ] **3D quality tools**: environment rotation/exposure, background controls, shadow softness, camera presets, transform gizmo
 - [ ] **Timeline**: keyframe animation of any param over time
 - [ ] **Plugin system**: allow users to write custom TSL shaders
 - [ ] **AI assistance**: describe a shader effect in natural language, generate params
+
+### 10.1 Creative Shader Expansion Pack
+
+- [ ] **Chromatic Aberration / Prism Split**: radial or directional RGB separation with lens controls
+- [ ] **Lens Distortion**: barrel/pincushion distortion with vignette and focus center
+- [ ] **CRT / Phosphor**: scanlines, bloom bleed, subpixel mask, slight warp, temporal noise
+- [ ] **Datamosh / Temporal Smear**: motion-vector-like frame carry with decay and glitch bursts
+- [ ] **Edge Ink / Toon Outline**: Sobel edge + quantized tone bands for graphic styles
+- [ ] **Kuwahara / Oil Paint**: painterly abstraction with tunable brush radius
+- [ ] **Bilateral / Smart Blur**: edge-preserving blur for stylized denoise looks
+- [ ] **Kaleidoscope / Polar Mirror**: segment count + rotational phase + radial offsets
+- [ ] **Pixel Sort / Block Glitch**: threshold-based line sorting and block displacement
+- [ ] **Feedback Echo**: previous-frame feedback for recursive trails and analog smear
+- [ ] **Truchet / Moire Pattern Layer**: procedural tiles and interference patterns
+
+### 10.2 Signature Combo Recipes (Preset Candidates)
+
+- [ ] **Neon Silk**: Mesh Gradient → Grain → Bloom → Mouse Trail (screen blend)
+- [ ] **Engraved Currency**: Guilloche → Halftone (line/diamond) → Progressive Blur (radial)
+- [ ] **Dream Camcorder**: Lens Distortion → Chromatic Aberration → Bloom → Grain → Warp Wave
+- [ ] **Digital Ruins**: Pixel Sort → Datamosh/Temporal Smear → Dithering (blue-noise) → ASCII (light)
+- [ ] **Hologram Poster**: Edge Ink → Noise Generator (animated) → Interactivity Repel/Attract → Bloom
+- [ ] **Liquid Chrome**: 3D Shapes/Model → Environment blur controls → Warp Distortion (bulge) → Interactivity Trail displacement
+- [ ] **Paper Print Lab**: Halftone (duotone) → Dithering (ordered 4x4) → Grain (monochrome)
+- [ ] **Kinetic Mosaic**: Masonry (cursor push) → Interactivity Trail mask routing → Bloom highlights
 
 ---
 
