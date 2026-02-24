@@ -50,6 +50,7 @@ export type ShaderType =
   | "mesh-gradient"
   | "guilloche"
   | "sdf-shapes"
+  | "3d-shapes"
   | "grain"
   | "interactivity"
   | "masonry";

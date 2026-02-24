@@ -81,6 +81,7 @@ const SHADER_SECTIONS: Array<{
       { type: "warp-distortion", label: "Warp Distortion" },
       { type: "mesh-gradient", label: "Mesh Gradient" },
       { type: "guilloche", label: "Guilloche" },
+      { type: "3d-shapes", label: "3D Shapes" },
     ],
   },
 ];
