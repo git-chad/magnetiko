@@ -14,11 +14,25 @@ import { useMouseInteraction } from "@/hooks/useMouseInteraction";
 import { useToast } from "@/components/ui/toast";
 import type { Layer } from "@/types";
 
+type VideoExportPhase = "recording" | "encoding";
+type ExportVideoOptions = {
+  durationSec: number;
+  fps: number;
+  mimeType: string;
+  bitrate: number;
+  onProgress?: (progress: number, phase: VideoExportPhase) => void;
+};
+type ExportVideoResult = {
+  blob: Blob;
+  mimeType: string;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 declare global {
   interface Window {
     __magnetikoExportImage?: (options?: ExportImageOptions) => Promise<Blob>;
     __magnetikoExportPng?: () => Promise<Blob>;
+    __magnetikoExportVideo?: (options: ExportVideoOptions) => Promise<ExportVideoResult>;
   }
 }
 
@@ -130,6 +144,18 @@ function loadVideoAspect(url: string): Promise<{ width: number; height: number }
       });
     video.onerror = () => reject(new Error(`Failed to load video metadata for ${url}`));
     video.src = url;
+  });
+}
+
+function waitMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(0, ms));
+  });
+}
+
+function waitNextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
   });
 }
 
@@ -450,9 +476,100 @@ export function Canvas({ className }: CanvasProps) {
       const nowSec = performance.now() / 1000;
       return pipeline.exportPngBlob(nowSec, 1 / 60);
     };
+    window.__magnetikoExportVideo = async (options) => {
+      const pipeline = pipelineRef.current;
+      const canvas = canvasRef.current;
+      if (!pipeline || !canvas) throw new Error("Renderer pipeline is not ready.");
+      if (typeof MediaRecorder === "undefined") {
+        throw new Error("Video recording is not supported in this browser.");
+      }
+      if (typeof canvas.captureStream !== "function") {
+        throw new Error("Canvas capture is not supported in this browser.");
+      }
+
+      const durationSec = Math.max(1, Math.min(20, options.durationSec));
+      const fps = Math.max(1, Math.round(options.fps));
+      const frameCount = Math.max(1, Math.round(durationSec * fps));
+      const frameIntervalMs = 1000 / fps;
+      const deltaSec = 1 / fps;
+      const bitrate = Math.max(1_000_000, Math.round(options.bitrate));
+
+      let stream = canvas.captureStream(0);
+      let track = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+      const hasManualFrameRequest = Boolean(track && typeof track.requestFrame === "function");
+
+      if (!hasManualFrameRequest) {
+        stream.getTracks().forEach((streamTrack) => streamTrack.stop());
+        stream = canvas.captureStream(fps);
+        track = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+      }
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: options.mimeType,
+        videoBitsPerSecond: bitrate,
+      });
+      const chunks: BlobPart[] = [];
+      const blobPromise = new Promise<Blob>((resolve, reject) => {
+        recorder.ondataavailable = (event: BlobEvent) => {
+          if (event.data.size > 0) chunks.push(event.data);
+        };
+        recorder.onerror = () => {
+          reject(new Error("Video export failed during recording."));
+        };
+        recorder.onstop = () => {
+          if (chunks.length === 0) {
+            reject(new Error("No video frames were captured."));
+            return;
+          }
+          resolve(new Blob(chunks, { type: options.mimeType }));
+        };
+      });
+
+      pipeline.beginExportSession();
+
+      try {
+        const startTimeSec = performance.now() / 1000;
+        let nextFrameAt = performance.now();
+
+        recorder.start(1000);
+        options.onProgress?.(0, "recording");
+
+        for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+          const timeSec = startTimeSec + frameIndex * deltaSec;
+          pipeline.renderExportFrame(timeSec, deltaSec);
+
+          if (track && typeof track.requestFrame === "function") {
+            track.requestFrame();
+          }
+
+          options.onProgress?.((frameIndex + 1) / frameCount, "recording");
+          nextFrameAt += frameIntervalMs;
+
+          if (frameIndex < frameCount - 1) {
+            const waitForMs = nextFrameAt - performance.now();
+            if (waitForMs > 1) {
+              await waitMs(waitForMs);
+            } else {
+              await waitNextFrame();
+            }
+          }
+        }
+
+        options.onProgress?.(0.99, "encoding");
+        if (recorder.state !== "inactive") recorder.stop();
+
+        const blob = await blobPromise;
+        return { blob, mimeType: options.mimeType };
+      } finally {
+        if (recorder.state !== "inactive") recorder.stop();
+        stream.getTracks().forEach((streamTrack) => streamTrack.stop());
+        pipeline.endExportSession();
+      }
+    };
     return () => {
       if (window.__magnetikoExportImage) delete window.__magnetikoExportImage;
       if (window.__magnetikoExportPng) delete window.__magnetikoExportPng;
+      if (window.__magnetikoExportVideo) delete window.__magnetikoExportVideo;
     };
   }, [status]);
 

@@ -44,6 +44,7 @@ Prefix titles with severity:
 - NEVER derive frame aspect from selected/top media layers implicitly — in auto mode, anchor to a stable base source and expose explicit frame-aspect modes.
 - ALWAYS design right-sidebar action rows to wrap on narrow widths; never assume inline labels plus multiple buttons will fit.
 - NEVER animate modal tab-content height unless measurements are fully stable; prefer fixed min-height when tab panes differ significantly.
+- NEVER drive video export completion by wall-clock timeout on live canvas capture; always step the render pipeline frame-by-frame for deterministic pacing.
 
 <!-- 
 Example of what this section will look like:
@@ -169,6 +170,14 @@ Each iteration builds a new static DAG node via `select`/`max` — no mutation, 
 **Why it happened:** Tab content measurement was not deterministic at switch time; animating container height between unstable intermediate values amplified the visual artifact.
 **The fix:** Removed the tab-height animation code and set a stable modal minimum height (`DialogContent min-h-[660px]`) to keep transitions visually consistent.
 **Rule:** NEVER animate modal tab-content height unless measurements are stable and deterministic; use fixed min-height when pane sizes vary a lot.
+
+### 🔴 [9.2] Video export pacing tied to wall-clock capture caused dropped frames/flicker
+**Date:** 2026-02-24
+**Task:** Phase 9.2 — WebM/MP4 export quality and frame stability
+**What went wrong:** Exported videos showed lag, missing frames, and temporal flicker despite looking acceptable in preview.
+**Why it happened:** Recording relied on `canvas.captureStream(fps)` + `MediaRecorder` with a timeout-based stop condition. Under load, preview render cadence and recorder sampling cadence drifted, so output frame pacing became non-deterministic.
+**The fix:** Added deterministic export flow: pipeline enters export session, renders exact fixed-timestep frames (`delta = 1/fps`) via `renderExportFrame()`, requests capture per frame when supported (`CanvasCaptureMediaStreamTrack.requestFrame()`), then stops after exact frame count.
+**Rule:** NEVER drive video export completion by wall-clock timeout on live canvas capture; always step the render pipeline frame-by-frame for deterministic pacing.
 
 <!--
 ### 🟡 [2.1] WebGPURenderer failed to initialize on Firefox

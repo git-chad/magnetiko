@@ -902,8 +902,9 @@ This ensures halftone dots, ASCII characters, and dithering patterns reflect the
 - [x] Use `MediaRecorder` API on the canvas stream
 - [x] Format options: WebM, MP4 (if supported), GIF (via library)
 - [x] Progress bar during recording/encoding
+- [x] Deterministic frame stepping for video export (pipeline-driven capture; fixed timestep per frame)
 
-**Done when:** Can export a 5-second loop of an animated shader as WebM. Quality is good.
+**Done when:** Can export a 5-second loop of an animated shader as WebM with stable pacing (no dropped-frame flicker/lag).
 
 ### 9.3 Preset Export/Import
 

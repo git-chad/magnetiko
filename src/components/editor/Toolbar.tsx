@@ -50,6 +50,13 @@ declare global {
   interface Window {
     __magnetikoExportImage?: (options?: ExportImageOptions) => Promise<Blob>;
     __magnetikoExportPng?: () => Promise<Blob>;
+    __magnetikoExportVideo?: (options: {
+      durationSec: number;
+      fps: number;
+      mimeType: string;
+      bitrate: number;
+      onProgress?: (progress: number, phase: "recording" | "encoding") => void;
+    }) => Promise<{ blob: Blob; mimeType: string }>;
   }
 }
 
@@ -610,16 +617,8 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
       return;
     }
 
-    if (videoFormat !== "gif" && typeof canvas.captureStream !== "function") {
-      toast({
-        variant: "error",
-        title: "Export failed",
-        description: "Canvas capture is not supported in this browser.",
-      });
-      return;
-    }
-
     const durationMs = Math.round(_clampNumber(videoDurationSec, 1, 20, 5) * 1000);
+    const durationSec = durationMs / 1000;
     const fps = _clampPositiveInt(videoFps, 30);
     const frameCount = Math.max(1, Math.round((durationMs / 1000) * fps));
     const bitrate = Math.round(_clampNumber(videoBitrateMbps, 2, 24, 10) * 1_000_000);
@@ -628,8 +627,6 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
     setIsExporting(true);
     setVideoExportPhase("recording");
     setVideoExportProgress(0);
-    let stream: MediaStream | null = null;
-    let progressIntervalId: number | null = null;
     try {
       let blob: Blob;
       let extension: "webm" | "mp4" | "gif";
@@ -640,10 +637,6 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
           setVideoExportProgress(Math.min(progress, 0.98));
         });
       } else {
-        if (typeof MediaRecorder === "undefined") {
-          throw new Error("Video recording is not supported in this browser.");
-        }
-
         const mimeType = _pickMediaRecorderMimeType(videoFormat);
         if (!mimeType) {
           throw new Error(
@@ -654,52 +647,61 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
         }
 
         extension = videoFormat;
-        const capturedStream = canvas.captureStream(fps);
-        stream = capturedStream;
-        const recorder = new MediaRecorder(capturedStream, {
-          mimeType,
-          videoBitsPerSecond: bitrate,
-        });
+        const exportVideo = window.__magnetikoExportVideo;
+        if (exportVideo) {
+          const result = await exportVideo({
+            durationSec,
+            fps,
+            mimeType,
+            bitrate,
+            onProgress: (progress, phase) => {
+              setVideoExportPhase(phase);
+              setVideoExportProgress(Math.min(Math.max(progress, 0), 0.999));
+            },
+          });
+          blob = result.blob;
+        } else {
+          if (typeof canvas.captureStream !== "function") {
+            throw new Error("Canvas capture is not supported in this browser.");
+          }
+          if (typeof MediaRecorder === "undefined") {
+            throw new Error("Video recording is not supported in this browser.");
+          }
 
-        const chunks: BlobPart[] = [];
-        blob = await new Promise<Blob>((resolve, reject) => {
-          let timeoutId: number | null = null;
-          const startedAt = performance.now();
+          const capturedStream = canvas.captureStream(fps);
+          const recorder = new MediaRecorder(capturedStream, {
+            mimeType,
+            videoBitsPerSecond: bitrate,
+          });
 
-          progressIntervalId = window.setInterval(() => {
-            const elapsed = performance.now() - startedAt;
-            const progress = Math.min(elapsed / durationMs, 0.97);
-            setVideoExportProgress(progress);
-          }, 100);
+          const chunks: BlobPart[] = [];
+          blob = await new Promise<Blob>((resolve, reject) => {
+            let timeoutId: number | null = null;
+            recorder.ondataavailable = (event: BlobEvent) => {
+              if (event.data.size > 0) chunks.push(event.data);
+            };
+            recorder.onerror = () => {
+              reject(new Error(`Failed to record ${videoFormat.toUpperCase()}.`));
+            };
+            recorder.onstop = () => {
+              if (timeoutId !== null) window.clearTimeout(timeoutId);
+              const tracks = capturedStream.getTracks();
+              for (const track of tracks) track.stop();
+              setVideoExportPhase("encoding");
+              setVideoExportProgress(0.99);
+              if (chunks.length === 0) {
+                reject(new Error("No video frames were captured."));
+                return;
+              }
+              resolve(new Blob(chunks, { type: mimeType }));
+            };
 
-          recorder.ondataavailable = (event: BlobEvent) => {
-            if (event.data.size > 0) chunks.push(event.data);
-          };
-          recorder.onerror = () => {
-            reject(new Error(`Failed to record ${videoFormat.toUpperCase()}.`));
-          };
-          recorder.onstop = () => {
-            if (timeoutId !== null) window.clearTimeout(timeoutId);
-            if (progressIntervalId !== null) {
-              window.clearInterval(progressIntervalId);
-              progressIntervalId = null;
-            }
-            const tracks = capturedStream.getTracks();
-            for (const track of tracks) track.stop();
-            setVideoExportPhase("encoding");
-            setVideoExportProgress(0.99);
-            if (chunks.length === 0) {
-              reject(new Error("No video frames were captured."));
-              return;
-            }
-            resolve(new Blob(chunks, { type: mimeType }));
-          };
-
-          recorder.start(250);
-          timeoutId = window.setTimeout(() => {
-            if (recorder.state !== "inactive") recorder.stop();
-          }, durationMs);
-        });
+            recorder.start(250);
+            timeoutId = window.setTimeout(() => {
+              if (recorder.state !== "inactive") recorder.stop();
+            }, durationMs);
+          });
+        }
       }
 
       const link = document.createElement("a");
@@ -726,13 +728,6 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
         description: err instanceof Error ? err.message : "Could not export video.",
       });
     } finally {
-      if (progressIntervalId !== null) {
-        window.clearInterval(progressIntervalId);
-      }
-      if (stream) {
-        const tracks = stream.getTracks();
-        for (const track of tracks) track.stop();
-      }
       setIsExporting(false);
       setVideoExportPhase("idle");
       setVideoExportProgress(0);
@@ -1096,7 +1091,7 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="image">Image</SelectItem>
-                <SelectItem value="video">Video (WebM)</SelectItem>
+                <SelectItem value="video">Video</SelectItem>
                 <SelectItem value="preset">Preset (JSON)</SelectItem>
               </SelectContent>
             </Select>

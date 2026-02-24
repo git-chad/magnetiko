@@ -584,6 +584,40 @@ export class PipelineManager {
   }
 
   /**
+   * Puts the pipeline in export mode. While enabled, the normal animation-loop
+   * `render()` is skipped so export can drive deterministic frame steps.
+   */
+  beginExportSession(): void {
+    this._isExporting = true;
+  }
+
+  /**
+   * Leaves export mode and marks the pipeline dirty so the next live frame is
+   * rendered immediately in the preview.
+   */
+  endExportSession(): void {
+    this._isExporting = false;
+    this._dirty = true;
+  }
+
+  /**
+   * Force-renders one frame while in export mode, bypassing dirty/continuous
+   * gating used by the interactive preview loop.
+   */
+  renderExportFrame(time: number, delta: number): void {
+    const activePasses = this._passes.filter((p) => p.enabled);
+    try {
+      this._renderFrame(activePasses, time, delta, null);
+    } catch (err) {
+      const error = toError(err);
+      if (isLikelyOutOfMemoryError(error)) {
+        this._callbacks.onOutOfMemory?.(error);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Render the current pipeline to an offscreen target and return a PNG blob.
    * This avoids `canvas.toDataURL()` on WebGPU swapchains, which can return
    * empty/cleared frames in some browsers.
