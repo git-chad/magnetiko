@@ -1163,23 +1163,12 @@ export function Canvas({ className }: CanvasProps) {
         );
         return;
       }
-      const groupsById = new Map(groups.map((group) => [group.id, group]));
       const maskSize = getMaskRenderSize();
       pruneMaskResources(layers);
 
       // All layers — both media and shader — become passes in the pipeline,
       // ordered bottom → top so the render chain composites correctly.
       const passes: PipelineLayer[] = [...layers].reverse().map((l) => ({
-        groupId:    GROUPS_ENABLED ? l.groupId : undefined,
-        groupVisible: GROUPS_ENABLED
-          ? (l.groupId ? (groupsById.get(l.groupId)?.visible ?? true) : true)
-          : true,
-        groupOpacity: GROUPS_ENABLED
-          ? (l.groupId ? (groupsById.get(l.groupId)?.opacity ?? 1) : 1)
-          : 1,
-        groupBlendMode: GROUPS_ENABLED
-          ? (l.groupId ? (groupsById.get(l.groupId)?.blendMode ?? "normal") : "normal")
-          : "normal",
         id:         l.id,
         kind:       l.kind,
         visible:    l.visible,
