@@ -69,7 +69,9 @@ const PIPELINE_RT_OPTIONS = {
 
 function toError(value: unknown): Error {
   if (value instanceof Error) return value;
-  return new Error(typeof value === "string" ? value : "Unknown renderer error");
+  return new Error(
+    typeof value === "string" ? value : "Unknown renderer error",
+  );
 }
 
 function toUint8ClampedArray(data: THREE.TypedArray): Uint8ClampedArray {
@@ -125,6 +127,34 @@ function unpackReadbackRgba8(
   return out;
 }
 
+function linearByteToSrgbByte(value: number): number {
+  const linear = Math.max(0, Math.min(255, value)) / 255;
+  const srgb =
+    linear <= 0.0031308 ? linear * 12.92 : 1.055 * linear ** (1 / 2.4) - 0.055;
+  return Math.max(0, Math.min(255, Math.round(srgb * 255)));
+}
+
+function encodeLinearRgbaToSrgbInPlace(rgba: Uint8ClampedArray): void {
+  for (let i = 0; i < rgba.length; i += 4) {
+    rgba[i] = linearByteToSrgbByte(rgba[i]);
+    rgba[i + 1] = linearByteToSrgbByte(rgba[i + 1]);
+    rgba[i + 2] = linearByteToSrgbByte(rgba[i + 2]);
+    rgba[i + 3] = 255;
+  }
+}
+
+function computeViewportScale(
+  width: number,
+  height: number,
+  baseWidth: number,
+  baseHeight: number,
+): number {
+  const sx = width / Math.max(baseWidth, 1);
+  const sy = height / Math.max(baseHeight, 1);
+  const scale = (sx + sy) * 0.5;
+  return Number.isFinite(scale) && scale > 0 ? scale : 1.0;
+}
+
 function isLikelyOutOfMemoryError(error: Error): boolean {
   const msg = error.message.toLowerCase();
   return (
@@ -136,7 +166,10 @@ function isLikelyOutOfMemoryError(error: Error): boolean {
   );
 }
 
-function clampExportDimension(value: number | undefined, fallback: number): number {
+function clampExportDimension(
+  value: number | undefined,
+  fallback: number,
+): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return Math.max(1, Math.min(16_384, Math.round(value)));
 }
@@ -146,7 +179,11 @@ function clampJpegQuality(value: number | undefined): number {
   return Math.max(0.05, Math.min(1, value));
 }
 
-function drawGridOverlay(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+function drawGridOverlay(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+): void {
   const minDimension = Math.max(Math.min(width, height), 1);
   const majorDivisions = 8;
   const majorStepX = width / majorDivisions;
@@ -268,8 +305,16 @@ export class PipelineManager {
     this._baseScene.add(this._baseQuad.mesh);
 
     // Ping-pong RTs
-    this._rtA = sharedRenderTargetPool.acquire(width, height, PIPELINE_RT_OPTIONS);
-    this._rtB = sharedRenderTargetPool.acquire(width, height, PIPELINE_RT_OPTIONS);
+    this._rtA = sharedRenderTargetPool.acquire(
+      width,
+      height,
+      PIPELINE_RT_OPTIONS,
+    );
+    this._rtB = sharedRenderTargetPool.acquire(
+      width,
+      height,
+      PIPELINE_RT_OPTIONS,
+    );
 
     // Blit scene — final RT → screen.
     // Same Y-flip as PassNode: RT textures have V=0=top in WebGPU convention.
@@ -323,8 +368,8 @@ export class PipelineManager {
               : layer.kind === "image" ||
                   layer.kind === "video" ||
                   layer.kind === "webcam"
-              ? new MediaPass(layer.id)
-              : createPassNode(layer.id, layer.shaderType);
+                ? new MediaPass(layer.id)
+                : createPassNode(layer.id, layer.shaderType);
           pass.resize(this._width, this._height);
           this._passMap.set(layer.id, pass);
         } catch (err) {
@@ -558,21 +603,21 @@ export class PipelineManager {
    * dirty/continuous-render gate.
    */
   render(time: number, delta: number): boolean {
-    const renderer = this._renderer;
-
     if (this._isExporting) {
       return false;
     }
 
     const activePasses = this._passes.filter((p) => p.enabled);
-    const needsContinuous = activePasses.some((pass) => pass.needsContinuousRender());
+    const needsContinuous = activePasses.some((pass) =>
+      pass.needsContinuousRender(),
+    );
 
     if (!this._dirty && !needsContinuous) {
       return false;
     }
 
     try {
-      this._renderFrame(activePasses, time, delta, null);
+      this._renderFrame(activePasses, time, delta, null, 1.0);
       this._dirty = false;
       return true;
     } catch (err) {
@@ -610,7 +655,7 @@ export class PipelineManager {
   renderExportFrame(time: number, delta: number): void {
     const activePasses = this._passes.filter((p) => p.enabled);
     try {
-      this._renderFrame(activePasses, time, delta, null);
+      this._renderFrame(activePasses, time, delta, null, 1.0);
     } catch (err) {
       const error = toError(err);
       if (isLikelyOutOfMemoryError(error)) {
@@ -645,9 +690,21 @@ export class PipelineManager {
     const format = options.format ?? "png";
     const mimeType = format === "jpeg" ? "image/jpeg" : "image/png";
     const jpegQuality = clampJpegQuality(options.quality);
-    const shouldDrawGridOverlay = Boolean(options.includeUiOverlays && options.includeGridOverlay);
+    const shouldDrawGridOverlay = Boolean(
+      options.includeUiOverlays && options.includeGridOverlay,
+    );
     const needsResize = width !== originalWidth || height !== originalHeight;
-    const exportTarget = sharedRenderTargetPool.acquire(width, height, PIPELINE_RT_OPTIONS);
+    const viewportScale = computeViewportScale(
+      width,
+      height,
+      originalWidth,
+      originalHeight,
+    );
+    const exportTarget = sharedRenderTargetPool.acquire(
+      width,
+      height,
+      PIPELINE_RT_OPTIONS,
+    );
 
     try {
       this._isExporting = true;
@@ -656,7 +713,7 @@ export class PipelineManager {
       }
 
       const activePasses = this._passes.filter((p) => p.enabled);
-      this._renderFrame(activePasses, time, delta, exportTarget);
+      this._renderFrame(activePasses, time, delta, exportTarget, viewportScale);
 
       const pixelData = await this._renderer.readRenderTargetPixelsAsync(
         exportTarget,
@@ -666,15 +723,14 @@ export class PipelineManager {
         height,
       );
       const rgba = unpackReadbackRgba8(pixelData, width, height);
-      for (let i = 3; i < rgba.length; i += 4) {
-        rgba[i] = 255;
-      }
+      encodeLinearRgbaToSrgbInPlace(rgba);
 
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Could not create 2D canvas context for export.");
+      if (!ctx)
+        throw new Error("Could not create 2D canvas context for export.");
 
       const imageData = ctx.createImageData(width, height);
       imageData.data.set(rgba);
@@ -685,13 +741,19 @@ export class PipelineManager {
       }
 
       const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((next) => {
-          if (!next) {
-            reject(new Error(`Failed to encode ${format.toUpperCase()} blob.`));
-            return;
-          }
-          resolve(next);
-        }, mimeType, format === "jpeg" ? jpegQuality : undefined);
+        canvas.toBlob(
+          (next) => {
+            if (!next) {
+              reject(
+                new Error(`Failed to encode ${format.toUpperCase()} blob.`),
+              );
+              return;
+            }
+            resolve(next);
+          },
+          mimeType,
+          format === "jpeg" ? jpegQuality : undefined,
+        );
       });
 
       return blob;
@@ -699,6 +761,7 @@ export class PipelineManager {
       if (needsResize) {
         this.resize(originalWidth, originalHeight);
       }
+      this._setPassViewportScale(this._passes, 1.0);
       this._isExporting = false;
       this._dirty = true;
       sharedRenderTargetPool.release(exportTarget);
@@ -748,8 +811,10 @@ export class PipelineManager {
     time: number,
     delta: number,
     finalTarget: THREE.WebGLRenderTarget | null,
+    viewportScale: number,
   ): void {
     const renderer = this._renderer;
+    this._setPassViewportScale(activePasses, viewportScale);
 
     if (activePasses.length === 0) {
       renderer.setRenderTarget(finalTarget);
@@ -780,7 +845,12 @@ export class PipelineManager {
         const kind = this._layerKindById.get(layerId);
         if (kind === "shader") {
           this._notifyShaderError(layerId, error);
-        } else if (kind === "image" || kind === "video" || kind === "webcam" || kind === "model") {
+        } else if (
+          kind === "image" ||
+          kind === "video" ||
+          kind === "webcam" ||
+          kind === "model"
+        ) {
           this._callbacks.onMediaStatus?.(layerId, "error", error.message);
         }
         if (isLikelyOutOfMemoryError(error)) {
@@ -796,6 +866,13 @@ export class PipelineManager {
     this._blitInputNode.value = read.texture;
     renderer.setRenderTarget(finalTarget);
     renderer.render(this._blitScene, this._blitCamera);
+  }
+
+  private _setPassViewportScale(passes: PassNode[], scale: number): void {
+    const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1.0;
+    for (const pass of passes) {
+      pass.updateViewportScale(safeScale);
+    }
   }
 
   private _bindInteractivityTextures(activePasses: PassNode[]): void {
@@ -814,7 +891,8 @@ export class PipelineManager {
         typeof candidate.getDisplacementTexture === "function"
       ) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        displacementTexture = candidate.getDisplacementTexture() as THREE.Texture;
+        displacementTexture =
+          candidate.getDisplacementTexture() as THREE.Texture;
       }
       if (trailTexture && displacementTexture) break;
     }

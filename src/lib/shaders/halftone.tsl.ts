@@ -53,6 +53,8 @@ export class HalftonePass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _gridSpacingU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _viewportScaleU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _dotSizeU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _shapeU: any;
@@ -69,9 +71,9 @@ export class HalftonePass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _duotoneLightU: any; // vec3
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private readonly _duotoneDarkU: any;  // vec3
+  private readonly _duotoneDarkU: any; // vec3
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private readonly _invertU: any;       // 0 = normal, 1 = invert luma
+  private readonly _invertU: any; // 0 = normal, 1 = invert luma
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _interactionModeU: any; // 0=none,1=trail,2=displacement
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,23 +99,24 @@ export class HalftonePass extends PassNode {
     // returned the passthrough _inputNode because these uniforms didn't exist
     // yet.  Initialise them now, then rebuild the real effect.
     const lightCol = new THREE.Color("#F5F5F0");
-    const darkCol  = new THREE.Color("#1d1d1c");
+    const darkCol = new THREE.Color("#1d1d1c");
 
-    this._gridSpacingU  = uniform(20.0);
-    this._dotSizeU      = uniform(8.0);
-    this._dotMinU       = uniform(2.0);
-    this._shapeU        = uniform(0.0);  // 0=circle 1=square 2=diamond 3=line
-    this._angleU        = uniform((45.0 * Math.PI) / 180.0);
-    this._colorModeU    = uniform(1.0);  // 0=source 1=mono 2=duotone
-    this._contrastU     = uniform(1.0);
-    this._softnessU     = uniform(0.1);
-    this._invertU       = uniform(0.0);  // 0=normal 1=invert
+    this._gridSpacingU = uniform(20.0);
+    this._viewportScaleU = uniform(1.0);
+    this._dotSizeU = uniform(8.0);
+    this._dotMinU = uniform(2.0);
+    this._shapeU = uniform(0.0); // 0=circle 1=square 2=diamond 3=line
+    this._angleU = uniform((45.0 * Math.PI) / 180.0);
+    this._colorModeU = uniform(1.0); // 0=source 1=mono 2=duotone
+    this._contrastU = uniform(1.0);
+    this._softnessU = uniform(0.1);
+    this._invertU = uniform(0.0); // 0=normal 1=invert
     this._interactionModeU = uniform(0.0);
     this._interactionAmountU = uniform(0.5);
     this._duotoneLightU = uniform(
       new THREE.Vector3(lightCol.r, lightCol.g, lightCol.b),
     );
-    this._duotoneDarkU  = uniform(
+    this._duotoneDarkU = uniform(
       new THREE.Vector3(darkCol.r, darkCol.g, darkCol.b),
     );
     this._blackTexture = new THREE.DataTexture(
@@ -166,21 +169,24 @@ export class HalftonePass extends PassNode {
 
   // ── Effect node ────────────────────────────────────────────────────────────
 
-  protected override _buildEffectNode(): /* TSL Node */ any { // eslint-disable-line @typescript-eslint/no-explicit-any
+  protected override _buildEffectNode(): /* TSL Node */ any {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     // Guard: called once by super() before uniforms are initialised.
-    if (!this._gridSpacingU) return this._inputNode;
+    if (!this._gridSpacingU || !this._viewportScaleU) return this._inputNode;
 
     // Reset sample-node registry each (re)build.
     this._sampleNodes = [];
 
     // Y-flipped UV — WebGPU render-target textures have V=0 at the top,
     // opposite to PlaneGeometry UVs (V=0=bottom).
-    const rtUV     = vec2(uv().x, float(1.0).sub(uv().y));
-    const pixCoord = rtUV.mul(screenSize); // pixel-space position
+    const rtUV = vec2(uv().x, float(1.0).sub(uv().y));
+    const virtualScreen = screenSize.div(this._viewportScaleU);
+    const pixCoord = rtUV.mul(virtualScreen); // pixel-space position
     this._interactionTrailNode = tslTexture(this._blackTexture, rtUV);
     this._interactionDisplacementNode = tslTexture(this._blackTexture, rtUV);
     const trailLuma = clamp(
-      float(this._interactionTrailNode.r).mul(float(0.2126))
+      float(this._interactionTrailNode.r)
+        .mul(float(0.2126))
         .add(float(this._interactionTrailNode.g).mul(float(0.7152)))
         .add(float(this._interactionTrailNode.b).mul(float(0.0722))),
       float(0.0),
@@ -196,16 +202,20 @@ export class HalftonePass extends PassNode {
       float(0.0),
       float(1.0),
     );
-    const interactionSignal = float(select(
-      this._interactionModeU.lessThan(float(1.5)),
-      trailLuma,
-      displacementMagnitude,
-    ));
-    const interactionBoost = float(select(
-      this._interactionModeU.lessThan(float(0.5)),
-      float(0.0),
-      interactionSignal.mul(this._interactionAmountU),
-    ));
+    const interactionSignal = float(
+      select(
+        this._interactionModeU.lessThan(float(1.5)),
+        trailLuma,
+        displacementMagnitude,
+      ),
+    );
+    const interactionBoost = float(
+      select(
+        this._interactionModeU.lessThan(float(0.5)),
+        float(0.0),
+        interactionSignal.mul(this._interactionAmountU),
+      ),
+    );
 
     // ── Rotation ──────────────────────────────────────────────────────────────
     const cosA = float(cos(this._angleU));
@@ -217,17 +227,22 @@ export class HalftonePass extends PassNode {
 
     // ── Current cell center (in rotated grid space) ───────────────────────────
     const ccrX = float(
-      floor(float(rotX.div(this._gridSpacingU)).add(float(0.5)))
-        .mul(this._gridSpacingU),
+      floor(float(rotX.div(this._gridSpacingU)).add(float(0.5))).mul(
+        this._gridSpacingU,
+      ),
     );
     const ccrY = float(
-      floor(float(rotY.div(this._gridSpacingU)).add(float(0.5)))
-        .mul(this._gridSpacingU),
+      floor(float(rotY.div(this._gridSpacingU)).add(float(0.5))).mul(
+        this._gridSpacingU,
+      ),
     );
 
     // ── Anti-aliasing width ───────────────────────────────────────────────────
     const aa = float(
-      max(float(0.5), float(this._softnessU.mul(this._gridSpacingU)).mul(float(0.3))),
+      max(
+        float(0.5),
+        float(this._softnessU.mul(this._gridSpacingU)).mul(float(0.3)),
+      ),
     );
 
     // ── 3×3 neighbourhood fold (pure functional — no mutable vars / If) ────────
@@ -235,30 +250,28 @@ export class HalftonePass extends PassNode {
     // Each iteration wraps the previous result in a select/max node,
     // building a static DAG that the GPU evaluates per-pixel.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let accCov:  any = float(0.0);
+    let accCov: any = float(0.0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let accR:    any = float(0.0);
+    let accR: any = float(0.0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let accG:    any = float(0.0);
+    let accG: any = float(0.0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let accB:    any = float(0.0);
+    let accB: any = float(0.0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let accLuma: any = float(0.0);
 
     for (let dj = -1; dj <= 1; dj++) {
       for (let di = -1; di <= 1; di++) {
         // Cell center in rotated space
-        const cellRX = di === 0
-          ? ccrX
-          : float(ccrX.add(this._gridSpacingU.mul(float(di))));
-        const cellRY = dj === 0
-          ? ccrY
-          : float(ccrY.add(this._gridSpacingU.mul(float(dj))));
+        const cellRX =
+          di === 0 ? ccrX : float(ccrX.add(this._gridSpacingU.mul(float(di))));
+        const cellRY =
+          dj === 0 ? ccrY : float(ccrY.add(this._gridSpacingU.mul(float(dj))));
 
         // Inverse rotation → screen-space UV of this cell's center
         const cellSX = float(cosA.mul(cellRX).sub(sinA.mul(cellRY)));
         const cellSY = float(sinA.mul(cellRX).add(cosA.mul(cellRY)));
-        const cellUV = vec2(cellSX, cellSY).div(screenSize);
+        const cellUV = vec2(cellSX, cellSY).div(virtualScreen);
 
         // Sample input at this cell center
         const sNode = tslTexture(this._inputNode.value, cellUV);
@@ -286,16 +299,18 @@ export class HalftonePass extends PassNode {
         );
 
         // ── Dot radius ────────────────────────────────────────────────────────
-        const radius = float(float(this._dotMinU).add(interactionLuma.mul(this._dotSizeU)));
+        const radius = float(
+          float(this._dotMinU).add(interactionLuma.mul(this._dotSizeU)),
+        );
 
         // ── Distance from this pixel to this cell's dot center (rotated space)
         const dx = float(rotX.sub(cellRX));
         const dy = float(rotY.sub(cellRY));
 
-        const dCircle  = length(vec2(dx, dy));
-        const dSquare  = max(abs(dx), abs(dy));
+        const dCircle = length(vec2(dx, dy));
+        const dSquare = max(abs(dx), abs(dy));
         const dDiamond = abs(dx).add(abs(dy));
-        const dLine    = abs(dy);
+        const dLine = abs(dy);
 
         const dist = select(
           this._shapeU.lessThan(float(0.5)),
@@ -303,11 +318,7 @@ export class HalftonePass extends PassNode {
           select(
             this._shapeU.lessThan(float(1.5)),
             dSquare,
-            select(
-              this._shapeU.lessThan(float(2.5)),
-              dDiamond,
-              dLine,
-            ),
+            select(this._shapeU.lessThan(float(2.5)), dDiamond, dLine),
           ),
         );
 
@@ -315,11 +326,11 @@ export class HalftonePass extends PassNode {
 
         // Fold: if this cell has higher coverage, it wins
         const isNew = cellCov.greaterThan(accCov);
-        accR    = select(isNew, float(sNode.r),    accR);
-        accG    = select(isNew, float(sNode.g),    accG);
-        accB    = select(isNew, float(sNode.b),    accB);
-        accLuma = select(isNew, interactionLuma,    accLuma);
-        accCov  = max(cellCov, accCov);
+        accR = select(isNew, float(sNode.r), accR);
+        accG = select(isNew, float(sNode.g), accG);
+        accB = select(isNew, float(sNode.b), accB);
+        accLuma = select(isNew, interactionLuma, accLuma);
+        accCov = max(cellCov, accCov);
       }
     }
 
@@ -336,18 +347,14 @@ export class HalftonePass extends PassNode {
     );
 
     // ── Dot color (derived from winning cell) ─────────────────────────────────
-    const srcColor     = vec3(accR, accG, accB);
-    const monoColor    = vec3(accLuma, accLuma, accLuma);
+    const srcColor = vec3(accR, accG, accB);
+    const monoColor = vec3(accLuma, accLuma, accLuma);
     const duotoneColor = mix(darkVec, lightVec, accLuma);
 
     const dotColor = select(
       this._colorModeU.lessThan(float(0.5)),
       srcColor,
-      select(
-        this._colorModeU.lessThan(float(1.5)),
-        monoColor,
-        duotoneColor,
-      ),
+      select(this._colorModeU.lessThan(float(1.5)), monoColor, duotoneColor),
     );
 
     // ── Background color (shown between dots) ─────────────────────────────────
@@ -380,7 +387,10 @@ export class HalftonePass extends PassNode {
           break;
         case "shape": {
           const shapeMap: Record<string, number> = {
-            circle: 0, square: 1, diamond: 2, line: 3,
+            circle: 0,
+            square: 1,
+            diamond: 2,
+            line: 3,
           };
           this._shapeU.value = shapeMap[p.value as string] ?? 0;
           break;
@@ -391,7 +401,9 @@ export class HalftonePass extends PassNode {
           break;
         case "colorMode": {
           const modeMap: Record<string, number> = {
-            source: 0, monochrome: 1, duotone: 2,
+            source: 0,
+            monochrome: 1,
+            duotone: 2,
           };
           this._colorModeU.value = modeMap[p.value as string] ?? 0;
           break;
@@ -430,6 +442,11 @@ export class HalftonePass extends PassNode {
         }
       }
     }
+  }
+
+  override updateViewportScale(scale: number): void {
+    this._viewportScaleU.value =
+      Number.isFinite(scale) && scale > 0 ? scale : 1.0;
   }
 
   override dispose(): void {

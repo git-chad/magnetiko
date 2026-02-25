@@ -48,6 +48,8 @@ export class DitheringPass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _levelsU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _viewportScaleU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _spreadU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _colorModeU: any;
@@ -74,7 +76,7 @@ export class DitheringPass extends PassNode {
   private _currentTexture: THREE.DataTexture;
 
   // Track current params to avoid redundant updates.
-  private _currentAlgorithm  = "ordered-bayer";
+  private _currentAlgorithm = "ordered-bayer";
   private _currentMatrixSize = "4x4";
 
   constructor(layerId: string) {
@@ -82,12 +84,13 @@ export class DitheringPass extends PassNode {
     // super() already called _buildEffectNode() once; the guard returned the
     // passthrough _inputNode because uniforms weren't initialised yet.
 
-    this._textures       = buildDitherTextures();
+    this._textures = buildDitherTextures();
     this._currentTexture = this._textures.bayer4;
 
-    this._levelsU     = uniform(2.0);
-    this._spreadU     = uniform(1.0);
-    this._colorModeU  = uniform(0.0);  // 0=mono 1=source 2=palette
+    this._levelsU = uniform(2.0);
+    this._viewportScaleU = uniform(1.0);
+    this._spreadU = uniform(1.0);
+    this._colorModeU = uniform(0.0); // 0=mono 1=source 2=palette
     this._matrixSizeU = uniform(4.0);
     this._interactionModeU = uniform(0.0);
     this._interactionAmountU = uniform(0.5);
@@ -135,14 +138,16 @@ export class DitheringPass extends PassNode {
 
   // ── Effect node ────────────────────────────────────────────────────────────
 
-  protected override _buildEffectNode(): /* TSL Node */ any { // eslint-disable-line @typescript-eslint/no-explicit-any
+  protected override _buildEffectNode(): /* TSL Node */ any {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     // Guard: called once by super() before uniforms are initialised.
-    if (!this._levelsU) return this._inputNode;
+    if (!this._levelsU || !this._viewportScaleU) return this._inputNode;
 
     // Pixel-space coordinate for tiling the threshold texture.
     // uv() ∈ [0,1]² → pixCoord ∈ [0, screenWidth] × [0, screenHeight].
     // The Y direction doesn't matter for a tiling pattern, so no flip needed.
-    const pixCoord = vec2(uv()).mul(screenSize);
+    const virtualScreen = screenSize.div(this._viewportScaleU);
+    const pixCoord = vec2(uv()).mul(virtualScreen);
     const rtUV = vec2(uv().x, float(1.0).sub(uv().y));
 
     // ── Threshold from tiling dither texture ──────────────────────────────────
@@ -154,7 +159,8 @@ export class DitheringPass extends PassNode {
     this._interactionTrailNode = tslTexture(this._blackTexture, rtUV);
     this._interactionDisplacementNode = tslTexture(this._blackTexture, rtUV);
     const trailLuma = clamp(
-      float(this._interactionTrailNode.r).mul(float(0.2126))
+      float(this._interactionTrailNode.r)
+        .mul(float(0.2126))
         .add(float(this._interactionTrailNode.g).mul(float(0.7152)))
         .add(float(this._interactionTrailNode.b).mul(float(0.0722))),
       float(0.0),
@@ -170,16 +176,20 @@ export class DitheringPass extends PassNode {
       float(0.0),
       float(1.0),
     );
-    const interactionSignal = float(select(
-      this._interactionModeU.lessThan(float(1.5)),
-      trailLuma,
-      displacementMagnitude,
-    ));
-    const interactionBias = float(select(
-      this._interactionModeU.lessThan(float(0.5)),
-      float(0.0),
-      interactionSignal.mul(this._interactionAmountU).mul(float(0.6)),
-    ));
+    const interactionSignal = float(
+      select(
+        this._interactionModeU.lessThan(float(1.5)),
+        trailLuma,
+        displacementMagnitude,
+      ),
+    );
+    const interactionBias = float(
+      select(
+        this._interactionModeU.lessThan(float(0.5)),
+        float(0.0),
+        interactionSignal.mul(this._interactionAmountU).mul(float(0.6)),
+      ),
+    );
     const thresholdAdjusted = clamp(
       threshold.add(interactionBias),
       float(0.0),
@@ -220,7 +230,7 @@ export class DitheringPass extends PassNode {
     // 0 = monochrome (and palette): luma-only → gray
     // 1 = source: per-channel → hue preserved
     const monoOut = vec3(qLuma, qLuma, qLuma);
-    const srcOut  = vec3(qR, qG, qB);
+    const srcOut = vec3(qR, qG, qB);
 
     const outColor = select(
       this._colorModeU.greaterThan(float(0.5)),
@@ -254,7 +264,9 @@ export class DitheringPass extends PassNode {
         }
         case "colorMode": {
           const modeMap: Record<string, number> = {
-            monochrome: 0, source: 1, palette: 2,
+            monochrome: 0,
+            source: 1,
+            palette: 2,
           };
           this._colorModeU.value = modeMap[p.value as string] ?? 0;
           break;
@@ -282,6 +294,11 @@ export class DitheringPass extends PassNode {
     }
   }
 
+  override updateViewportScale(scale: number): void {
+    this._viewportScaleU.value =
+      Number.isFinite(scale) && scale > 0 ? scale : 1.0;
+  }
+
   // ── Private ────────────────────────────────────────────────────────────────
 
   /**
@@ -295,17 +312,26 @@ export class DitheringPass extends PassNode {
 
     if (this._currentAlgorithm === "ordered-bayer") {
       switch (this._currentMatrixSize) {
-        case "2x2": tex = this._textures.bayer2; size = 2;  break;
-        case "8x8": tex = this._textures.bayer8; size = 8;  break;
-        default:    tex = this._textures.bayer4; size = 4;  break;
+        case "2x2":
+          tex = this._textures.bayer2;
+          size = 2;
+          break;
+        case "8x8":
+          tex = this._textures.bayer8;
+          size = 8;
+          break;
+        default:
+          tex = this._textures.bayer4;
+          size = 4;
+          break;
       }
     } else {
       // floyd-steinberg / atkinson / blue-noise → IGN blue-noise approximation
-      tex  = this._textures.blueNoise;
+      tex = this._textures.blueNoise;
       size = 64;
     }
 
-    this._currentTexture    = tex;
+    this._currentTexture = tex;
     this._matrixSizeU.value = size;
     if (this._ditherSampledNode) {
       this._ditherSampledNode.value = tex;

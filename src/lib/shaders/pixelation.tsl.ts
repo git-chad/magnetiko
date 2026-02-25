@@ -37,6 +37,8 @@ export class PixelationPass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _cellSizeU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _viewportScaleU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _preserveAspectU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _shapeU: any;
@@ -49,9 +51,10 @@ export class PixelationPass extends PassNode {
     // Note: super() already called _buildEffectNode() once, but the guard
     // below returned the passthrough _inputNode because these uniforms didn't
     // exist yet.  Now they do — rebuild the real effect.
-    this._cellSizeU       = uniform(8.0);
+    this._cellSizeU = uniform(8.0);
+    this._viewportScaleU = uniform(1.0);
     this._preserveAspectU = uniform(1.0);
-    this._shapeU          = uniform(0.0);
+    this._shapeU = uniform(0.0);
 
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
@@ -74,9 +77,10 @@ export class PixelationPass extends PassNode {
 
   // ── Effect node ────────────────────────────────────────────────────────────
 
-  protected override _buildEffectNode(): /* TSL Node */ any { // eslint-disable-line @typescript-eslint/no-explicit-any
+  protected override _buildEffectNode(): /* TSL Node */ any {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     // Guard: called once by super() before uniforms are initialised
-    if (!this._cellSizeU) return this._inputNode;
+    if (!this._cellSizeU || !this._viewportScaleU) return this._inputNode;
 
     // Y-flipped UV — WebGPU render-target textures have V=0 at the top,
     // which is opposite to PlaneGeometry UVs (V=0=bottom).
@@ -86,11 +90,14 @@ export class PixelationPass extends PassNode {
     // cellCoord: position in "cell units" (integer part = which cell;
     // fractional part = position within cell).
     // Each cell is cellSize × cellSize screen pixels (preserveAspect=true).
-    const cellCoord = rtUV.mul(screenSize).div(this._cellSizeU);
+    const virtualScreen = screenSize.div(this._viewportScaleU);
+    const cellCoord = rtUV.mul(virtualScreen).div(this._cellSizeU);
 
     // UV of this cell's center (used to sample the pixelated color)
-    const cellCenterUV = floor(cellCoord).add(float(0.5))
-      .mul(this._cellSizeU).div(screenSize);
+    const cellCenterUV = floor(cellCoord)
+      .add(float(0.5))
+      .mul(this._cellSizeU)
+      .div(virtualScreen);
 
     // Sample input texture at cell center.
     // _pixelatedNode.value is updated every frame in render() to match the
@@ -103,31 +110,35 @@ export class PixelationPass extends PassNode {
     const fractPos = fract(cellCoord).sub(float(0.5));
 
     // Normalised distances: 1.0 = cell boundary
-    const circleD  = length(fractPos).mul(float(2.0));
+    const circleD = length(fractPos).mul(float(2.0));
     const diamondD = fractPos.x.abs().add(fractPos.y.abs()).mul(float(2.0));
 
     // Anti-aliased masks: 1 inside shape, 0 outside
     const aa = float(0.08);
-    const circleMask  = smoothstep(float(1.0).add(aa), float(1.0).sub(aa), circleD);
-    const diamondMask = smoothstep(float(1.0).add(aa), float(1.0).sub(aa), diamondD);
+    const circleMask = smoothstep(
+      float(1.0).add(aa),
+      float(1.0).sub(aa),
+      circleD,
+    );
+    const diamondMask = smoothstep(
+      float(1.0).add(aa),
+      float(1.0).sub(aa),
+      diamondD,
+    );
 
     const pixColor = this._pixelatedNode;
 
     // square:  entire cell filled with the cell-center color
-    const squareOut  = pixColor;
+    const squareOut = pixColor;
     // circle / diamond:  pixelated color inside shape, original input outside
-    const circleOut  = mix(this._inputNode, pixColor, circleMask);
+    const circleOut = mix(this._inputNode, pixColor, circleMask);
     const diamondOut = mix(this._inputNode, pixColor, diamondMask);
 
     // Select output by shape uniform
     return select(
       this._shapeU.lessThan(float(0.5)),
       squareOut,
-      select(
-        this._shapeU.lessThan(float(1.5)),
-        circleOut,
-        diamondOut,
-      ),
+      select(this._shapeU.lessThan(float(1.5)), circleOut, diamondOut),
     );
   }
 
@@ -153,5 +164,10 @@ export class PixelationPass extends PassNode {
         }
       }
     }
+  }
+
+  override updateViewportScale(scale: number): void {
+    this._viewportScaleU.value =
+      Number.isFinite(scale) && scale > 0 ? scale : 1.0;
   }
 }

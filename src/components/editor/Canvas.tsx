@@ -5,7 +5,10 @@ import * as THREE from "three/webgpu";
 import { ArrowSquareIn, ImageSquare } from "@phosphor-icons/react";
 import { isWebGPUSupported } from "@/lib/renderer/WebGPURenderer";
 import { PipelineManager } from "@/lib/renderer/PipelineManager";
-import type { ExportImageOptions, PipelineLayer } from "@/lib/renderer/PipelineManager";
+import type {
+  ExportImageOptions,
+  PipelineLayer,
+} from "@/lib/renderer/PipelineManager";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore } from "@/store/historyStore";
@@ -34,7 +37,9 @@ declare global {
   interface Window {
     __magnetikoExportImage?: (options?: ExportImageOptions) => Promise<Blob>;
     __magnetikoExportPng?: () => Promise<Blob>;
-    __magnetikoExportVideo?: (options: ExportVideoOptions) => Promise<ExportVideoResult>;
+    __magnetikoExportVideo?: (
+      options: ExportVideoOptions,
+    ) => Promise<ExportVideoResult>;
   }
 }
 
@@ -65,16 +70,25 @@ const THUMBNAIL_WIDTH = 160;
 const THUMBNAIL_HEIGHT = 90;
 const OOM_WARN_COOLDOWN_MS = 8000;
 const MASK_PAINT_HISTORY_LABEL = "Paint mask";
+const ZOOM_SUPERSAMPLE_MAX = 2;
 
 function toSourceMedia(layer: Layer): SourceMedia | null {
   if (layer.kind === "webcam") return { kind: "webcam", url: null };
-  if ((layer.kind === "image" || layer.kind === "video" || layer.kind === "model") && layer.mediaUrl) {
+  if (
+    (layer.kind === "image" ||
+      layer.kind === "video" ||
+      layer.kind === "model") &&
+    layer.mediaUrl
+  ) {
     return { kind: layer.kind, url: layer.mediaUrl };
   }
   return null;
 }
 
-function getAutoBaseSourceMedia(layers: Layer[], groups: LayerGroup[]): SourceMedia | null {
+function getAutoBaseSourceMedia(
+  layers: Layer[],
+  groups: LayerGroup[],
+): SourceMedia | null {
   const hasSolo = layers.some((layer) => layer.solo);
   const groupsById = new Map(groups.map((group) => [group.id, group]));
   const isVisibleWithGroup = (layer: Layer): boolean => {
@@ -100,7 +114,11 @@ function safeAspect(width: number, height: number): number {
   return Math.max(width, 1) / Math.max(height, 1);
 }
 
-function fitRect(outerWidth: number, outerHeight: number, aspect: number): RenderRect {
+function fitRect(
+  outerWidth: number,
+  outerHeight: number,
+  aspect: number,
+): RenderRect {
   const ow = Math.max(Math.floor(outerWidth), 1);
   const oh = Math.max(Math.floor(outerHeight), 1);
   const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
@@ -136,16 +154,22 @@ function isSameRect(a: RenderRect, b: RenderRect): boolean {
   );
 }
 
-function loadImageAspect(url: string): Promise<{ width: number; height: number }> {
+function loadImageAspect(
+  url: string,
+): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => reject(new Error(`Failed to load image metadata for ${url}`));
+    img.onload = () =>
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () =>
+      reject(new Error(`Failed to load image metadata for ${url}`));
     img.src = url;
   });
 }
 
-function loadVideoAspect(url: string): Promise<{ width: number; height: number }> {
+function loadVideoAspect(
+  url: string,
+): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     video.preload = "metadata";
@@ -154,7 +178,8 @@ function loadVideoAspect(url: string): Promise<{ width: number; height: number }
         width: video.videoWidth,
         height: video.videoHeight,
       });
-    video.onerror = () => reject(new Error(`Failed to load video metadata for ${url}`));
+    video.onerror = () =>
+      reject(new Error(`Failed to load video metadata for ${url}`));
     video.src = url;
   });
 }
@@ -185,7 +210,9 @@ function CanvasFallback({
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
       {status === "loading" && (
-        <p className="text-[var(--color-fg-disabled)] text-sm">Initialising WebGPU…</p>
+        <p className="text-[var(--color-fg-disabled)] text-sm">
+          Initialising WebGPU…
+        </p>
       )}
       {status === "unsupported" && (
         <>
@@ -203,7 +230,8 @@ function CanvasFallback({
             Renderer initialisation failed.
           </p>
           <p className="max-w-[22rem] text-[var(--color-fg-tertiary)] text-xs">
-            {message ?? "Please refresh the page or try a different browser/GPU driver."}
+            {message ??
+              "Please refresh the page or try a different browser/GPU driver."}
           </p>
         </>
       )}
@@ -235,9 +263,15 @@ export function Canvas({ className }: CanvasProps) {
   const maskOverlayRef = React.useRef<HTMLCanvasElement>(null);
   const pipelineRef = React.useRef<PipelineManager | null>(null);
   const rendererRef = React.useRef<THREE.WebGPURenderer | null>(null);
-  const maskCanvasByLayerRef = React.useRef(new Map<string, HTMLCanvasElement>());
-  const maskTextureByLayerRef = React.useRef(new Map<string, THREE.CanvasTexture>());
-  const maskDataByLayerRef = React.useRef(new Map<string, string | undefined>());
+  const maskCanvasByLayerRef = React.useRef(
+    new Map<string, HTMLCanvasElement>(),
+  );
+  const maskTextureByLayerRef = React.useRef(
+    new Map<string, THREE.CanvasTexture>(),
+  );
+  const maskDataByLayerRef = React.useRef(
+    new Map<string, string | undefined>(),
+  );
   const maskLoadTokenByLayerRef = React.useRef(new Map<string, number>());
   const isMaskPaintingRef = React.useRef(false);
   const maskPaintLayerIdRef = React.useRef<string | null>(null);
@@ -245,9 +279,9 @@ export function Canvas({ className }: CanvasProps) {
   const interaction = useMouseInteraction({ targetRef: surfaceRef });
   const { toast } = useToast();
 
-  const [status, setStatus] = React.useState<"loading" | "ready" | "unsupported" | "error">(
-    "loading",
-  );
+  const [status, setStatus] = React.useState<
+    "loading" | "ready" | "unsupported" | "error"
+  >("loading");
   const [statusMessage, setStatusMessage] = React.useState<string>("");
   const [renderRect, setRenderRect] = React.useState<RenderRect>({
     left: 0,
@@ -266,20 +300,28 @@ export function Canvas({ className }: CanvasProps) {
   const frameAspectMode = useEditorStore((s) => s.frameAspectMode);
   const frameAspectCustom = useEditorStore((s) => s.frameAspectCustom);
   const frameAspectLocked = useEditorStore((s) => s.frameAspectLocked);
-  const setResolvedFrameAspect = useEditorStore((s) => s.setResolvedFrameAspect);
+  const setResolvedFrameAspect = useEditorStore(
+    (s) => s.setResolvedFrameAspect,
+  );
   const renderScale = useEditorStore((s) => s.renderScale);
   const hasMediaLayers = useLayerStore((s) =>
     s.layers.some(
       (l) =>
         l.kind === "webcam" ||
-        ((l.kind === "image" || l.kind === "video" || l.kind === "model") && Boolean(l.mediaUrl)),
+        ((l.kind === "image" || l.kind === "video" || l.kind === "model") &&
+          Boolean(l.mediaUrl)),
     ),
   );
   const layerCount = useLayerStore((s) => s.layers.length);
   const hasActiveAscii = useLayerStore((s) => {
     const groupsById = new Map(s.groups.map((group) => [group.id, group]));
     return s.layers.some((layer) => {
-      if (!layer.visible || layer.kind !== "shader" || layer.shaderType !== "ascii") return false;
+      if (
+        !layer.visible ||
+        layer.kind !== "shader" ||
+        layer.shaderType !== "ascii"
+      )
+        return false;
       if (!layer.groupId) return true;
       return groupsById.get(layer.groupId)?.visible ?? true;
     });
@@ -291,7 +333,9 @@ export function Canvas({ className }: CanvasProps) {
   );
   const selectedLayerId = useLayerStore((s) => s.selectedLayerId);
   const selectedLayer = useLayerStore((s) =>
-    s.selectedLayerId ? s.layers.find((layer) => layer.id === s.selectedLayerId) ?? null : null,
+    s.selectedLayerId
+      ? (s.layers.find((layer) => layer.id === s.selectedLayerId) ?? null)
+      : null,
   );
   const setLayerMaskData = useLayerStore((s) => s.setLayerMaskData);
   const pushHistoryState = useHistoryStore((s) => s.pushState);
@@ -306,9 +350,13 @@ export function Canvas({ className }: CanvasProps) {
     };
   }, [sourceMediaKind, sourceMediaUrl]);
   const matchedAsset = useMediaStore((s) =>
-    sourceMedia?.url ? s.assets.find((a) => a.url === sourceMedia.url) ?? null : null,
+    sourceMedia?.url
+      ? (s.assets.find((a) => a.url === sourceMedia.url) ?? null)
+      : null,
   );
-  const isMaskPaintActive = Boolean(maskPaint.enabled && selectedLayer?.filterMode === "mask");
+  const isMaskPaintActive = Boolean(
+    maskPaint.enabled && selectedLayer?.filterMode === "mask",
+  );
   const fallbackAspect = safeAspect(canvasSize.width, canvasSize.height);
   const [sourceAspect, setSourceAspect] = React.useState(fallbackAspect);
   const resolvedAspect = React.useMemo(() => {
@@ -330,6 +378,8 @@ export function Canvas({ className }: CanvasProps) {
   ]);
   const resolvedAspectRef = React.useRef(resolvedAspect);
   const renderScaleRef = React.useRef(renderScale);
+  const zoomRef = React.useRef(zoom);
+  const sourceMediaKindRef = React.useRef(sourceMediaKind);
   const selectedLayerIdRef = React.useRef(selectedLayerId);
   const thumbnailNeedsRefreshRef = React.useRef(false);
   const thumbnailCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -337,7 +387,26 @@ export function Canvas({ className }: CanvasProps) {
   const shaderErrorNotifiedRef = React.useRef(new Set<string>());
   const mediaErrorNotifiedRef = React.useRef(new Set<string>());
   const lastOomWarnRef = React.useRef<number>(-Infinity);
-  const lastMaskPointerRef = React.useRef<{ x: number; y: number } | null>(null);
+  const lastMaskPointerRef = React.useRef<{ x: number; y: number } | null>(
+    null,
+  );
+
+  const updateCanvasExportHints = React.useCallback((zoomBoost: number) => {
+    const renderCanvas = canvasRef.current;
+    if (!renderCanvas) return;
+    const safeZoomBoost =
+      Number.isFinite(zoomBoost) && zoomBoost > 0 ? zoomBoost : 1;
+    const hintedWidth = Math.max(
+      1,
+      Math.round(renderCanvas.width / safeZoomBoost),
+    );
+    const hintedHeight = Math.max(
+      1,
+      Math.round(renderCanvas.height / safeZoomBoost),
+    );
+    renderCanvas.dataset.exportWidth = String(hintedWidth);
+    renderCanvas.dataset.exportHeight = String(hintedHeight);
+  }, []);
 
   const getMaskRenderSize = React.useCallback(() => {
     const renderCanvas = canvasRef.current;
@@ -347,25 +416,31 @@ export function Canvas({ className }: CanvasProps) {
     };
   }, []);
 
-  const fillMaskCanvasWhite = React.useCallback((maskCanvas: HTMLCanvasElement) => {
-    const ctx = maskCanvas.getContext("2d");
-    if (!ctx) return;
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-    ctx.restore();
-  }, []);
+  const fillMaskCanvasWhite = React.useCallback(
+    (maskCanvas: HTMLCanvasElement) => {
+      const ctx = maskCanvas.getContext("2d");
+      if (!ctx) return;
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+      ctx.restore();
+    },
+    [],
+  );
 
-  const fillMaskCanvasBlack = React.useCallback((maskCanvas: HTMLCanvasElement) => {
-    const ctx = maskCanvas.getContext("2d");
-    if (!ctx) return;
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-    ctx.restore();
-  }, []);
+  const fillMaskCanvasBlack = React.useCallback(
+    (maskCanvas: HTMLCanvasElement) => {
+      const ctx = maskCanvas.getContext("2d");
+      if (!ctx) return;
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+      ctx.restore();
+    },
+    [],
+  );
 
   const ensureMaskResources = React.useCallback(
     (layerId: string, width: number, height: number) => {
@@ -385,7 +460,13 @@ export function Canvas({ className }: CanvasProps) {
         nextCanvas.height = Math.max(1, height);
         const nextCtx = nextCanvas.getContext("2d");
         if (nextCtx) {
-          nextCtx.drawImage(maskCanvas, 0, 0, nextCanvas.width, nextCanvas.height);
+          nextCtx.drawImage(
+            maskCanvas,
+            0,
+            0,
+            nextCanvas.width,
+            nextCanvas.height,
+          );
         }
         maskCanvas = nextCanvas;
         maskCanvasByLayerRef.current.set(layerId, maskCanvas);
@@ -416,9 +497,14 @@ export function Canvas({ className }: CanvasProps) {
 
   const maybeApplyMaskDataUrl = React.useCallback(
     (layer: Layer, width: number, height: number): THREE.Texture | null => {
-      if (!layer.maskDataUrl && !maskTextureByLayerRef.current.has(layer.id)) return null;
+      if (!layer.maskDataUrl && !maskTextureByLayerRef.current.has(layer.id))
+        return null;
 
-      const { maskCanvas, maskTexture } = ensureMaskResources(layer.id, width, height);
+      const { maskCanvas, maskTexture } = ensureMaskResources(
+        layer.id,
+        width,
+        height,
+      );
       const previousDataUrl = maskDataByLayerRef.current.get(layer.id);
       if (previousDataUrl !== layer.maskDataUrl) {
         maskDataByLayerRef.current.set(layer.id, layer.maskDataUrl);
@@ -427,11 +513,13 @@ export function Canvas({ className }: CanvasProps) {
           fillMaskCanvasWhite(maskCanvas);
           maskTexture.needsUpdate = true;
         } else {
-          const nextToken = (maskLoadTokenByLayerRef.current.get(layer.id) ?? 0) + 1;
+          const nextToken =
+            (maskLoadTokenByLayerRef.current.get(layer.id) ?? 0) + 1;
           maskLoadTokenByLayerRef.current.set(layer.id, nextToken);
           const image = new Image();
           image.onload = () => {
-            if (maskLoadTokenByLayerRef.current.get(layer.id) !== nextToken) return;
+            if (maskLoadTokenByLayerRef.current.get(layer.id) !== nextToken)
+              return;
             const ctx = maskCanvas.getContext("2d");
             if (!ctx) return;
             ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
@@ -439,7 +527,8 @@ export function Canvas({ className }: CanvasProps) {
             maskTexture.needsUpdate = true;
           };
           image.onerror = () => {
-            if (maskLoadTokenByLayerRef.current.get(layer.id) !== nextToken) return;
+            if (maskLoadTokenByLayerRef.current.get(layer.id) !== nextToken)
+              return;
             fillMaskCanvasWhite(maskCanvas);
             maskTexture.needsUpdate = true;
           };
@@ -472,7 +561,11 @@ export function Canvas({ className }: CanvasProps) {
       if (rect.width <= 0 || rect.height <= 0) return;
 
       const { width: maskWidth, height: maskHeight } = getMaskRenderSize();
-      const { maskCanvas, maskTexture } = ensureMaskResources(layerId, maskWidth, maskHeight);
+      const { maskCanvas, maskTexture } = ensureMaskResources(
+        layerId,
+        maskWidth,
+        maskHeight,
+      );
       const ctx = maskCanvas.getContext("2d");
       if (!ctx) return;
 
@@ -482,7 +575,7 @@ export function Canvas({ className }: CanvasProps) {
       const y = Math.max(0, Math.min(1, ny)) * maskCanvas.height;
 
       const scaleX = maskCanvas.width / rect.width;
-      const radius = Math.max(1, (maskPaint.brushSize * scaleX) * 0.5);
+      const radius = Math.max(1, maskPaint.brushSize * scaleX * 0.5);
       const innerRadius = Math.max(0, radius * (1 - maskPaint.softness));
       const targetValue = maskPaint.erase ? 0 : 255;
       const color = `rgba(${targetValue}, ${targetValue}, ${targetValue}, 1)`;
@@ -500,7 +593,14 @@ export function Canvas({ className }: CanvasProps) {
         const t = i / steps;
         const px = from.x + dx * t;
         const py = from.y + dy * t;
-        const gradient = ctx.createRadialGradient(px, py, innerRadius, px, py, radius);
+        const gradient = ctx.createRadialGradient(
+          px,
+          py,
+          innerRadius,
+          px,
+          py,
+          radius,
+        );
         gradient.addColorStop(0, color);
         gradient.addColorStop(1, "rgba(127, 127, 127, 0)");
         ctx.fillStyle = gradient;
@@ -513,7 +613,13 @@ export function Canvas({ className }: CanvasProps) {
       lastMaskPointerRef.current = { x, y };
       maskTexture.needsUpdate = true;
     },
-    [ensureMaskResources, getMaskRenderSize, maskPaint.brushSize, maskPaint.erase, maskPaint.softness],
+    [
+      ensureMaskResources,
+      getMaskRenderSize,
+      maskPaint.brushSize,
+      maskPaint.erase,
+      maskPaint.softness,
+    ],
   );
 
   const resizeSurface = React.useCallback(() => {
@@ -527,16 +633,19 @@ export function Canvas({ className }: CanvasProps) {
     const renderer = rendererRef.current;
     const pipeline = pipelineRef.current;
     if (renderer && pipeline) {
-      const renderWidth = Math.max(
-        Math.round(next.width * renderScaleRef.current),
-        1,
-      );
+      const shouldSupersampleForZoom = sourceMediaKindRef.current === "image";
+      const zoomBoost = shouldSupersampleForZoom
+        ? Math.min(Math.max(zoomRef.current, 1), ZOOM_SUPERSAMPLE_MAX)
+        : 1;
+      const effectiveScale = renderScaleRef.current * zoomBoost;
+      const renderWidth = Math.max(Math.round(next.width * effectiveScale), 1);
       const renderHeight = Math.max(
-        Math.round(next.height * renderScaleRef.current),
+        Math.round(next.height * effectiveScale),
         1,
       );
       renderer.setSize(renderWidth, renderHeight, false);
       pipeline.resize(renderWidth, renderHeight);
+      updateCanvasExportHints(zoomBoost);
 
       const overlay = maskOverlayRef.current;
       if (overlay) {
@@ -544,7 +653,7 @@ export function Canvas({ className }: CanvasProps) {
         if (overlay.height !== renderHeight) overlay.height = renderHeight;
       }
     }
-  }, []);
+  }, [updateCanvasExportHints]);
 
   const commitPaintedMask = React.useCallback(
     (layerId: string) => {
@@ -565,7 +674,11 @@ export function Canvas({ className }: CanvasProps) {
       if (!overlay) return;
 
       if (!didPushMaskHistoryRef.current) {
-        const { layers, groups, selectedLayerId: selection } = useLayerStore.getState();
+        const {
+          layers,
+          groups,
+          selectedLayerId: selection,
+        } = useLayerStore.getState();
         pushHistoryState({
           layers,
           groups,
@@ -576,9 +689,14 @@ export function Canvas({ className }: CanvasProps) {
       }
 
       const { width, height } = getMaskRenderSize();
-      const { maskCanvas, maskTexture } = ensureMaskResources(layerId, width, height);
+      const { maskCanvas, maskTexture } = ensureMaskResources(
+        layerId,
+        width,
+        height,
+      );
       const hasPersistedMask = Boolean(
-        useLayerStore.getState().layers.find((layer) => layer.id === layerId)?.maskDataUrl,
+        useLayerStore.getState().layers.find((layer) => layer.id === layerId)
+          ?.maskDataUrl,
       );
       if (!hasPersistedMask) {
         // First paint on a layer with no mask: start hidden so painting reveals.
@@ -629,17 +747,23 @@ export function Canvas({ className }: CanvasProps) {
   const [isDragOver, setIsDragOver] = React.useState(false);
   const dragCountRef = React.useRef(0);
 
-  const handleDragEnter = React.useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (!e.dataTransfer.types.includes("Files")) return;
-    dragCountRef.current++;
-    setIsDragOver(true);
-  }, []);
+  const handleDragEnter = React.useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      if (!e.dataTransfer.types.includes("Files")) return;
+      dragCountRef.current++;
+      setIsDragOver(true);
+    },
+    [],
+  );
 
-  const handleDragOver = React.useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-  }, []);
+  const handleDragOver = React.useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    },
+    [],
+  );
 
   const handleDragLeave = React.useCallback(() => {
     if (--dragCountRef.current <= 0) {
@@ -690,6 +814,16 @@ export function Canvas({ className }: CanvasProps) {
     renderScaleRef.current = renderScale;
     resizeSurface();
   }, [renderScale, resizeSurface]);
+
+  React.useEffect(() => {
+    zoomRef.current = zoom;
+    resizeSurface();
+  }, [zoom, resizeSurface]);
+
+  React.useEffect(() => {
+    sourceMediaKindRef.current = sourceMediaKind;
+    resizeSurface();
+  }, [sourceMediaKind, resizeSurface]);
 
   React.useEffect(() => {
     if (status !== "ready") return;
@@ -787,7 +921,8 @@ export function Canvas({ className }: CanvasProps) {
     window.__magnetikoExportVideo = async (options) => {
       const pipeline = pipelineRef.current;
       const canvas = canvasRef.current;
-      if (!pipeline || !canvas) throw new Error("Renderer pipeline is not ready.");
+      if (!pipeline || !canvas)
+        throw new Error("Renderer pipeline is not ready.");
       if (typeof MediaRecorder === "undefined") {
         throw new Error("Video recording is not supported in this browser.");
       }
@@ -803,13 +938,19 @@ export function Canvas({ className }: CanvasProps) {
       const bitrate = Math.max(1_000_000, Math.round(options.bitrate));
 
       let stream = canvas.captureStream(0);
-      let track = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
-      const hasManualFrameRequest = Boolean(track && typeof track.requestFrame === "function");
+      let track = stream.getVideoTracks()[0] as
+        | CanvasCaptureMediaStreamTrack
+        | undefined;
+      const hasManualFrameRequest = Boolean(
+        track && typeof track.requestFrame === "function",
+      );
 
       if (!hasManualFrameRequest) {
         stream.getTracks().forEach((streamTrack) => streamTrack.stop());
         stream = canvas.captureStream(fps);
-        track = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+        track = stream.getVideoTracks()[0] as
+          | CanvasCaptureMediaStreamTrack
+          | undefined;
       }
 
       const recorder = new MediaRecorder(stream, {
@@ -951,76 +1092,103 @@ export function Canvas({ className }: CanvasProps) {
 
     (async () => {
       try {
-        renderer = new THREE.WebGPURenderer({ canvas: canvas!, antialias: true });
+        renderer = new THREE.WebGPURenderer({
+          canvas: canvas!,
+          antialias: true,
+        });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
         const rect = outer.getBoundingClientRect();
-        const initialRect = fitRect(rect.width, rect.height, resolvedAspectRef.current);
-        setRenderRect((prev) => (isSameRect(prev, initialRect) ? prev : initialRect));
+        const initialRect = fitRect(
+          rect.width,
+          rect.height,
+          resolvedAspectRef.current,
+        );
+        setRenderRect((prev) =>
+          isSameRect(prev, initialRect) ? prev : initialRect,
+        );
+        const shouldSupersampleForZoom = sourceMediaKindRef.current === "image";
+        const zoomBoost = shouldSupersampleForZoom
+          ? Math.min(Math.max(zoomRef.current, 1), ZOOM_SUPERSAMPLE_MAX)
+          : 1;
+        const effectiveScale = renderScaleRef.current * zoomBoost;
         const initialRenderWidth = Math.max(
-          Math.round(initialRect.width * renderScaleRef.current),
+          Math.round(initialRect.width * effectiveScale),
           1,
         );
         const initialRenderHeight = Math.max(
-          Math.round(initialRect.height * renderScaleRef.current),
+          Math.round(initialRect.height * effectiveScale),
           1,
         );
         renderer.setSize(initialRenderWidth, initialRenderHeight, false);
+        updateCanvasExportHints(zoomBoost);
 
         await renderer.init();
-        if (disposed) { renderer.dispose(); return; }
+        if (disposed) {
+          renderer.dispose();
+          return;
+        }
 
         rendererRef.current = renderer;
-        pipeline = new PipelineManager(renderer, initialRenderWidth, initialRenderHeight, {
-          onShaderError: (layerId, error) => {
-            const key = `${layerId}:${error.message}`;
-            const layerState = useLayerStore.getState();
-            layerState.setLayerRuntimeError(layerId, error.message);
-            layerState.setLayerVisibility(layerId, false);
+        pipeline = new PipelineManager(
+          renderer,
+          initialRenderWidth,
+          initialRenderHeight,
+          {
+            onShaderError: (layerId, error) => {
+              const key = `${layerId}:${error.message}`;
+              const layerState = useLayerStore.getState();
+              layerState.setLayerRuntimeError(layerId, error.message);
+              layerState.setLayerVisibility(layerId, false);
 
-            if (!shaderErrorNotifiedRef.current.has(key)) {
-              shaderErrorNotifiedRef.current.add(key);
-              toastRef.current({
-                variant: "error",
-                title: "Shader layer disabled",
-                description:
-                  "A shader pass failed to compile/render. The layer was disabled to keep the editor running.",
-              });
-            }
-          },
-          onMediaStatus: (layerId, mediaStatus, error) => {
-            const layerState = useLayerStore.getState();
-            layerState.setLayerMediaStatus(layerId, mediaStatus, error);
-
-            if (mediaStatus === "error") {
-              const key = `${layerId}:${error ?? "media-error"}`;
-              if (!mediaErrorNotifiedRef.current.has(key)) {
-                mediaErrorNotifiedRef.current.add(key);
+              if (!shaderErrorNotifiedRef.current.has(key)) {
+                shaderErrorNotifiedRef.current.add(key);
                 toastRef.current({
                   variant: "error",
-                  title: "Media load failed",
-                  description: error ?? "Could not load media for this layer. Use retry in layer options.",
+                  title: "Shader layer disabled",
+                  description:
+                    "A shader pass failed to compile/render. The layer was disabled to keep the editor running.",
                 });
               }
-            } else if (mediaStatus === "ready") {
-              const keys = Array.from(mediaErrorNotifiedRef.current);
-              for (const key of keys) {
-                if (key.startsWith(`${layerId}:`)) mediaErrorNotifiedRef.current.delete(key);
+            },
+            onMediaStatus: (layerId, mediaStatus, error) => {
+              const layerState = useLayerStore.getState();
+              layerState.setLayerMediaStatus(layerId, mediaStatus, error);
+
+              if (mediaStatus === "error") {
+                const key = `${layerId}:${error ?? "media-error"}`;
+                if (!mediaErrorNotifiedRef.current.has(key)) {
+                  mediaErrorNotifiedRef.current.add(key);
+                  toastRef.current({
+                    variant: "error",
+                    title: "Media load failed",
+                    description:
+                      error ??
+                      "Could not load media for this layer. Use retry in layer options.",
+                  });
+                }
+              } else if (mediaStatus === "ready") {
+                const keys = Array.from(mediaErrorNotifiedRef.current);
+                for (const key of keys) {
+                  if (key.startsWith(`${layerId}:`))
+                    mediaErrorNotifiedRef.current.delete(key);
+                }
               }
-            }
+            },
+            onOutOfMemory: () => {
+              const now = performance.now();
+              if (now - lastOomWarnRef.current < OOM_WARN_COOLDOWN_MS) return;
+              lastOomWarnRef.current = now;
+              toastRef.current({
+                variant: "warning",
+                title: "GPU memory pressure",
+                description:
+                  "Out of GPU memory. Remove layers or lower render quality.",
+                duration: 7000,
+              });
+            },
           },
-          onOutOfMemory: () => {
-            const now = performance.now();
-            if (now - lastOomWarnRef.current < OOM_WARN_COOLDOWN_MS) return;
-            lastOomWarnRef.current = now;
-            toastRef.current({
-              variant: "warning",
-              title: "GPU memory pressure",
-              description: "Out of GPU memory. Remove layers or lower render quality.",
-              duration: 7000,
-            });
-          },
-        });
+        );
         pipelineRef.current = pipeline;
         resizeSurface();
 
@@ -1054,7 +1222,10 @@ export function Canvas({ className }: CanvasProps) {
           try {
             didRender = pipeline!.render(timeSec, delta);
           } catch (err) {
-            const message = err instanceof Error ? err.message : "Unexpected renderer failure.";
+            const message =
+              err instanceof Error
+                ? err.message
+                : "Unexpected renderer failure.";
             setStatus("error");
             setStatusMessage(message);
             toastRef.current({
@@ -1122,7 +1293,11 @@ export function Canvas({ className }: CanvasProps) {
       } catch (err) {
         if (!disposed) {
           setStatus("error");
-          setStatusMessage(err instanceof Error ? err.message : "Unknown initialisation error.");
+          setStatusMessage(
+            err instanceof Error
+              ? err.message
+              : "Unknown initialisation error.",
+          );
         }
         console.error("[Canvas]", err);
       }
@@ -1154,8 +1329,12 @@ export function Canvas({ className }: CanvasProps) {
     function sync(layers: Layer[], groups: LayerGroup[]) {
       const p = pipelineRef.current;
       if (!p) return;
-      if (!GROUPS_ENABLED && (groups.length > 0 || layers.some((layer) => Boolean(layer.groupId)))) {
-        const { setLayers, selectedLayerId: currentSelection } = useLayerStore.getState();
+      if (
+        !GROUPS_ENABLED &&
+        (groups.length > 0 || layers.some((layer) => Boolean(layer.groupId)))
+      ) {
+        const { setLayers, selectedLayerId: currentSelection } =
+          useLayerStore.getState();
         setLayers(
           layers.map((layer) => ({ ...layer, groupId: undefined })),
           currentSelection,
@@ -1169,16 +1348,16 @@ export function Canvas({ className }: CanvasProps) {
       // All layers — both media and shader — become passes in the pipeline,
       // ordered bottom → top so the render chain composites correctly.
       const passes: PipelineLayer[] = [...layers].reverse().map((l) => ({
-        id:         l.id,
-        kind:       l.kind,
-        visible:    l.visible,
-        opacity:    Math.max(0, Math.min(1, l.opacity)),
-        blendMode:  l.blendMode,
+        id: l.id,
+        kind: l.kind,
+        visible: l.visible,
+        opacity: Math.max(0, Math.min(1, l.opacity)),
+        blendMode: l.blendMode,
         filterMode: l.filterMode,
-        params:     l.params,
+        params: l.params,
         shaderType: l.shaderType,
-        mediaUrl:   l.mediaUrl,
-        mediaName:  l.mediaName,
+        mediaUrl: l.mediaUrl,
+        mediaName: l.mediaName,
         mediaVersion: l.mediaVersion,
         maskTexture: maybeApplyMaskDataUrl(l, maskSize.width, maskSize.height),
       }));
@@ -1188,7 +1367,9 @@ export function Canvas({ className }: CanvasProps) {
 
     const initialState = useLayerStore.getState();
     sync(initialState.layers, initialState.groups);
-    const unsub = useLayerStore.subscribe((state) => sync(state.layers, state.groups));
+    const unsub = useLayerStore.subscribe((state) =>
+      sync(state.layers, state.groups),
+    );
     return unsub;
   }, [getMaskRenderSize, maybeApplyMaskDataUrl, pruneMaskResources, status]);
 
@@ -1220,7 +1401,11 @@ export function Canvas({ className }: CanvasProps) {
           height: `${renderRect.height}px`,
         }}
       >
-        <div ref={innerRef} className="absolute inset-0" style={{ transformOrigin: "center center" }}>
+        <div
+          ref={innerRef}
+          className="absolute inset-0"
+          style={{ transformOrigin: "center center" }}
+        >
           <canvas
             ref={canvasRef}
             id="editor-canvas"
@@ -1235,7 +1420,11 @@ export function Canvas({ className }: CanvasProps) {
             className="absolute inset-0 h-full w-full"
             style={{
               pointerEvents: isMaskPaintActive ? "auto" : "none",
-              cursor: isMaskPaintActive ? (maskPaint.erase ? "cell" : "crosshair") : "default",
+              cursor: isMaskPaintActive
+                ? maskPaint.erase
+                  ? "cell"
+                  : "crosshair"
+                : "default",
               opacity: isMaskPaintActive ? 1 : 0,
             }}
             onPointerDown={handleMaskPointerDown}
@@ -1247,12 +1436,12 @@ export function Canvas({ className }: CanvasProps) {
         </div>
       </div>
 
-      {status !== "ready" && <CanvasFallback status={status} message={statusMessage} />}
+      {status !== "ready" && (
+        <CanvasFallback status={status} message={statusMessage} />
+      )}
 
       {/* Empty state — shown when canvas is ready and stack is empty */}
-      {status === "ready" && layerCount === 0 && !isDragOver && (
-        <_EmptyState />
-      )}
+      {status === "ready" && layerCount === 0 && !isDragOver && <_EmptyState />}
 
       {/* Drag-over overlay */}
       {isDragOver && <_DropOverlay />}
@@ -1356,7 +1545,9 @@ function _LoadingOverlay() {
             d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
           />
         </svg>
-        <span className="text-sm text-[var(--color-fg-secondary)]">Loading…</span>
+        <span className="text-sm text-[var(--color-fg-secondary)]">
+          Loading…
+        </span>
       </div>
     </div>
   );

@@ -175,6 +175,14 @@ export class PassNode {
   resize(_width: number, _height: number): void {}
 
   /**
+   * Called by PipelineManager to provide an output-scale factor for the current
+   * render target. Subclasses that use pixel-space math (screenSize/cell size)
+   * can override to keep visual scale stable during high-res exports.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  updateViewportScale(_scale: number): void {}
+
+  /**
    * Returns true when this pass needs per-frame rendering even without
    * parameter changes (e.g. video playback or fluid decay).
    */
