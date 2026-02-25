@@ -99,6 +99,7 @@ const SHADER_SECTIONS: Array<{
       { type: "fluted-glass", label: "Fluted Glass" },
       { type: "progressive-blur", label: "Progressive Blur" },
       { type: "warp-distortion", label: "Warp Distortion" },
+      { type: "chromatic-aberration", label: "Prism Split" },
       { type: "mesh-gradient", label: "Mesh Gradient" },
       { type: "guilloche", label: "Guilloche" },
       { type: "3d-shapes", label: "3D Shapes" },

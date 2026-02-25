@@ -100,6 +100,7 @@ const VALID_SHADER_TYPES = new Set<ShaderType>([
   "fluted-glass",
   "progressive-blur",
   "warp-distortion",
+  "chromatic-aberration",
   "noise-generator",
   "mesh-gradient",
   "guilloche",

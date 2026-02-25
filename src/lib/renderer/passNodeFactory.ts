@@ -6,6 +6,7 @@ import { DitheringPass } from "@/lib/shaders/dithering.tsl";
 import { FlutedGlassPass } from "@/lib/shaders/flutedGlass.tsl";
 import { ProgressiveBlurPass } from "@/lib/shaders/progressiveBlur.tsl";
 import { WarpDistortionPass } from "@/lib/shaders/warpDistortion.tsl";
+import { ChromaticAberrationPass } from "@/lib/shaders/chromaticAberration.tsl";
 import { NoiseGeneratorPass } from "@/lib/shaders/noiseGenerator.tsl";
 import { MeshGradientPass } from "@/lib/shaders/meshGradient.tsl";
 import { GuillochePass } from "@/lib/shaders/guilloche.tsl";
@@ -32,6 +33,7 @@ export function createPassNode(layerId: string, shaderType?: string): PassNode {
     case "fluted-glass":      return new FlutedGlassPass(layerId);
     case "progressive-blur":  return new ProgressiveBlurPass(layerId);
     case "warp-distortion":   return new WarpDistortionPass(layerId);
+    case "chromatic-aberration": return new ChromaticAberrationPass(layerId);
     case "noise-generator":   return new NoiseGeneratorPass(layerId);
     case "mesh-gradient":     return new MeshGradientPass(layerId);
     case "guilloche":         return new GuillochePass(layerId);

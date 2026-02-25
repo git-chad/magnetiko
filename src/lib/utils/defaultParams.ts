@@ -723,6 +723,87 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
         },
       ];
 
+    case "chromatic-aberration":
+      return [
+        {
+          key: "mode",
+          label: "Mode",
+          type: "enum",
+          value: "radial",
+          options: [
+            { label: "Radial", value: "radial" },
+            { label: "Directional", value: "directional" },
+          ],
+          group: "Prism",
+          description: "Radial adds edge fringing; directional applies a global split axis",
+        },
+        {
+          key: "amount",
+          label: "Amount",
+          type: "float",
+          value: 6,
+          min: 0,
+          max: 24,
+          step: 0.1,
+          group: "Prism",
+          description: "RGB separation strength in screen pixels",
+        },
+        {
+          key: "angle",
+          label: "Angle",
+          type: "float",
+          value: 0,
+          min: 0,
+          max: 360,
+          step: 1,
+          group: "Prism",
+          description: "Split direction when mode = directional",
+        },
+        {
+          key: "center",
+          label: "Center",
+          type: "vec2",
+          value: [0.5, 0.5],
+          group: "Prism",
+          description: "UV origin for radial fringing",
+        },
+        {
+          key: "falloff",
+          label: "Falloff",
+          type: "float",
+          value: 1.2,
+          min: 0.1,
+          max: 4,
+          step: 0.05,
+          group: "Prism",
+          description: "How fast radial split ramps toward the edges",
+        },
+        {
+          key: "spectrum",
+          label: "Spectrum",
+          type: "enum",
+          value: "natural",
+          options: [
+            { label: "Natural", value: "natural" },
+            { label: "CMY", value: "cmy" },
+            { label: "Neon", value: "neon" },
+          ],
+          group: "Color",
+          description: "Color channel separation style",
+        },
+        {
+          key: "blend",
+          label: "Blend",
+          type: "float",
+          value: 0.85,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          group: "Color",
+          description: "Mix between clean source and prism-split output",
+        },
+      ];
+
     case "noise-generator":
       return [
         {
@@ -1726,6 +1807,7 @@ export function getDefaultLayerName(
     "fluted-glass": "Fluted Glass",
     "progressive-blur": "Progressive Blur",
     "warp-distortion": "Warp Distortion",
+    "chromatic-aberration": "Prism Split",
     "noise-generator": "Noise Generator",
     "mesh-gradient": "Mesh Gradient",
     guilloche: "Guilloche",

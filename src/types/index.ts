@@ -46,6 +46,7 @@ export type ShaderType =
   | "fluted-glass"
   | "progressive-blur"
   | "warp-distortion"
+  | "chromatic-aberration"
   | "noise-generator"
   | "mesh-gradient"
   | "guilloche"
