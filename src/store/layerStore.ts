@@ -6,6 +6,7 @@ import {
   getDefaultParamsForLayer,
   getDefaultLayerName,
 } from "@/lib/utils/defaultParams";
+import { GROUPS_ENABLED } from "@/config/featureFlags";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State shape
@@ -392,6 +393,7 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     createGroup(name, layerIds) {
+      if (!GROUPS_ENABLED) return null;
       const { groups, layers, selectedLayerId } = get();
       const nextGroupId = uuidv4();
       const normalizedName = name?.trim();
@@ -439,6 +441,7 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     removeGroup(groupId) {
+      if (!GROUPS_ENABLED) return;
       set((state) => {
         state.groups = state.groups.filter((group) => group.id !== groupId);
         for (const layer of state.layers) {
@@ -448,6 +451,7 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     renameGroup(groupId, name) {
+      if (!GROUPS_ENABLED) return;
       const trimmed = name.trim();
       if (!trimmed) return;
       set((state) => {
@@ -457,6 +461,7 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     toggleGroupCollapsed(groupId) {
+      if (!GROUPS_ENABLED) return;
       set((state) => {
         const group = state.groups.find((g) => g.id === groupId);
         if (group) group.collapsed = !group.collapsed;
@@ -464,6 +469,7 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     setGroupVisibility(groupId, visible) {
+      if (!GROUPS_ENABLED) return;
       set((state) => {
         const group = state.groups.find((g) => g.id === groupId);
         if (group) group.visible = visible;
@@ -471,6 +477,7 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     setGroupOpacity(groupId, opacity) {
+      if (!GROUPS_ENABLED) return;
       set((state) => {
         const group = state.groups.find((g) => g.id === groupId);
         if (group) group.opacity = Math.max(0, Math.min(1, opacity));
@@ -478,6 +485,7 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     setGroupBlendMode(groupId, blendMode) {
+      if (!GROUPS_ENABLED) return;
       set((state) => {
         const group = state.groups.find((g) => g.id === groupId);
         if (group) group.blendMode = blendMode;
@@ -485,6 +493,15 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     assignLayerToGroup(layerId, groupId) {
+      if (!GROUPS_ENABLED) {
+        set((state) => {
+          const layer = state.layers.find((l) => l.id === layerId);
+          if (!layer) return;
+          layer.groupId = undefined;
+          state.groups = [];
+        });
+        return;
+      }
       set((state) => {
         const layer = state.layers.find((l) => l.id === layerId);
         if (!layer) return;
@@ -518,7 +535,18 @@ export const useLayerStore = create<LayerStore>()(
 
     setLayers(layers, selectedLayerId, groups) {
       set((state) => {
-        const nextLayers = layers.slice(0, MAX_LAYERS);
+        const nextLayers = layers
+          .slice(0, MAX_LAYERS)
+          .map((layer) => (GROUPS_ENABLED ? layer : { ...layer, groupId: undefined }));
+        if (!GROUPS_ENABLED) {
+          state.layers = nextLayers;
+          state.groups = [];
+          state.selectedLayerId =
+            selectedLayerId && nextLayers.some((layer) => layer.id === selectedLayerId)
+              ? selectedLayerId
+              : nextLayers[0]?.id ?? null;
+          return;
+        }
         const providedGroups = groups ? normalizeGroups(groups) : null;
         const providedGroupIds = providedGroups ? new Set(providedGroups.map((group) => group.id)) : null;
         if (providedGroupIds) {

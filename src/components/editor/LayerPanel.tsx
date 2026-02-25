@@ -51,6 +51,7 @@ import { useToast } from "@/components/ui/toast";
 import { useHistoryStore } from "@/store/historyStore";
 import { useLayerStore } from "@/store/layerStore";
 import { MAX_LAYERS } from "@/store/layerStore";
+import { GROUPS_ENABLED } from "@/config/featureFlags";
 import { LayerItem } from "./LayerItem";
 import type { Layer, LayerGroup, ShaderType } from "@/types";
 
@@ -192,15 +193,19 @@ function AddLayerMenu() {
             </React.Fragment>
           ))}
 
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Grouping</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={handleCreateGroup}>
-            <FolderSimple
-              size={13}
-              className="shrink-0 text-[var(--color-fg-tertiary)]"
-            />
-            New Group
-          </DropdownMenuItem>
+          {GROUPS_ENABLED && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Grouping</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={handleCreateGroup}>
+                <FolderSimple
+                  size={13}
+                  className="shrink-0 text-[var(--color-fg-tertiary)]"
+                />
+                New Group
+              </DropdownMenuItem>
+            </>
+          )}
 
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Media</DropdownMenuLabel>
@@ -419,6 +424,9 @@ export function LayerPanel() {
   }, [groups, layers]);
 
   const rows = React.useMemo<DisplayRow[]>(() => {
+    if (!GROUPS_ENABLED) {
+      return layers.map((layer) => ({ type: "layer", layer, inGroup: false }));
+    }
     const groupMap = new Map(groups.map((group) => [group.id, group]));
     const emitted = new Set<string>();
     const nextRows: DisplayRow[] = [];
@@ -462,18 +470,28 @@ export function LayerPanel() {
 
   const sortableRowIds = React.useMemo(
     () =>
+      !GROUPS_ENABLED
+        ? layers.map((layer) => layer.id)
+        :
       rows.flatMap((row) => {
         if (row.type === "group") return [toGroupRowId(row.group.id)];
         if (!row.inGroup) return [row.layer.id];
         return [];
       }),
-    [rows],
+    [layers, rows],
   );
 
   function handleDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
     const activeId = String(active.id);
     const overId = String(over.id);
+
+    if (!GROUPS_ENABLED) {
+      const oldIndex = layers.findIndex((layer) => layer.id === activeId);
+      const newIndex = layers.findIndex((layer) => layer.id === overId);
+      if (oldIndex !== -1 && newIndex !== -1) reorderLayers(oldIndex, newIndex);
+      return;
+    }
 
     const activeGroupId = fromGroupRowId(activeId);
     const overGroupId = fromGroupRowId(overId);
@@ -609,7 +627,7 @@ export function LayerPanel() {
       </div>
 
       <ScrollArea className="flex-1">
-        {layers.length === 0 && groups.length === 0 ? (
+        {layers.length === 0 ? (
           <div className="flex items-center justify-center px-md py-lg">
             <Text variant="caption" color="disabled" className="text-center">
               No layers yet.

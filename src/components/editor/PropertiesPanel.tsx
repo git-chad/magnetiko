@@ -42,8 +42,9 @@ import { useEditorStore } from "@/store/editorStore";
 import { useMediaStore } from "@/store/mediaStore";
 import { getDefaultParamsForLayer } from "@/lib/utils/defaultParams";
 import { ParamControl } from "@/components/shared/ParamControl";
+import { GROUPS_ENABLED } from "@/config/featureFlags";
 import { cn } from "@/lib/utils";
-import type { BlendMode, FilterMode, FrameAspectMode, Layer, LayerGroup, ShaderParam } from "@/types";
+import type { BlendMode, FilterMode, FrameAspectMode, Layer, ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Blend mode option groups (all 16 CSS blend modes, organised by category)
@@ -640,12 +641,6 @@ function _GeneralSection({ layer }: { layer: Layer }) {
   const setLayerOpacity     = useLayerStore((s) => s.setLayerOpacity);
   const setLayerBlendMode   = useLayerStore((s) => s.setLayerBlendMode);
   const setLayerFilterMode  = useLayerStore((s) => s.setLayerFilterMode);
-  const setGroupVisibility  = useLayerStore((s) => s.setGroupVisibility);
-  const setGroupOpacity     = useLayerStore((s) => s.setGroupOpacity);
-  const setGroupBlendMode   = useLayerStore((s) => s.setGroupBlendMode);
-  const groups              = useLayerStore((s) => s.groups);
-  const assignLayerToGroup  = useLayerStore((s) => s.assignLayerToGroup);
-  const createGroup         = useLayerStore((s) => s.createGroup);
   const pushHistory         = usePushHistory();
 
   function handleOpacity(value: number) {
@@ -662,49 +657,6 @@ function _GeneralSection({ layer }: { layer: Layer }) {
     pushHistory("Change layer mode");
     setLayerFilterMode(layer.id, mode);
   }
-
-  function handleGroupVisibility(nextVisible: boolean) {
-    if (!layer.groupId) return;
-    pushHistory(nextVisible ? "Show group" : "Hide group");
-    setGroupVisibility(layer.groupId, nextVisible);
-  }
-
-  function handleGroupOpacity(value: number) {
-    if (!layer.groupId) return;
-    pushHistory("Change group opacity", true);
-    setGroupOpacity(layer.groupId, value);
-  }
-
-  function handleGroupBlendMode(mode: BlendMode) {
-    if (!layer.groupId) return;
-    pushHistory("Change group blend mode");
-    setGroupBlendMode(layer.groupId, mode);
-  }
-
-  function handleGroupChange(value: string) {
-    if (value === "__ungrouped") {
-      pushHistory("Ungroup layer");
-      assignLayerToGroup(layer.id, null);
-      return;
-    }
-    if (value === "__new_group") {
-      pushHistory("Create group");
-      const groupId = createGroup(undefined, [layer.id]);
-      if (!groupId) return;
-      return;
-    }
-    pushHistory("Move layer to group");
-    assignLayerToGroup(layer.id, value);
-  }
-
-  const sortedGroups = React.useMemo<LayerGroup[]>(
-    () => [...groups].sort((a, b) => a.name.localeCompare(b.name)),
-    [groups],
-  );
-  const groupForLayer = React.useMemo(
-    () => (layer.groupId ? groups.find((group) => group.id === layer.groupId) ?? null : null),
-    [groups, layer.groupId],
-  );
 
   return (
     <div>
@@ -781,88 +733,12 @@ function _GeneralSection({ layer }: { layer: Layer }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
-            Group
-          </Text>
-          <Select
-            value={layer.groupId ?? "__ungrouped"}
-            onValueChange={handleGroupChange}
-          >
-            <SelectTrigger className="h-7 flex-1 text-caption">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__ungrouped">Ungrouped</SelectItem>
-              {sortedGroups.map((group) => (
-                <SelectItem key={group.id} value={group.id}>
-                  {group.name}
-                </SelectItem>
-              ))}
-              <SelectItem value="__new_group">New group from layer</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {groupForLayer && (
-          <>
-            <div className="flex items-center gap-xs py-3xs">
-              <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
-                Group vis
-              </Text>
-              <Button
-                size="sm"
-                variant={groupForLayer.visible ? "secondary" : "ghost"}
-                onClick={() => handleGroupVisibility(!groupForLayer.visible)}
-              >
-                {groupForLayer.visible ? <Eye size={13} /> : <EyeSlash size={13} />}
-                {groupForLayer.visible ? "Visible" : "Hidden"}
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-xs py-3xs">
-              <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
-                Group op.
-              </Text>
-              <Slider
-                className="flex-1"
-                min={0}
-                max={1}
-                step={0.01}
-                value={[groupForLayer.opacity]}
-                onValueChange={([v]) => handleGroupOpacity(v)}
-              />
-              <span className="w-9 shrink-0 text-right font-mono text-caption text-[var(--color-fg-tertiary)] tabular-nums">
-                {Math.round(groupForLayer.opacity * 100)}%
-              </span>
-            </div>
-
-            <div className="flex items-center gap-xs py-3xs">
-              <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
-                Group blend
-              </Text>
-              <Select
-                value={groupForLayer.blendMode}
-                onValueChange={(v) => handleGroupBlendMode(v as BlendMode)}
-              >
-                <SelectTrigger className="h-7 flex-1 text-caption capitalize">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {BLEND_MODE_GROUPS.map((group) => (
-                    <SelectGroup key={group.label}>
-                      <SelectLabel>{group.label}</SelectLabel>
-                      {group.modes.map((mode) => (
-                        <SelectItem key={mode.value} value={mode.value} className="capitalize">
-                          {mode.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </>
+        {!GROUPS_ENABLED && (
+          <div className="py-3xs">
+            <Text variant="caption" color="disabled">
+              Grouping is temporarily disabled.
+            </Text>
+          </div>
         )}
       </div>
       <Separator />

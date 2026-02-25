@@ -13,6 +13,7 @@ import { useMediaStore } from "@/store/mediaStore";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { useMouseInteraction } from "@/hooks/useMouseInteraction";
 import { useToast } from "@/components/ui/toast";
+import { GROUPS_ENABLED } from "@/config/featureFlags";
 import type { Layer, LayerGroup } from "@/types";
 
 type VideoExportPhase = "recording" | "encoding";
@@ -1153,6 +1154,15 @@ export function Canvas({ className }: CanvasProps) {
     function sync(layers: Layer[], groups: LayerGroup[]) {
       const p = pipelineRef.current;
       if (!p) return;
+      if (!GROUPS_ENABLED && (groups.length > 0 || layers.some((layer) => Boolean(layer.groupId)))) {
+        const { setLayers, selectedLayerId: currentSelection } = useLayerStore.getState();
+        setLayers(
+          layers.map((layer) => ({ ...layer, groupId: undefined })),
+          currentSelection,
+          [],
+        );
+        return;
+      }
       const groupsById = new Map(groups.map((group) => [group.id, group]));
       const maskSize = getMaskRenderSize();
       pruneMaskResources(layers);
@@ -1160,14 +1170,21 @@ export function Canvas({ className }: CanvasProps) {
       // All layers — both media and shader — become passes in the pipeline,
       // ordered bottom → top so the render chain composites correctly.
       const passes: PipelineLayer[] = [...layers].reverse().map((l) => ({
+        groupId:    GROUPS_ENABLED ? l.groupId : undefined,
+        groupVisible: GROUPS_ENABLED
+          ? (l.groupId ? (groupsById.get(l.groupId)?.visible ?? true) : true)
+          : true,
+        groupOpacity: GROUPS_ENABLED
+          ? (l.groupId ? (groupsById.get(l.groupId)?.opacity ?? 1) : 1)
+          : 1,
+        groupBlendMode: GROUPS_ENABLED
+          ? (l.groupId ? (groupsById.get(l.groupId)?.blendMode ?? "normal") : "normal")
+          : "normal",
         id:         l.id,
         kind:       l.kind,
-        visible:    l.visible && (l.groupId ? (groupsById.get(l.groupId)?.visible ?? true) : true),
-        opacity:    Math.max(
-          0,
-          Math.min(1, l.opacity * (l.groupId ? (groupsById.get(l.groupId)?.opacity ?? 1) : 1)),
-        ),
-        blendMode:  l.groupId ? (groupsById.get(l.groupId)?.blendMode ?? l.blendMode) : l.blendMode,
+        visible:    l.visible,
+        opacity:    Math.max(0, Math.min(1, l.opacity)),
+        blendMode:  l.blendMode,
         filterMode: l.filterMode,
         params:     l.params,
         shaderType: l.shaderType,

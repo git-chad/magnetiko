@@ -33,6 +33,7 @@ import {
 } from "@/components/ui";
 import { useHistoryStore } from "@/store/historyStore";
 import { useLayerStore } from "@/store/layerStore";
+import { GROUPS_ENABLED } from "@/config/featureFlags";
 import { cn } from "@/lib/utils";
 import type { Layer } from "@/types";
 
@@ -304,44 +305,46 @@ export function LayerItem({
             <Copy size={13} />
             Duplicate
           </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <FolderSimple size={13} />
-              Group
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent sideOffset={6}>
-              <DropdownMenuItem
-                disabled={!layer.groupId}
-                onSelect={() => {
-                  pushHistorySnapshot("Ungroup layer");
-                  assignLayerToGroup(layer.id, null);
-                }}
-              >
-                Ungroup
-              </DropdownMenuItem>
-              {groups.map((group) => (
+          {GROUPS_ENABLED && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <FolderSimple size={13} />
+                Group
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent sideOffset={6}>
                 <DropdownMenuItem
-                  key={group.id}
-                  disabled={layer.groupId === group.id}
+                  disabled={!layer.groupId}
                   onSelect={() => {
-                    pushHistorySnapshot("Move layer to group");
-                    assignLayerToGroup(layer.id, group.id);
+                    pushHistorySnapshot("Ungroup layer");
+                    assignLayerToGroup(layer.id, null);
                   }}
                 >
-                  {group.name}
+                  Ungroup
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  pushHistorySnapshot("Create group");
-                  createGroup(undefined, [layer.id]);
-                }}
-              >
-                New group from layer
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+                {groups.map((group) => (
+                  <DropdownMenuItem
+                    key={group.id}
+                    disabled={layer.groupId === group.id}
+                    onSelect={() => {
+                      pushHistorySnapshot("Move layer to group");
+                      assignLayerToGroup(layer.id, group.id);
+                    }}
+                  >
+                    {group.name}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    pushHistorySnapshot("Create group");
+                    createGroup(undefined, [layer.id]);
+                  }}
+                >
+                  New group from layer
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
           {layer.shaderType && (
             <DropdownMenuItem onSelect={() => resetParams(layer.id)}>
               Reset parameters
