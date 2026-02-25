@@ -101,6 +101,7 @@ const SHADER_SECTIONS: Array<{
       { type: "mesh-gradient", label: "Mesh Gradient" },
       { type: "guilloche", label: "Guilloche" },
       { type: "3d-shapes", label: "3D Shapes" },
+      { type: "interactivity", label: "Interactivity" },
     ],
   },
 ];

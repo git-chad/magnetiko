@@ -39,10 +39,16 @@ export class PassNode {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected _inputNode: any; // ShaderNodeObject<TextureNode> — value is mutable
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  protected _maskNode: any; // Optional painted layer mask texture
+  private _maskTexture: THREE.Texture | null = null;
+  private readonly _defaultMaskTexture: THREE.DataTexture;
 
   // Compositing state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _opacityUniform: any; // ShaderNodeObject<UniformNode>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _hasCustomMaskUniform: any;
   private _blendMode: string = "normal";
   private _filterMode: "filter" | "mask" = "filter";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,8 +68,20 @@ export class PassNode {
     const placeholder = new THREE.Texture();
     const rtUV = vec2(uv().x, float(1.0).sub(uv().y));
     this._inputNode = tslTexture(placeholder, rtUV);
+    this._defaultMaskTexture = new THREE.DataTexture(
+      new Uint8Array([255, 255, 255, 255]),
+      1,
+      1,
+      THREE.RGBAFormat,
+      THREE.UnsignedByteType,
+    );
+    this._defaultMaskTexture.needsUpdate = true;
+    this._defaultMaskTexture.minFilter = THREE.LinearFilter;
+    this._defaultMaskTexture.magFilter = THREE.LinearFilter;
+    this._maskNode = tslTexture(this._defaultMaskTexture, rtUV);
 
     this._opacityUniform = uniform(1.0);
+    this._hasCustomMaskUniform = uniform(0.0);
 
     this._material = new THREE.MeshBasicNodeMaterial();
 
@@ -93,8 +111,17 @@ export class PassNode {
     _delta: number,
   ): void {
     this._inputNode.value = inputTex;
+    this._maskNode.value = this._maskTexture ?? this._defaultMaskTexture;
+    this._hasCustomMaskUniform.value = this._maskTexture ? 1.0 : 0.0;
     renderer.setRenderTarget(outputTarget);
     renderer.render(this._scene, this._camera);
+  }
+
+  /**
+   * Attach an optional per-layer mask texture. White = full effect, black = off.
+   */
+  updateMaskTexture(maskTexture: THREE.Texture | null): void {
+    this._maskTexture = maskTexture;
   }
 
   /**
@@ -162,6 +189,7 @@ export class PassNode {
   dispose(): void {
     this._scene.clear();
     this._material.dispose();
+    this._defaultMaskTexture.dispose();
   }
 
   // ── Protected — override in Phase 4 subclasses ────────────────────────────
@@ -189,6 +217,8 @@ export class PassNode {
       this._effectNode,
       this._opacityUniform,
       this._filterMode,
+      this._maskNode,
+      this._hasCustomMaskUniform,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ) as any;
   }

@@ -47,6 +47,7 @@ interface LayerActions {
   retryLayerMedia(id: string): void;
   setLayerRuntimeError(id: string, error: string | null): void;
   setLayerThumbnail(id: string, thumbnail: string): void;
+  setLayerMaskData(id: string, maskDataUrl: string | undefined): void;
   createGroup(name?: string, layerIds?: string[]): string | null;
   removeGroup(groupId: string): void;
   renameGroup(groupId: string, name: string): void;
@@ -379,6 +380,14 @@ export const useLayerStore = create<LayerStore>()(
       set((state) => {
         const layer = state.layers.find((l) => l.id === id);
         if (layer) layer.thumbnail = thumbnail;
+      });
+    },
+
+    setLayerMaskData(id, maskDataUrl) {
+      set((state) => {
+        const layer = state.layers.find((l) => l.id === id);
+        if (!layer) return;
+        layer.maskDataUrl = maskDataUrl;
       });
     },
 

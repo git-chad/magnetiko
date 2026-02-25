@@ -205,9 +205,15 @@ export function buildBlendNode(
   blend: Node,
   opacity: Node,
   filterMode: "filter" | "mask" = "filter",
+  layerMask?: Node,
+  hasCustomMask?: Node,
 ): Node {
   const b = base.rgb;
   const e = blend.rgb;
+  const externalMask = layerMask
+    ? float(clamp(dot(layerMask.rgb, vec3(0.2126, 0.7152, 0.0722)), float(0.0), float(1.0)))
+    : float(1.0);
+  const effectiveOpacity = float(clamp(float(opacity).mul(externalMask), float(0.0), float(1.0)));
 
   let composited: Node;
   switch (mode) {
@@ -232,13 +238,17 @@ export function buildBlendNode(
 
   // Filter mode: regular opacity mix.
   if (filterMode === "filter") {
-    return vec4(mix(b, composited, opacity), float(1.0));
+    return vec4(mix(b, composited, effectiveOpacity), float(1.0));
   }
 
-  // Mask mode: use effect luminance as per-pixel mask weight.
-  // This gives a distinct masking behavior while still allowing any shader
-  // output to drive reveal/attenuation.
+  // Mask mode:
+  // - With a painted mask: painted mask drives reveal strength directly.
+  // - Without painted mask: fallback to effect luminance as mask weight.
   const maskLuma = float(dot(e, vec3(0.2126, 0.7152, 0.0722)));
-  const maskedOpacity = float(clamp(maskLuma.mul(opacity), float(0.0), float(1.0)));
+  const customMaskMix = hasCustomMask
+    ? float(clamp(float(hasCustomMask), float(0.0), float(1.0)))
+    : float(1.0);
+  const activeMask = float(mix(maskLuma, externalMask, customMaskMix));
+  const maskedOpacity = float(clamp(float(opacity).mul(activeMask), float(0.0), float(1.0)));
   return vec4(mix(b, composited, maskedOpacity), float(1.0));
 }

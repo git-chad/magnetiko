@@ -29,6 +29,8 @@ export interface PipelineLayer {
   mediaName?: string;
   /** Increment to force media reload retry without changing URL. */
   mediaVersion?: number;
+  /** Optional per-layer painted mask texture (white=reveal). */
+  maskTexture?: THREE.Texture | null;
 }
 
 export interface PipelineManagerCallbacks {
@@ -345,6 +347,7 @@ export class PipelineManager {
         pass.updateOpacity(layer.opacity);
         const blendChanged = pass.updateBlendMode(layer.blendMode);
         const filterModeChanged = pass.updateFilterMode(layer.filterMode);
+        pass.updateMaskTexture(layer.maskTexture ?? null);
         pass.updateUniforms(layer.params);
         const materialVersionAfter = pass.getMaterialVersion();
 

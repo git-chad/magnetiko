@@ -9,6 +9,7 @@ import {
   floor,
   clamp,
   select,
+  length,
   screenSize,
   texture as tslTexture,
 } from "three/tsl";
@@ -52,10 +53,21 @@ export class DitheringPass extends PassNode {
   private readonly _colorModeU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _matrixSizeU: any; // UV divisor — tiles the threshold texture
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _interactionModeU: any; // 0=none,1=trail,2=displacement
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _interactionAmountU: any;
 
   // Mutable texture node; swap .value to change dither pattern without recompile.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _ditherSampledNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _interactionTrailNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _interactionDisplacementNode: any;
+  private readonly _blackTexture: THREE.DataTexture;
+  private _interactivityTrailTexture: THREE.Texture | null = null;
+  private _interactivityDisplacementTexture: THREE.Texture | null = null;
 
   // All threshold DataTextures — allocated once, shared across algorithm switches.
   private readonly _textures: DitherTextures;
@@ -77,10 +89,48 @@ export class DitheringPass extends PassNode {
     this._spreadU     = uniform(1.0);
     this._colorModeU  = uniform(0.0);  // 0=mono 1=source 2=palette
     this._matrixSizeU = uniform(4.0);
+    this._interactionModeU = uniform(0.0);
+    this._interactionAmountU = uniform(0.5);
+    this._blackTexture = new THREE.DataTexture(
+      new Uint8Array([0, 0, 0, 255]),
+      1,
+      1,
+      THREE.RGBAFormat,
+      THREE.UnsignedByteType,
+    );
+    this._blackTexture.needsUpdate = true;
+    this._blackTexture.minFilter = THREE.LinearFilter;
+    this._blackTexture.magFilter = THREE.LinearFilter;
 
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
     this._material.needsUpdate = true;
+  }
+
+  override render(
+    renderer: THREE.WebGPURenderer,
+    inputTex: THREE.Texture,
+    outputTarget: THREE.WebGLRenderTarget,
+    time: number,
+    delta: number,
+  ): void {
+    if (this._interactionTrailNode) {
+      this._interactionTrailNode.value =
+        this._interactivityTrailTexture ?? this._blackTexture;
+    }
+    if (this._interactionDisplacementNode) {
+      this._interactionDisplacementNode.value =
+        this._interactivityDisplacementTexture ?? this._blackTexture;
+    }
+    super.render(renderer, inputTex, outputTarget, time, delta);
+  }
+
+  setInteractivityTextures(
+    trailTexture: THREE.Texture | null,
+    displacementTexture: THREE.Texture | null,
+  ): void {
+    this._interactivityTrailTexture = trailTexture;
+    this._interactivityDisplacementTexture = displacementTexture;
   }
 
   // ── Effect node ────────────────────────────────────────────────────────────
@@ -93,6 +143,7 @@ export class DitheringPass extends PassNode {
     // uv() ∈ [0,1]² → pixCoord ∈ [0, screenWidth] × [0, screenHeight].
     // The Y direction doesn't matter for a tiling pattern, so no flip needed.
     const pixCoord = vec2(uv()).mul(screenSize);
+    const rtUV = vec2(uv().x, float(1.0).sub(uv().y));
 
     // ── Threshold from tiling dither texture ──────────────────────────────────
     // pixCoord / matrixSize gives a UV that repeats every matrixSize pixels.
@@ -100,6 +151,40 @@ export class DitheringPass extends PassNode {
     const ditherUV = pixCoord.div(this._matrixSizeU);
     this._ditherSampledNode = tslTexture(this._currentTexture, ditherUV);
     const threshold = float(this._ditherSampledNode.r);
+    this._interactionTrailNode = tslTexture(this._blackTexture, rtUV);
+    this._interactionDisplacementNode = tslTexture(this._blackTexture, rtUV);
+    const trailLuma = clamp(
+      float(this._interactionTrailNode.r).mul(float(0.2126))
+        .add(float(this._interactionTrailNode.g).mul(float(0.7152)))
+        .add(float(this._interactionTrailNode.b).mul(float(0.0722))),
+      float(0.0),
+      float(1.0),
+    );
+    const displacementMagnitude = clamp(
+      length(
+        vec2(
+          float(this._interactionDisplacementNode.r),
+          float(this._interactionDisplacementNode.g),
+        ),
+      ).mul(float(8.0)),
+      float(0.0),
+      float(1.0),
+    );
+    const interactionSignal = float(select(
+      this._interactionModeU.lessThan(float(1.5)),
+      trailLuma,
+      displacementMagnitude,
+    ));
+    const interactionBias = float(select(
+      this._interactionModeU.lessThan(float(0.5)),
+      float(0.0),
+      interactionSignal.mul(this._interactionAmountU).mul(float(0.6)),
+    ));
+    const thresholdAdjusted = clamp(
+      threshold.add(interactionBias),
+      float(0.0),
+      float(1.0),
+    );
 
     // ── Source color ─────────────────────────────────────────────────────────
     // _inputNode samples at Y-flipped RT UV — base PassNode convention.
@@ -113,7 +198,7 @@ export class DitheringPass extends PassNode {
     const quantize = (ch: any) =>
       clamp(
         floor(
-          float(ch).mul(levelsM1).add(threshold.mul(this._spreadU)),
+          float(ch).mul(levelsM1).add(thresholdAdjusted.mul(this._spreadU)),
         ).div(levelsM1),
         float(0.0),
         float(1.0),
@@ -180,6 +265,19 @@ export class DitheringPass extends PassNode {
         case "spread":
           this._spreadU.value = typeof p.value === "number" ? p.value : 1.0;
           break;
+        case "interactionInput": {
+          const map: Record<string, number> = {
+            none: 0,
+            trail: 1,
+            displacement: 2,
+          };
+          this._interactionModeU.value = map[p.value as string] ?? 0;
+          break;
+        }
+        case "interactionAmount":
+          this._interactionAmountU.value =
+            typeof p.value === "number" ? Math.max(0, p.value) : 0.5;
+          break;
       }
     }
   }
@@ -215,6 +313,7 @@ export class DitheringPass extends PassNode {
   }
 
   override dispose(): void {
+    this._blackTexture.dispose();
     this._textures.bayer2.dispose();
     this._textures.bayer4.dispose();
     this._textures.bayer8.dispose();

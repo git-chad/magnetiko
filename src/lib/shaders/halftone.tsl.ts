@@ -7,6 +7,7 @@ import {
   float,
   uniform,
   floor,
+  clamp,
   length,
   smoothstep,
   mix,
@@ -71,12 +72,23 @@ export class HalftonePass extends PassNode {
   private readonly _duotoneDarkU: any;  // vec3
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _invertU: any;       // 0 = normal, 1 = invert luma
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _interactionModeU: any; // 0=none,1=trail,2=displacement
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _interactionAmountU: any;
 
   // Texture nodes for the 3×3 neighbourhood cell-center samples.
   // All 9 point at the same input texture; updated each frame in render()
   // without triggering a shader recompile.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _sampleNodes: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _interactionTrailNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _interactionDisplacementNode: any;
+  private readonly _blackTexture: THREE.DataTexture;
+  private _interactivityTrailTexture: THREE.Texture | null = null;
+  private _interactivityDisplacementTexture: THREE.Texture | null = null;
 
   constructor(layerId: string) {
     super(layerId);
@@ -96,12 +108,24 @@ export class HalftonePass extends PassNode {
     this._contrastU     = uniform(1.0);
     this._softnessU     = uniform(0.1);
     this._invertU       = uniform(0.0);  // 0=normal 1=invert
+    this._interactionModeU = uniform(0.0);
+    this._interactionAmountU = uniform(0.5);
     this._duotoneLightU = uniform(
       new THREE.Vector3(lightCol.r, lightCol.g, lightCol.b),
     );
     this._duotoneDarkU  = uniform(
       new THREE.Vector3(darkCol.r, darkCol.g, darkCol.b),
     );
+    this._blackTexture = new THREE.DataTexture(
+      new Uint8Array([0, 0, 0, 255]),
+      1,
+      1,
+      THREE.RGBAFormat,
+      THREE.UnsignedByteType,
+    );
+    this._blackTexture.needsUpdate = true;
+    this._blackTexture.minFilter = THREE.LinearFilter;
+    this._blackTexture.magFilter = THREE.LinearFilter;
 
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
@@ -121,7 +145,23 @@ export class HalftonePass extends PassNode {
     for (const node of this._sampleNodes) {
       node.value = inputTex;
     }
+    if (this._interactionTrailNode) {
+      this._interactionTrailNode.value =
+        this._interactivityTrailTexture ?? this._blackTexture;
+    }
+    if (this._interactionDisplacementNode) {
+      this._interactionDisplacementNode.value =
+        this._interactivityDisplacementTexture ?? this._blackTexture;
+    }
     super.render(renderer, inputTex, outputTarget, time, delta);
+  }
+
+  setInteractivityTextures(
+    trailTexture: THREE.Texture | null,
+    displacementTexture: THREE.Texture | null,
+  ): void {
+    this._interactivityTrailTexture = trailTexture;
+    this._interactivityDisplacementTexture = displacementTexture;
   }
 
   // ── Effect node ────────────────────────────────────────────────────────────
@@ -137,6 +177,35 @@ export class HalftonePass extends PassNode {
     // opposite to PlaneGeometry UVs (V=0=bottom).
     const rtUV     = vec2(uv().x, float(1.0).sub(uv().y));
     const pixCoord = rtUV.mul(screenSize); // pixel-space position
+    this._interactionTrailNode = tslTexture(this._blackTexture, rtUV);
+    this._interactionDisplacementNode = tslTexture(this._blackTexture, rtUV);
+    const trailLuma = clamp(
+      float(this._interactionTrailNode.r).mul(float(0.2126))
+        .add(float(this._interactionTrailNode.g).mul(float(0.7152)))
+        .add(float(this._interactionTrailNode.b).mul(float(0.0722))),
+      float(0.0),
+      float(1.0),
+    );
+    const displacementMagnitude = clamp(
+      length(
+        vec2(
+          float(this._interactionDisplacementNode.r),
+          float(this._interactionDisplacementNode.g),
+        ),
+      ).mul(float(8.0)),
+      float(0.0),
+      float(1.0),
+    );
+    const interactionSignal = float(select(
+      this._interactionModeU.lessThan(float(1.5)),
+      trailLuma,
+      displacementMagnitude,
+    ));
+    const interactionBoost = float(select(
+      this._interactionModeU.lessThan(float(0.5)),
+      float(0.0),
+      interactionSignal.mul(this._interactionAmountU),
+    ));
 
     // ── Rotation ──────────────────────────────────────────────────────────────
     const cosA = float(cos(this._angleU));
@@ -210,9 +279,14 @@ export class HalftonePass extends PassNode {
           float(1.0).sub(clampedLuma),
           clampedLuma,
         );
+        const interactionLuma = clamp(
+          effectiveLuma.add(interactionBoost),
+          float(0.0),
+          float(1.0),
+        );
 
         // ── Dot radius ────────────────────────────────────────────────────────
-        const radius = float(float(this._dotMinU).add(effectiveLuma.mul(this._dotSizeU)));
+        const radius = float(float(this._dotMinU).add(interactionLuma.mul(this._dotSizeU)));
 
         // ── Distance from this pixel to this cell's dot center (rotated space)
         const dx = float(rotX.sub(cellRX));
@@ -244,7 +318,7 @@ export class HalftonePass extends PassNode {
         accR    = select(isNew, float(sNode.r),    accR);
         accG    = select(isNew, float(sNode.g),    accG);
         accB    = select(isNew, float(sNode.b),    accB);
-        accLuma = select(isNew, effectiveLuma,      accLuma);
+        accLuma = select(isNew, interactionLuma,    accLuma);
         accCov  = max(cellCov, accCov);
       }
     }
@@ -331,6 +405,19 @@ export class HalftonePass extends PassNode {
         case "invertLuma":
           this._invertU.value = p.value === true ? 1.0 : 0.0;
           break;
+        case "interactionInput": {
+          const map: Record<string, number> = {
+            none: 0,
+            trail: 1,
+            displacement: 2,
+          };
+          this._interactionModeU.value = map[p.value as string] ?? 0;
+          break;
+        }
+        case "interactionAmount":
+          this._interactionAmountU.value =
+            typeof p.value === "number" ? Math.max(0, p.value) : 0.5;
+          break;
         case "duotoneLight": {
           const col = new THREE.Color(p.value as string);
           (this._duotoneLightU.value as THREE.Vector3).set(col.r, col.g, col.b);
@@ -343,5 +430,10 @@ export class HalftonePass extends PassNode {
         }
       }
     }
+  }
+
+  override dispose(): void {
+    this._blackTexture.dispose();
+    super.dispose();
   }
 }

@@ -11,6 +11,7 @@ import {
   clamp,
   mix,
   select,
+  length,
   screenSize,
   texture as tslTexture,
 } from "three/tsl";
@@ -51,12 +52,23 @@ export class AsciiPass extends PassNode {
   private readonly _bgOpacityU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _invertU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _interactionModeU: any; // 0=none,1=trail,2=displacement
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _interactionAmountU: any;
 
   // Mutable texture nodes — updated each frame in render() without recompile.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _inputSampledNode: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _atlasSampledNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _interactionTrailNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _interactionDisplacementNode: any;
+  private readonly _blackTexture: THREE.DataTexture;
+  private _interactivityTrailTexture: THREE.Texture | null = null;
+  private _interactivityDisplacementTexture: THREE.Texture | null = null;
 
   // Font atlas — rebuilt when charset, fontWeight, or cellSize changes.
   private _atlasTexture: THREE.CanvasTexture | null = null;
@@ -82,9 +94,21 @@ export class AsciiPass extends PassNode {
     this._colorModeU = uniform(1.0);  // 1=monochrome (white glyphs on black bg)
     this._bgOpacityU = uniform(1.0);
     this._invertU    = uniform(0.0);
+    this._interactionModeU = uniform(0.0);
+    this._interactionAmountU = uniform(0.5);
 
     // Build atlas sized to match the default cellSize — 1:1 pixel mapping.
     this._atlasTexture = buildAsciiAtlas(CHARSETS["light"], "regular", 16);
+    this._blackTexture = new THREE.DataTexture(
+      new Uint8Array([0, 0, 0, 255]),
+      1,
+      1,
+      THREE.RGBAFormat,
+      THREE.UnsignedByteType,
+    );
+    this._blackTexture.needsUpdate = true;
+    this._blackTexture.minFilter = THREE.LinearFilter;
+    this._blackTexture.magFilter = THREE.LinearFilter;
 
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
@@ -107,6 +131,14 @@ export class AsciiPass extends PassNode {
     if (this._atlasSampledNode && this._atlasTexture) {
       this._atlasSampledNode.value = this._atlasTexture;
     }
+    if (this._interactionTrailNode) {
+      this._interactionTrailNode.value =
+        this._interactivityTrailTexture ?? this._blackTexture;
+    }
+    if (this._interactionDisplacementNode) {
+      this._interactionDisplacementNode.value =
+        this._interactivityDisplacementTexture ?? this._blackTexture;
+    }
     // Render main ASCII effect into outputTarget.
     super.render(renderer, inputTex, outputTarget, time, delta);
 
@@ -119,6 +151,14 @@ export class AsciiPass extends PassNode {
 
   override resize(width: number, height: number): void {
     this._bloom.resize(width, height);
+  }
+
+  setInteractivityTextures(
+    trailTexture: THREE.Texture | null,
+    displacementTexture: THREE.Texture | null,
+  ): void {
+    this._interactivityTrailTexture = trailTexture;
+    this._interactivityDisplacementTexture = displacementTexture;
   }
 
   // ── Effect node ────────────────────────────────────────────────────────────
@@ -157,12 +197,46 @@ export class AsciiPass extends PassNode {
       float(1.0).sub(luma),
       luma,
     );
+    this._interactionTrailNode = tslTexture(this._blackTexture, rtUV);
+    this._interactionDisplacementNode = tslTexture(this._blackTexture, rtUV);
+    const trailLuma = clamp(
+      float(this._interactionTrailNode.r).mul(float(0.2126))
+        .add(float(this._interactionTrailNode.g).mul(float(0.7152)))
+        .add(float(this._interactionTrailNode.b).mul(float(0.0722))),
+      float(0.0),
+      float(1.0),
+    );
+    const displacementMagnitude = clamp(
+      length(
+        vec2(
+          float(this._interactionDisplacementNode.r),
+          float(this._interactionDisplacementNode.g),
+        ),
+      ).mul(float(8.0)),
+      float(0.0),
+      float(1.0),
+    );
+    const interactionSignal = float(select(
+      this._interactionModeU.lessThan(float(1.5)),
+      trailLuma,
+      displacementMagnitude,
+    ));
+    const interactionOffset = float(select(
+      this._interactionModeU.lessThan(float(0.5)),
+      float(0.0),
+      interactionSignal.mul(this._interactionAmountU),
+    ));
+    const interactionLuma = clamp(
+      adjustedLuma.add(interactionOffset),
+      float(0.0),
+      float(1.0),
+    );
 
     // ── Character index ───────────────────────────────────────────────────────
     // luma 0 → char[0] (space, lightest), luma 1 → char[last] (densest).
     const charIndex = floor(
       clamp(
-        adjustedLuma.mul(this._numCharsU.sub(float(1.0))),
+        interactionLuma.mul(this._numCharsU.sub(float(1.0))),
         float(0.0),
         this._numCharsU.sub(float(1.0)),
       ),
@@ -187,8 +261,8 @@ export class AsciiPass extends PassNode {
 
     // ── Glyph colour per color mode ───────────────────────────────────────────
     const srcColor   = vec3(float(sampledColor.r), float(sampledColor.g), float(sampledColor.b));
-    const monoColor  = vec3(adjustedLuma, adjustedLuma, adjustedLuma);
-    const greenColor = vec3(float(0.0), adjustedLuma, float(0.0));
+    const monoColor  = vec3(interactionLuma, interactionLuma, interactionLuma);
+    const greenColor = vec3(float(0.0), interactionLuma, float(0.0));
 
     const dotColor = select(
       this._colorModeU.lessThan(float(0.5)),
@@ -278,6 +352,19 @@ export class AsciiPass extends PassNode {
         case "invert":
           this._invertU.value = p.value === true ? 1.0 : 0.0;
           break;
+        case "interactionInput": {
+          const map: Record<string, number> = {
+            none: 0,
+            trail: 1,
+            displacement: 2,
+          };
+          this._interactionModeU.value = map[p.value as string] ?? 0;
+          break;
+        }
+        case "interactionAmount":
+          this._interactionAmountU.value =
+            typeof p.value === "number" ? Math.max(0, p.value) : 0.5;
+          break;
 
         // ── Bloom params ──────────────────────────────────────────────────
         case "bloomEnabled":
@@ -330,6 +417,7 @@ export class AsciiPass extends PassNode {
 
   override dispose(): void {
     this._atlasTexture?.dispose();
+    this._blackTexture.dispose();
     this._bloom.dispose();
     super.dispose();
   }

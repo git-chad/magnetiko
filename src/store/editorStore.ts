@@ -19,6 +19,12 @@ interface EditorState {
   theme: "light" | "dark";
   sidebarOpen: { left: boolean; right: boolean };
   fps: number;
+  maskPaint: {
+    enabled: boolean;
+    brushSize: number;
+    softness: number;
+    erase: boolean;
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,6 +48,10 @@ interface EditorActions {
   toggleSidebar(side: "left" | "right"): void;
   setSidebarOpen(side: "left" | "right", open: boolean): void;
   setFps(fps: number): void;
+  setMaskPaintEnabled(enabled: boolean): void;
+  setMaskPaintBrushSize(size: number): void;
+  setMaskPaintSoftness(softness: number): void;
+  setMaskPaintErase(erase: boolean): void;
 }
 
 type EditorStore = EditorState & EditorActions;
@@ -65,6 +75,12 @@ export const useEditorStore = create<EditorStore>()(
     theme: "light",
     sidebarOpen: { left: true, right: true },
     fps: 0,
+    maskPaint: {
+      enabled: false,
+      brushSize: 42,
+      softness: 0.65,
+      erase: false,
+    },
 
     // ── Actions ───────────────────────────────────────────────────────────
 
@@ -183,6 +199,30 @@ export const useEditorStore = create<EditorStore>()(
     setFps(fps) {
       set((state) => {
         state.fps = fps;
+      });
+    },
+
+    setMaskPaintEnabled(enabled) {
+      set((state) => {
+        state.maskPaint.enabled = enabled;
+      });
+    },
+
+    setMaskPaintBrushSize(size) {
+      set((state) => {
+        state.maskPaint.brushSize = Math.max(2, Math.min(300, size));
+      });
+    },
+
+    setMaskPaintSoftness(softness) {
+      set((state) => {
+        state.maskPaint.softness = Math.max(0, Math.min(1, softness));
+      });
+    },
+
+    setMaskPaintErase(erase) {
+      set((state) => {
+        state.maskPaint.erase = erase;
       });
     },
   })),

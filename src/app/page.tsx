@@ -160,7 +160,7 @@ export default function EditorPage() {
           <main
             id="editor-canvas-main"
             tabIndex={-1}
-            className="relative min-w-0 flex-1 overflow-hidden bg-transparent"
+            className="relative min-w-0 flex-1 overflow-hidden bg-transparent p-4"
           >
             <Canvas className="absolute inset-0 size-full" />
           </main>

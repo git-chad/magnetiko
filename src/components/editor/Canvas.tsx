@@ -8,6 +8,7 @@ import { PipelineManager } from "@/lib/renderer/PipelineManager";
 import type { ExportImageOptions, PipelineLayer } from "@/lib/renderer/PipelineManager";
 import { useLayerStore } from "@/store/layerStore";
 import { useEditorStore } from "@/store/editorStore";
+import { useHistoryStore } from "@/store/historyStore";
 import { useMediaStore } from "@/store/mediaStore";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { useMouseInteraction } from "@/hooks/useMouseInteraction";
@@ -62,6 +63,7 @@ const THUMBNAIL_INTERVAL_MS = 600;
 const THUMBNAIL_WIDTH = 160;
 const THUMBNAIL_HEIGHT = 90;
 const OOM_WARN_COOLDOWN_MS = 8000;
+const MASK_PAINT_HISTORY_LABEL = "Paint mask";
 
 function toSourceMedia(layer: Layer): SourceMedia | null {
   if (layer.kind === "webcam") return { kind: "webcam", url: null };
@@ -229,8 +231,16 @@ export function Canvas({ className }: CanvasProps) {
   const surfaceRef = React.useRef<HTMLDivElement>(null);
   const innerRef = React.useRef<HTMLDivElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const maskOverlayRef = React.useRef<HTMLCanvasElement>(null);
   const pipelineRef = React.useRef<PipelineManager | null>(null);
   const rendererRef = React.useRef<THREE.WebGPURenderer | null>(null);
+  const maskCanvasByLayerRef = React.useRef(new Map<string, HTMLCanvasElement>());
+  const maskTextureByLayerRef = React.useRef(new Map<string, THREE.CanvasTexture>());
+  const maskDataByLayerRef = React.useRef(new Map<string, string | undefined>());
+  const maskLoadTokenByLayerRef = React.useRef(new Map<string, number>());
+  const isMaskPaintingRef = React.useRef(false);
+  const maskPaintLayerIdRef = React.useRef<string | null>(null);
+  const didPushMaskHistoryRef = React.useRef(false);
   const interaction = useMouseInteraction({ targetRef: surfaceRef });
   const { toast } = useToast();
 
@@ -249,6 +259,7 @@ export function Canvas({ className }: CanvasProps) {
   const zoom = useEditorStore((s) => s.zoom);
   const panOffset = useEditorStore((s) => s.panOffset);
   const setFps = useEditorStore((s) => s.setFps);
+  const maskPaint = useEditorStore((s) => s.maskPaint);
   const setCanvasSize = useEditorStore((s) => s.setCanvasSize);
   const canvasSize = useEditorStore((s) => s.canvasSize);
   const frameAspectMode = useEditorStore((s) => s.frameAspectMode);
@@ -278,6 +289,11 @@ export function Canvas({ className }: CanvasProps) {
     (s) => getAutoBaseSourceMedia(s.layers, s.groups)?.kind ?? null,
   );
   const selectedLayerId = useLayerStore((s) => s.selectedLayerId);
+  const selectedLayer = useLayerStore((s) =>
+    s.selectedLayerId ? s.layers.find((layer) => layer.id === s.selectedLayerId) ?? null : null,
+  );
+  const setLayerMaskData = useLayerStore((s) => s.setLayerMaskData);
+  const pushHistoryState = useHistoryStore((s) => s.pushState);
   const sourceMediaUrl = useLayerStore(
     (s) => getAutoBaseSourceMedia(s.layers, s.groups)?.url ?? null,
   );
@@ -291,6 +307,7 @@ export function Canvas({ className }: CanvasProps) {
   const matchedAsset = useMediaStore((s) =>
     sourceMedia?.url ? s.assets.find((a) => a.url === sourceMedia.url) ?? null : null,
   );
+  const isMaskPaintActive = Boolean(maskPaint.enabled && selectedLayer?.filterMode === "mask");
   const fallbackAspect = safeAspect(canvasSize.width, canvasSize.height);
   const [sourceAspect, setSourceAspect] = React.useState(fallbackAspect);
   const resolvedAspect = React.useMemo(() => {
@@ -319,6 +336,184 @@ export function Canvas({ className }: CanvasProps) {
   const shaderErrorNotifiedRef = React.useRef(new Set<string>());
   const mediaErrorNotifiedRef = React.useRef(new Set<string>());
   const lastOomWarnRef = React.useRef<number>(-Infinity);
+  const lastMaskPointerRef = React.useRef<{ x: number; y: number } | null>(null);
+
+  const getMaskRenderSize = React.useCallback(() => {
+    const renderCanvas = canvasRef.current;
+    return {
+      width: Math.max(renderCanvas?.width ?? 1, 1),
+      height: Math.max(renderCanvas?.height ?? 1, 1),
+    };
+  }, []);
+
+  const fillMaskCanvasWhite = React.useCallback((maskCanvas: HTMLCanvasElement) => {
+    const ctx = maskCanvas.getContext("2d");
+    if (!ctx) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+    ctx.restore();
+  }, []);
+
+  const fillMaskCanvasBlack = React.useCallback((maskCanvas: HTMLCanvasElement) => {
+    const ctx = maskCanvas.getContext("2d");
+    if (!ctx) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+    ctx.restore();
+  }, []);
+
+  const ensureMaskResources = React.useCallback(
+    (layerId: string, width: number, height: number) => {
+      let maskCanvas = maskCanvasByLayerRef.current.get(layerId) ?? null;
+      let resized = false;
+
+      if (!maskCanvas) {
+        maskCanvas = document.createElement("canvas");
+        maskCanvas.width = Math.max(1, width);
+        maskCanvas.height = Math.max(1, height);
+        fillMaskCanvasWhite(maskCanvas);
+        maskCanvasByLayerRef.current.set(layerId, maskCanvas);
+        resized = true;
+      } else if (maskCanvas.width !== width || maskCanvas.height !== height) {
+        const nextCanvas = document.createElement("canvas");
+        nextCanvas.width = Math.max(1, width);
+        nextCanvas.height = Math.max(1, height);
+        const nextCtx = nextCanvas.getContext("2d");
+        if (nextCtx) {
+          nextCtx.drawImage(maskCanvas, 0, 0, nextCanvas.width, nextCanvas.height);
+        }
+        maskCanvas = nextCanvas;
+        maskCanvasByLayerRef.current.set(layerId, maskCanvas);
+        resized = true;
+      }
+
+      let maskTexture = maskTextureByLayerRef.current.get(layerId) ?? null;
+      if (!maskTexture || resized) {
+        if (maskTexture) maskTexture.dispose();
+        maskTexture = new THREE.CanvasTexture(maskCanvas);
+        maskTexture.minFilter = THREE.LinearFilter;
+        maskTexture.magFilter = THREE.LinearFilter;
+        // PassNode samples masks with RT-space UV (Y-flipped), so keep mask
+        // textures unflipped to avoid vertical inversion while painting.
+        maskTexture.flipY = false;
+        maskTexture.needsUpdate = true;
+        maskTextureByLayerRef.current.set(layerId, maskTexture);
+      } else if (maskTexture.flipY !== false) {
+        // Handle pre-existing textures from earlier sessions/config.
+        maskTexture.flipY = false;
+        maskTexture.needsUpdate = true;
+      }
+
+      return { maskCanvas, maskTexture };
+    },
+    [fillMaskCanvasWhite],
+  );
+
+  const maybeApplyMaskDataUrl = React.useCallback(
+    (layer: Layer, width: number, height: number): THREE.Texture | null => {
+      if (!layer.maskDataUrl && !maskTextureByLayerRef.current.has(layer.id)) return null;
+
+      const { maskCanvas, maskTexture } = ensureMaskResources(layer.id, width, height);
+      const previousDataUrl = maskDataByLayerRef.current.get(layer.id);
+      if (previousDataUrl !== layer.maskDataUrl) {
+        maskDataByLayerRef.current.set(layer.id, layer.maskDataUrl);
+
+        if (!layer.maskDataUrl) {
+          fillMaskCanvasWhite(maskCanvas);
+          maskTexture.needsUpdate = true;
+        } else {
+          const nextToken = (maskLoadTokenByLayerRef.current.get(layer.id) ?? 0) + 1;
+          maskLoadTokenByLayerRef.current.set(layer.id, nextToken);
+          const image = new Image();
+          image.onload = () => {
+            if (maskLoadTokenByLayerRef.current.get(layer.id) !== nextToken) return;
+            const ctx = maskCanvas.getContext("2d");
+            if (!ctx) return;
+            ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+            ctx.drawImage(image, 0, 0, maskCanvas.width, maskCanvas.height);
+            maskTexture.needsUpdate = true;
+          };
+          image.onerror = () => {
+            if (maskLoadTokenByLayerRef.current.get(layer.id) !== nextToken) return;
+            fillMaskCanvasWhite(maskCanvas);
+            maskTexture.needsUpdate = true;
+          };
+          image.src = layer.maskDataUrl;
+        }
+      }
+
+      return maskTexture;
+    },
+    [ensureMaskResources, fillMaskCanvasWhite],
+  );
+
+  const pruneMaskResources = React.useCallback((layers: Layer[]) => {
+    const ids = new Set(layers.map((layer) => layer.id));
+    for (const [layerId, texture] of maskTextureByLayerRef.current) {
+      if (ids.has(layerId)) continue;
+      texture.dispose();
+      maskTextureByLayerRef.current.delete(layerId);
+      maskCanvasByLayerRef.current.delete(layerId);
+      maskDataByLayerRef.current.delete(layerId);
+      maskLoadTokenByLayerRef.current.delete(layerId);
+    }
+  }, []);
+
+  const drawMaskStroke = React.useCallback(
+    (event: React.PointerEvent<HTMLCanvasElement>, layerId: string) => {
+      const overlay = maskOverlayRef.current;
+      if (!overlay) return;
+      const rect = overlay.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      const { width: maskWidth, height: maskHeight } = getMaskRenderSize();
+      const { maskCanvas, maskTexture } = ensureMaskResources(layerId, maskWidth, maskHeight);
+      const ctx = maskCanvas.getContext("2d");
+      if (!ctx) return;
+
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = (event.clientY - rect.top) / rect.height;
+      const x = Math.max(0, Math.min(1, nx)) * maskCanvas.width;
+      const y = Math.max(0, Math.min(1, ny)) * maskCanvas.height;
+
+      const scaleX = maskCanvas.width / rect.width;
+      const radius = Math.max(1, (maskPaint.brushSize * scaleX) * 0.5);
+      const innerRadius = Math.max(0, radius * (1 - maskPaint.softness));
+      const targetValue = maskPaint.erase ? 0 : 255;
+      const color = `rgba(${targetValue}, ${targetValue}, ${targetValue}, 1)`;
+
+      const from = lastMaskPointerRef.current ?? { x, y };
+      const dx = x - from.x;
+      const dy = y - from.y;
+      const distance = Math.max(Math.hypot(dx, dy), 1);
+      const step = Math.max(radius * 0.35, 1);
+      const steps = Math.max(1, Math.ceil(distance / step));
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const px = from.x + dx * t;
+        const py = from.y + dy * t;
+        const gradient = ctx.createRadialGradient(px, py, innerRadius, px, py, radius);
+        gradient.addColorStop(0, color);
+        gradient.addColorStop(1, "rgba(127, 127, 127, 0)");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      lastMaskPointerRef.current = { x, y };
+      maskTexture.needsUpdate = true;
+    },
+    [ensureMaskResources, getMaskRenderSize, maskPaint.brushSize, maskPaint.erase, maskPaint.softness],
+  );
 
   const resizeSurface = React.useCallback(() => {
     const outer = outerRef.current;
@@ -341,8 +536,92 @@ export function Canvas({ className }: CanvasProps) {
       );
       renderer.setSize(renderWidth, renderHeight, false);
       pipeline.resize(renderWidth, renderHeight);
+
+      const overlay = maskOverlayRef.current;
+      if (overlay) {
+        if (overlay.width !== renderWidth) overlay.width = renderWidth;
+        if (overlay.height !== renderHeight) overlay.height = renderHeight;
+      }
     }
   }, []);
+
+  const commitPaintedMask = React.useCallback(
+    (layerId: string) => {
+      const maskCanvas = maskCanvasByLayerRef.current.get(layerId);
+      if (!maskCanvas) return;
+      const dataUrl = maskCanvas.toDataURL("image/png");
+      maskDataByLayerRef.current.set(layerId, dataUrl);
+      setLayerMaskData(layerId, dataUrl);
+    },
+    [setLayerMaskData],
+  );
+
+  const handleMaskPointerDown = React.useCallback(
+    (event: React.PointerEvent<HTMLCanvasElement>) => {
+      const layerId = maskPaintLayerIdRef.current;
+      if (!layerId || event.button !== 0) return;
+      const overlay = maskOverlayRef.current;
+      if (!overlay) return;
+
+      if (!didPushMaskHistoryRef.current) {
+        const { layers, groups, selectedLayerId: selection } = useLayerStore.getState();
+        pushHistoryState({
+          layers,
+          groups,
+          selectedLayerId: selection,
+          label: MASK_PAINT_HISTORY_LABEL,
+        });
+        didPushMaskHistoryRef.current = true;
+      }
+
+      const { width, height } = getMaskRenderSize();
+      const { maskCanvas, maskTexture } = ensureMaskResources(layerId, width, height);
+      const hasPersistedMask = Boolean(
+        useLayerStore.getState().layers.find((layer) => layer.id === layerId)?.maskDataUrl,
+      );
+      if (!hasPersistedMask) {
+        // First paint on a layer with no mask: start hidden so painting reveals.
+        fillMaskCanvasBlack(maskCanvas);
+        maskTexture.needsUpdate = true;
+      }
+
+      isMaskPaintingRef.current = true;
+      lastMaskPointerRef.current = null;
+      overlay.setPointerCapture(event.pointerId);
+      drawMaskStroke(event, layerId);
+    },
+    [
+      drawMaskStroke,
+      ensureMaskResources,
+      fillMaskCanvasBlack,
+      getMaskRenderSize,
+      pushHistoryState,
+    ],
+  );
+
+  const handleMaskPointerMove = React.useCallback(
+    (event: React.PointerEvent<HTMLCanvasElement>) => {
+      const layerId = maskPaintLayerIdRef.current;
+      if (!layerId || !isMaskPaintingRef.current) return;
+      drawMaskStroke(event, layerId);
+    },
+    [drawMaskStroke],
+  );
+
+  const finishMaskStroke = React.useCallback(
+    (event: React.PointerEvent<HTMLCanvasElement>) => {
+      const layerId = maskPaintLayerIdRef.current;
+      if (!layerId || !isMaskPaintingRef.current) return;
+      isMaskPaintingRef.current = false;
+      lastMaskPointerRef.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      commitPaintedMask(layerId);
+      didPushMaskHistoryRef.current = false;
+    },
+    [commitPaintedMask],
+  );
 
   // ── Drag-and-drop ──────────────────────────────────────────────────────────
   const { upload, isLoading: uploadLoading } = useMediaUpload();
@@ -391,6 +670,20 @@ export function Canvas({ className }: CanvasProps) {
     selectedLayerIdRef.current = selectedLayerId;
     if (selectedLayerId) thumbnailNeedsRefreshRef.current = true;
   }, [selectedLayerId]);
+
+  React.useEffect(() => {
+    if (
+      selectedLayer &&
+      selectedLayer.filterMode === "mask" &&
+      maskPaint.enabled
+    ) {
+      maskPaintLayerIdRef.current = selectedLayer.id;
+      return;
+    }
+    maskPaintLayerIdRef.current = null;
+    isMaskPaintingRef.current = false;
+    didPushMaskHistoryRef.current = false;
+  }, [maskPaint.enabled, selectedLayer]);
 
   React.useEffect(() => {
     renderScaleRef.current = renderScale;
@@ -840,6 +1133,13 @@ export function Canvas({ className }: CanvasProps) {
       renderer?.setAnimationLoop(null);
       pipeline?.dispose();
       renderer?.dispose();
+      for (const texture of maskTextureByLayerRef.current.values()) {
+        texture.dispose();
+      }
+      maskTextureByLayerRef.current.clear();
+      maskCanvasByLayerRef.current.clear();
+      maskDataByLayerRef.current.clear();
+      maskLoadTokenByLayerRef.current.clear();
       rendererRef.current = null;
       pipelineRef.current = null;
     };
@@ -854,6 +1154,8 @@ export function Canvas({ className }: CanvasProps) {
       const p = pipelineRef.current;
       if (!p) return;
       const groupsById = new Map(groups.map((group) => [group.id, group]));
+      const maskSize = getMaskRenderSize();
+      pruneMaskResources(layers);
 
       // All layers — both media and shader — become passes in the pipeline,
       // ordered bottom → top so the render chain composites correctly.
@@ -872,6 +1174,7 @@ export function Canvas({ className }: CanvasProps) {
         mediaUrl:   l.mediaUrl,
         mediaName:  l.mediaName,
         mediaVersion: l.mediaVersion,
+        maskTexture: maybeApplyMaskDataUrl(l, maskSize.width, maskSize.height),
       }));
 
       p.syncLayers(passes);
@@ -881,7 +1184,7 @@ export function Canvas({ className }: CanvasProps) {
     sync(initialState.layers, initialState.groups);
     const unsub = useLayerStore.subscribe((state) => sync(state.layers, state.groups));
     return unsub;
-  }, [status]);
+  }, [getMaskRenderSize, maybeApplyMaskDataUrl, pruneMaskResources, status]);
 
   // ── Zoom / pan → CSS transform ─────────────────────────────────────────────
   React.useEffect(() => {
@@ -920,6 +1223,20 @@ export function Canvas({ className }: CanvasProps) {
               display: status === "ready" ? "block" : "none",
               imageRendering: hasActiveAscii && zoom > 1 ? "pixelated" : "auto",
             }}
+          />
+          <canvas
+            ref={maskOverlayRef}
+            className="absolute inset-0 h-full w-full"
+            style={{
+              pointerEvents: isMaskPaintActive ? "auto" : "none",
+              cursor: isMaskPaintActive ? (maskPaint.erase ? "cell" : "crosshair") : "default",
+              opacity: isMaskPaintActive ? 1 : 0,
+            }}
+            onPointerDown={handleMaskPointerDown}
+            onPointerMove={handleMaskPointerMove}
+            onPointerUp={finishMaskStroke}
+            onPointerCancel={finishMaskStroke}
+            onPointerLeave={finishMaskStroke}
           />
         </div>
       </div>

@@ -158,6 +158,29 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           group: "Tone",
           description: "Invert luminance so dark areas produce large dots",
         },
+        {
+          key: "interactionInput",
+          label: "Interaction",
+          type: "enum",
+          value: "none",
+          options: [
+            { label: "None", value: "none" },
+            { label: "Fluid trail", value: "trail" },
+            { label: "Displacement", value: "displacement" },
+          ],
+          group: "Interaction",
+          description: "Use Interactivity layer textures to modulate dot size",
+        },
+        {
+          key: "interactionAmount",
+          label: "Amount",
+          type: "float",
+          value: 0.5,
+          min: 0,
+          max: 2,
+          step: 0.01,
+          group: "Interaction",
+        },
       ];
 
     case "ascii":
@@ -236,6 +259,29 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           value: false,
           group: "Tone",
           description: "Swap light and dark character mapping",
+        },
+        {
+          key: "interactionInput",
+          label: "Interaction",
+          type: "enum",
+          value: "none",
+          options: [
+            { label: "None", value: "none" },
+            { label: "Fluid trail", value: "trail" },
+            { label: "Displacement", value: "displacement" },
+          ],
+          group: "Interaction",
+          description: "Use Interactivity layer textures to modulate character density",
+        },
+        {
+          key: "interactionAmount",
+          label: "Amount",
+          type: "float",
+          value: 0.5,
+          min: 0,
+          max: 2,
+          step: 0.01,
+          group: "Interaction",
         },
         {
           key: "bloomEnabled",
@@ -359,6 +405,29 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           step: 0.05,
           group: "Tone",
           description: "Dither intensity / error diffusion amount",
+        },
+        {
+          key: "interactionInput",
+          label: "Interaction",
+          type: "enum",
+          value: "none",
+          options: [
+            { label: "None", value: "none" },
+            { label: "Fluid trail", value: "trail" },
+            { label: "Displacement", value: "displacement" },
+          ],
+          group: "Interaction",
+          description: "Use Interactivity layer textures to bias dither threshold",
+        },
+        {
+          key: "interactionAmount",
+          label: "Amount",
+          type: "float",
+          value: 0.5,
+          min: 0,
+          max: 2,
+          step: 0.01,
+          group: "Interaction",
         },
       ];
 

@@ -113,6 +113,8 @@ export interface Layer {
   runtimeError?: string;
   /** Base-64 thumbnail preview for the layer panel row */
   thumbnail?: string;
+  /** Optional user-painted layer mask texture (data URL, white=reveal). */
+  maskDataUrl?: string;
   mediaName?: string;
 }
 

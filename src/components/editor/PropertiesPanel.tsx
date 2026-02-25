@@ -30,6 +30,7 @@ import {
   SelectValue,
   Separator,
   Slider,
+  Switch,
   Text,
   Tooltip,
   TooltipContent,
@@ -170,6 +171,7 @@ export function PropertiesPanel() {
           {layer ? (
             <>
               <_GeneralSection layer={layer} />
+              <_MaskPaintSection layer={layer} />
               {layer.params.length > 0 && (
                 <_ParamsSection layer={layer} />
               )}
@@ -184,6 +186,111 @@ export function PropertiesPanel() {
           )}
         </div>
       </ScrollArea>
+    </div>
+  );
+}
+
+function _MaskPaintSection({ layer }: { layer: Layer }) {
+  const {
+    enabled: paintEnabled,
+    brushSize,
+    softness,
+    erase,
+  } = useEditorStore((s) => s.maskPaint);
+  const setMaskPaintEnabled = useEditorStore((s) => s.setMaskPaintEnabled);
+  const setMaskPaintBrushSize = useEditorStore((s) => s.setMaskPaintBrushSize);
+  const setMaskPaintSoftness = useEditorStore((s) => s.setMaskPaintSoftness);
+  const setMaskPaintErase = useEditorStore((s) => s.setMaskPaintErase);
+  const setLayerMaskData = useLayerStore((s) => s.setLayerMaskData);
+  const pushHistory = usePushHistory();
+  const isMaskLayer = layer.filterMode === "mask";
+
+  return (
+    <div>
+      <_SectionLabel title="Mask Paint" />
+      <div className="space-y-0 px-xs pb-xs">
+        <div className="flex items-center gap-xs py-3xs">
+          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+            Enabled
+          </Text>
+          <Switch
+            checked={paintEnabled}
+            onCheckedChange={setMaskPaintEnabled}
+            disabled={!isMaskLayer}
+          />
+          {!isMaskLayer && (
+            <Text variant="caption" color="disabled" className="ml-2xs">
+              Switch layer mode to Mask
+            </Text>
+          )}
+        </div>
+
+        <div className="flex items-center gap-xs py-3xs">
+          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+            Brush
+          </Text>
+          <Slider
+            className="flex-1"
+            min={2}
+            max={300}
+            step={1}
+            value={[brushSize]}
+            onValueChange={([v]) => setMaskPaintBrushSize(v)}
+            disabled={!isMaskLayer}
+          />
+          <span className="w-9 shrink-0 text-right font-mono text-caption text-[var(--color-fg-tertiary)] tabular-nums">
+            {Math.round(brushSize)}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-xs py-3xs">
+          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+            Softness
+          </Text>
+          <Slider
+            className="flex-1"
+            min={0}
+            max={1}
+            step={0.01}
+            value={[softness]}
+            onValueChange={([v]) => setMaskPaintSoftness(v)}
+            disabled={!isMaskLayer}
+          />
+          <span className="w-9 shrink-0 text-right font-mono text-caption text-[var(--color-fg-tertiary)] tabular-nums">
+            {Math.round(softness * 100)}%
+          </span>
+        </div>
+
+        <div className="flex items-center gap-xs py-3xs">
+          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+            Erase
+          </Text>
+          <Switch
+            checked={erase}
+            onCheckedChange={setMaskPaintErase}
+            disabled={!isMaskLayer}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            disabled={!isMaskLayer}
+            onClick={() => {
+              pushHistory("Clear painted mask");
+              setLayerMaskData(layer.id, undefined);
+            }}
+          >
+            Clear mask
+          </Button>
+        </div>
+
+        {isMaskLayer && (
+          <Text variant="caption" color="tertiary" className="block py-3xs">
+            Paint reveals. Erase hides.
+          </Text>
+        )}
+      </div>
+      <Separator />
     </div>
   );
 }
