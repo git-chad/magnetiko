@@ -213,4 +213,35 @@ export const SHADER_PRESETS: ShaderPreset[] = [
     css: "radial-gradient(ellipse at center, rgba(255,200,255,0.9) 0%, rgba(100,50,200,0.7) 50%, rgba(0,0,40,1) 100%)",
     layers: [{ shaderType: "bloom", name: "Bloom" }],
   },
+  {
+    id: "prism-drift",
+    label: "Prism Drift",
+    description: "Chromatic fringing with cinematic film grain",
+    css: "linear-gradient(135deg, #26150d 0%, #ff6a1f 38%, #f5f5f0 100%)",
+    layers: [
+      { shaderType: "chromatic-aberration", name: "Prism Split", opacity: 0.9 },
+      { shaderType: "grain", name: "Film Grain", blendMode: "overlay", opacity: 0.45 },
+    ],
+  },
+  {
+    id: "editorial-print",
+    label: "Editorial Print",
+    description: "Halftone print layered with subtle prism edges",
+    css: "linear-gradient(135deg, #f5f5f0 0%, #d6cebc 55%, #ff6a1f 100%)",
+    layers: [
+      { shaderType: "halftone", name: "Halftone", opacity: 0.9 },
+      { shaderType: "chromatic-aberration", name: "Prism Split", opacity: 0.35 },
+    ],
+  },
+  {
+    id: "digital-heat",
+    label: "Digital Heat",
+    description: "Glitchy split + ordered dither for posterized energy",
+    css: "linear-gradient(135deg, #1d201e 0%, #3b2a22 35%, #ff6a1f 100%)",
+    layers: [
+      { shaderType: "chromatic-aberration", name: "Prism Split", opacity: 0.95 },
+      { shaderType: "dithering", name: "Dithering", blendMode: "soft-light", opacity: 0.75 },
+      { shaderType: "grain", name: "Grain", blendMode: "overlay", opacity: 0.4 },
+    ],
+  },
 ];
