@@ -46,9 +46,19 @@ export class WarpDistortionPass extends PassNode {
   private readonly _waveSpeedU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _timeU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _interactionModeU: any; // 0=none,1=displacement,2=trail
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _interactionAmountU: any;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _sampleNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _interactionDisplacementNode: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _interactionTrailNode: any;
+  private _interactivityTrailTexture: THREE.Texture | null = null;
+  private _interactivityDisplacementTexture: THREE.Texture | null = null;
   private _needsWaveAnimation = false;
 
   constructor(layerId: string) {
@@ -65,6 +75,8 @@ export class WarpDistortionPass extends PassNode {
     this._waveFreqU = uniform(5.0);
     this._waveSpeedU = uniform(1.0);
     this._timeU = uniform(0.0);
+    this._interactionModeU = uniform(0.0);
+    this._interactionAmountU = uniform(0.0);
 
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
@@ -79,8 +91,22 @@ export class WarpDistortionPass extends PassNode {
     _delta: number,
   ): void {
     this._timeU.value = time;
+    if (this._interactionDisplacementNode && this._interactivityDisplacementTexture) {
+      this._interactionDisplacementNode.value = this._interactivityDisplacementTexture;
+    }
+    if (this._interactionTrailNode && this._interactivityTrailTexture) {
+      this._interactionTrailNode.value = this._interactivityTrailTexture;
+    }
     if (this._sampleNode) this._sampleNode.value = inputTex;
     super.render(renderer, inputTex, outputTarget, time, _delta);
+  }
+
+  setInteractivityTextures(
+    trailTexture: THREE.Texture | null,
+    displacementTexture: THREE.Texture | null,
+  ): void {
+    this._interactivityTrailTexture = trailTexture;
+    this._interactivityDisplacementTexture = displacementTexture;
   }
 
   override needsContinuousRender(): boolean {
@@ -142,7 +168,58 @@ export class WarpDistortionPass extends PassNode {
     const warpedUV = select(this._modeU.lessThan(float(0.5)), bulgeUV, waveUV);
     const clampedUV = clamp(warpedUV, vec2(0.001, 0.001), vec2(0.999, 0.999));
 
-    this._sampleNode = tslTexture(new THREE.Texture(), clampedUV);
+    this._interactionDisplacementNode = tslTexture(new THREE.Texture(), vec2(uvx, uvy));
+    this._interactionTrailNode = tslTexture(new THREE.Texture(), vec2(uvx, uvy));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const interactionDispUV: any = vec2(
+      clamp(
+        clampedUV.x.add(
+          float(this._interactionDisplacementNode.r).mul(this._interactionAmountU),
+        ),
+        float(0.001),
+        float(0.999),
+      ),
+      clamp(
+        clampedUV.y.add(
+          float(this._interactionDisplacementNode.g).mul(this._interactionAmountU),
+        ),
+        float(0.001),
+        float(0.999),
+      ),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trailLuma: any = clamp(
+      float(this._interactionTrailNode.r)
+        .mul(float(0.2126))
+        .add(float(this._interactionTrailNode.g).mul(float(0.7152)))
+        .add(float(this._interactionTrailNode.b).mul(float(0.0722))),
+      float(0.0),
+      float(1.0),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const interactionTrailUV: any = vec2(
+      clamp(
+        clampedUV.x.add(dx.mul(trailLuma).mul(this._interactionAmountU).mul(float(0.3))),
+        float(0.001),
+        float(0.999),
+      ),
+      clamp(
+        clampedUV.y.add(dy.mul(trailLuma).mul(this._interactionAmountU).mul(float(0.3))),
+        float(0.001),
+        float(0.999),
+      ),
+    );
+    const finalUV = select(
+      this._interactionModeU.lessThan(float(0.5)),
+      clampedUV,
+      select(
+        this._interactionModeU.lessThan(float(1.5)),
+        interactionDispUV,
+        interactionTrailUV,
+      ),
+    );
+
+    this._sampleNode = tslTexture(new THREE.Texture(), finalUV);
 
     return vec4(
       float(this._sampleNode.r),
@@ -192,6 +269,19 @@ export class WarpDistortionPass extends PassNode {
         case "waveSpeed":
           waveSpeed = typeof p.value === "number" ? p.value : 1;
           this._waveSpeedU.value = waveSpeed;
+          break;
+        case "interactionInput": {
+          const map: Record<string, number> = {
+            none: 0,
+            displacement: 1,
+            trail: 2,
+          };
+          this._interactionModeU.value = map[p.value as string] ?? 0;
+          break;
+        }
+        case "interactionAmount":
+          this._interactionAmountU.value =
+            typeof p.value === "number" ? Math.max(0, p.value) : 0;
           break;
       }
     }

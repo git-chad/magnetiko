@@ -43,7 +43,7 @@ import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore, registerHistoryShortcuts } from "@/store/historyStore";
 import { useLayerStore } from "@/store/layerStore";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
-import type { Layer, ShaderType, BlendMode } from "@/types";
+import type { Layer, LayerGroup, ShaderType, BlendMode } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 declare global {
@@ -88,6 +88,7 @@ type PresetPayload = {
   exportedAt: string;
   selectedLayerId: string | null;
   layers: Layer[];
+  groups: LayerGroup[];
 };
 
 const VALID_SHADER_TYPES = new Set<ShaderType>([
@@ -225,6 +226,7 @@ function _safePresetMediaUrl(url: string | undefined): string | undefined {
 function _sanitizePresetLayer(raw: Layer): Layer {
   return {
     ...raw,
+    groupId: typeof raw.groupId === "string" && raw.groupId.length > 0 ? raw.groupId : undefined,
     mediaUrl: _safePresetMediaUrl(raw.mediaUrl),
     mediaStatus: raw.kind === "shader" ? undefined : "idle",
     mediaError: undefined,
@@ -234,8 +236,36 @@ function _sanitizePresetLayer(raw: Layer): Layer {
   };
 }
 
-function _buildPresetPayload(layers: Layer[], selectedLayerId: string | null): PresetPayload {
+function _sanitizePresetGroup(raw: LayerGroup): LayerGroup {
+  return {
+    id: raw.id,
+    name: raw.name,
+    collapsed: raw.collapsed ?? false,
+    visible: raw.visible ?? true,
+    opacity: _clampNumber(
+      typeof raw.opacity === "number" ? raw.opacity : Number(raw.opacity),
+      0,
+      1,
+      1,
+    ),
+    blendMode: VALID_BLEND_MODES.has(raw.blendMode as BlendMode)
+      ? (raw.blendMode as BlendMode)
+      : "normal",
+  };
+}
+
+function _buildPresetPayload(
+  layers: Layer[],
+  selectedLayerId: string | null,
+  groups: LayerGroup[],
+): PresetPayload {
   const sanitized = layers.slice(0, MAX_PRESET_LAYERS).map(_sanitizePresetLayer);
+  const referencedGroupIds = new Set(
+    sanitized.map((layer) => layer.groupId).filter((id): id is string => typeof id === "string"),
+  );
+  const sanitizedGroups = groups
+    .filter((group) => referencedGroupIds.has(group.id))
+    .map(_sanitizePresetGroup);
   const resolvedSelection =
     selectedLayerId && sanitized.some((layer) => layer.id === selectedLayerId)
       ? selectedLayerId
@@ -245,10 +275,15 @@ function _buildPresetPayload(layers: Layer[], selectedLayerId: string | null): P
     exportedAt: new Date().toISOString(),
     selectedLayerId: resolvedSelection,
     layers: sanitized,
+    groups: sanitizedGroups,
   };
 }
 
-function _parsePresetPayload(input: unknown): { layers: Layer[]; selectedLayerId: string | null } {
+function _parsePresetPayload(input: unknown): {
+  layers: Layer[];
+  selectedLayerId: string | null;
+  groups: LayerGroup[];
+} {
   const rawLayers = Array.isArray(input)
     ? input
     : _isObjectRecord(input) && Array.isArray(input.layers)
@@ -258,6 +293,10 @@ function _parsePresetPayload(input: unknown): { layers: Layer[]; selectedLayerId
     _isObjectRecord(input) && typeof input.selectedLayerId === "string"
       ? input.selectedLayerId
       : null;
+  const rawGroups =
+    _isObjectRecord(input) && Array.isArray(input.groups)
+      ? input.groups
+      : [];
 
   if (!rawLayers) {
     throw new Error("Invalid preset file format.");
@@ -301,6 +340,7 @@ function _parsePresetPayload(input: unknown): { layers: Layer[]; selectedLayerId
       id: typeof item.id === "string" && item.id.length > 0 ? item.id : _newLayerId(),
       name: typeof item.name === "string" && item.name.trim().length > 0 ? item.name : "Layer",
       kind,
+      groupId: typeof item.groupId === "string" && item.groupId.length > 0 ? item.groupId : undefined,
       shaderType: kind === "shader" ? rawShaderType : undefined,
       filterMode: rawFilterMode,
       visible: item.visible !== false,
@@ -332,8 +372,52 @@ function _parsePresetPayload(input: unknown): { layers: Layer[]; selectedLayerId
     rawSelectedLayerId && parsed.some((layer) => layer.id === rawSelectedLayerId)
       ? rawSelectedLayerId
       : parsed[0]?.id ?? null;
+  const parsedGroups: LayerGroup[] = [];
+  const seenGroupIds = new Set<string>();
+  for (const rawGroup of rawGroups) {
+    if (!_isObjectRecord(rawGroup)) continue;
+    if (typeof rawGroup.id !== "string" || rawGroup.id.length === 0 || seenGroupIds.has(rawGroup.id)) {
+      continue;
+    }
+    seenGroupIds.add(rawGroup.id);
+    parsedGroups.push(
+      _sanitizePresetGroup({
+        id: rawGroup.id,
+        name:
+          typeof rawGroup.name === "string" && rawGroup.name.trim().length > 0
+            ? rawGroup.name
+            : "Group",
+        collapsed: rawGroup.collapsed === true,
+        visible: rawGroup.visible !== false,
+        opacity: _clampNumber(
+          typeof rawGroup.opacity === "number"
+            ? rawGroup.opacity
+            : Number(rawGroup.opacity),
+          0,
+          1,
+          1,
+        ),
+        blendMode:
+          typeof rawGroup.blendMode === "string" &&
+          VALID_BLEND_MODES.has(rawGroup.blendMode as BlendMode)
+            ? (rawGroup.blendMode as BlendMode)
+            : "normal",
+      }),
+    );
+  }
 
-  return { layers: parsed, selectedLayerId };
+  const referencedGroupIds = new Set(
+    parsed.map((layer) => layer.groupId).filter((id): id is string => typeof id === "string"),
+  );
+  const groups = parsedGroups.filter((group) => referencedGroupIds.has(group.id));
+  const parsedGroupIds = new Set(groups.map((group) => group.id));
+  for (const layer of parsed) {
+    if (layer.groupId && !parsedGroupIds.has(layer.groupId)) {
+      layer.groupId = undefined;
+    }
+  }
+
+  return { layers: parsed, selectedLayerId, groups };
 }
 
 function _readViewportExportSize(fallbackWidth: number, fallbackHeight: number): {
@@ -417,12 +501,12 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
   // ── Undo / redo ──────────────────────────────────────────────────────────
   const handleUndo = React.useCallback(() => {
     const entry = undo();
-    if (entry) setLayers(entry.layers, entry.selectedLayerId);
+    if (entry) setLayers(entry.layers, entry.selectedLayerId, entry.groups);
   }, [undo, setLayers]);
 
   const handleRedo = React.useCallback(() => {
     const entry = redo();
-    if (entry) setLayers(entry.layers, entry.selectedLayerId);
+    if (entry) setLayers(entry.layers, entry.selectedLayerId, entry.groups);
   }, [redo, setLayers]);
 
   React.useEffect(
@@ -739,12 +823,12 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
 
     setIsExporting(true);
     try {
-      const { layers, selectedLayerId } = useLayerStore.getState();
+      const { layers, selectedLayerId, groups } = useLayerStore.getState();
       if (layers.length === 0) {
         throw new Error("There are no layers to export.");
       }
 
-      const payload = _buildPresetPayload(layers, selectedLayerId);
+      const payload = _buildPresetPayload(layers, selectedLayerId, groups);
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: "application/json",
       });
@@ -793,12 +877,13 @@ export function Toolbar({ onBrowsePresets }: ToolbarProps) {
           {
             layers: currentState.layers,
             selectedLayerId: currentState.selectedLayerId,
+            groups: currentState.groups,
             label: "Import preset",
           },
           false,
         );
 
-        setLayers(imported.layers, imported.selectedLayerId);
+        setLayers(imported.layers, imported.selectedLayerId, imported.groups);
         setExportDialogOpen(false);
         toast({
           variant: "success",

@@ -30,6 +30,7 @@ const FLUID_PRESSURE_DISS = 0.92;
 const FLUID_CURL = 256;
 const FLUID_RADIUS = 2.45;
 const FLUID_DT = 0.032;
+const TRAIL_DISPLACE_UV_SCALE = 0.0035;
 const POINTER_SPLAT_MULTIPLIER = 3;
 const MIN_SPLAT_DELTA_PX = 0.05;
 const MIN_CANVAS_SIZE = 1;
@@ -110,6 +111,10 @@ export class InteractivityPass extends PassNode {
   // ── Effect params ──────────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _effectU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _trailRoutingU: any; // 0=add,1=source,2=mask,3=displace
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _trailDisplaceAmountU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _radiusPxU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -234,6 +239,10 @@ export class InteractivityPass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _fluidDisplayNode: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _trailVelocityDisplayNode: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _trailDisplaceSampleNode: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _repelNode: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _attractNode: any = null;
@@ -251,6 +260,8 @@ export class InteractivityPass extends PassNode {
 
     // ── Params ─────────────────────────────────────────────────────────────
     this._effectU = uniform(0.0);
+    this._trailRoutingU = uniform(0.0);
+    this._trailDisplaceAmountU = uniform(TRAIL_DISPLACE_UV_SCALE);
     this._radiusPxU = uniform(50.0);
     this._strengthU = uniform(0.5);
     this._decayU = uniform(0.95);
@@ -718,6 +729,12 @@ export class InteractivityPass extends PassNode {
     this._runFluidSimulation(renderer);
 
     if (this._fluidDisplayNode) this._fluidDisplayNode.value = this._density.texture;
+    if (this._trailVelocityDisplayNode) {
+      this._trailVelocityDisplayNode.value = this._velocity.texture;
+    }
+    if (this._trailDisplaceSampleNode) {
+      this._trailDisplaceSampleNode.value = inputTex;
+    }
     if (this._displacementDisplayNode) {
       this._displacementDisplayNode.value = this._displacementRT.texture;
     }
@@ -763,12 +780,72 @@ export class InteractivityPass extends PassNode {
     this._fluidDisplayNode = tslTexture(new THREE.Texture(), rtUV);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fluid: any = this._fluidDisplayNode;
+    this._trailVelocityDisplayNode = tslTexture(new THREE.Texture(), rtUV);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trailVelocity: any = this._trailVelocityDisplayNode;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trailLuma: any = clamp(
+      float(fluid.r)
+        .mul(float(0.2126))
+        .add(float(fluid.g).mul(float(0.7152)))
+        .add(float(fluid.b).mul(float(0.0722))),
+      float(0.0),
+      float(1.0),
+    );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const trailResult: any = vec4(
       clamp(float(src.r).add(float(fluid.r)), float(0.0), float(1.0)),
       clamp(float(src.g).add(float(fluid.g)), float(0.0), float(1.0)),
       clamp(float(src.b).add(float(fluid.b)), float(0.0), float(1.0)),
       float(1.0),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trailSourceResult: any = vec4(
+      clamp(float(fluid.r), float(0.0), float(1.0)),
+      clamp(float(fluid.g), float(0.0), float(1.0)),
+      clamp(float(fluid.b), float(0.0), float(1.0)),
+      float(1.0),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trailMaskResult: any = vec4(
+      float(src.r).mul(trailLuma),
+      float(src.g).mul(trailLuma),
+      float(src.b).mul(trailLuma),
+      float(1.0),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trailDisplaceUV: any = (vec2 as any)(
+      clamp(
+        uvx.add(float(trailVelocity.r).mul(this._trailDisplaceAmountU)),
+        float(0.0),
+        float(1.0),
+      ),
+      clamp(
+        uvy.add(float(trailVelocity.g).mul(this._trailDisplaceAmountU)),
+        float(0.0),
+        float(1.0),
+      ),
+    );
+    this._trailDisplaceSampleNode = tslTexture(new THREE.Texture(), trailDisplaceUV);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trailDisplaceResult: any = vec4(
+      float(this._trailDisplaceSampleNode.r),
+      float(this._trailDisplaceSampleNode.g),
+      float(this._trailDisplaceSampleNode.b),
+      float(1.0),
+    );
+    const trailCompositeResult = select(
+      this._trailRoutingU.lessThan(float(0.5)),
+      trailResult,
+      select(
+        this._trailRoutingU.lessThan(float(1.5)),
+        trailSourceResult,
+        select(
+          this._trailRoutingU.lessThan(float(2.5)),
+          trailMaskResult,
+          trailDisplaceResult,
+        ),
+      ),
     );
 
     // ── Repel ──────────────────────────────────────────────────────────────
@@ -806,7 +883,7 @@ export class InteractivityPass extends PassNode {
 
     return select(
       this._effectU.lessThan(float(0.5)),
-      trailResult,
+      trailCompositeResult,
       select(
         this._effectU.lessThan(float(1.5)),
         repelResult,
@@ -835,6 +912,20 @@ export class InteractivityPass extends PassNode {
           this._effectU.value = map[p.value as string] ?? 0;
           break;
         }
+        case "trailRouting": {
+          const map: Record<string, number> = {
+            add: 0,
+            source: 1,
+            mask: 2,
+            displace: 3,
+          };
+          this._trailRoutingU.value = map[p.value as string] ?? 0;
+          break;
+        }
+        case "trailDisplaceAmount":
+          this._trailDisplaceAmountU.value =
+            typeof p.value === "number" ? p.value : TRAIL_DISPLACE_UV_SCALE;
+          break;
         case "radius":
           this._radiusPxU.value = typeof p.value === "number" ? p.value : 50;
           break;
@@ -858,6 +949,32 @@ export class InteractivityPass extends PassNode {
           }
           break;
         }
+        case "curlStrength":
+          this._curlStrength = typeof p.value === "number" ? p.value : FLUID_CURL;
+          break;
+        case "pressureIterations":
+          this._iterations = typeof p.value === "number"
+            ? Math.max(1, Math.round(p.value))
+            : FLUID_PRESSURE_ITERS;
+          break;
+        case "densityDissipation":
+          this._densityDissipation = typeof p.value === "number"
+            ? clamp01(p.value)
+            : FLUID_DENSITY_DISS;
+          break;
+        case "velocityDissipation":
+          this._velocityDissipation = typeof p.value === "number"
+            ? clamp01(p.value)
+            : FLUID_VELOCITY_DISS;
+          break;
+        case "pressureDissipation":
+          this._pressureDissipation = typeof p.value === "number"
+            ? clamp01(p.value)
+            : FLUID_PRESSURE_DISS;
+          break;
+        case "fluidRadius":
+          this._radius = typeof p.value === "number" ? p.value : FLUID_RADIUS;
+          break;
         case "color":
           parseCSSColor(
             p.value as string,
@@ -1088,4 +1205,9 @@ function parseCSSColor(css: string, rU: any, gU: any, bU: any): void {
   rU.value = c.r;
   gU.value = c.g;
   bU.value = c.b;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }

@@ -761,6 +761,7 @@ export class PipelineManager {
     // Step 2 — ping-pong through pass nodes
     let read = this._rtA;
     let write = this._rtB;
+    this._bindInteractivityTextures(activePasses);
 
     for (const pass of activePasses) {
       try {
@@ -792,5 +793,35 @@ export class PipelineManager {
     this._blitInputNode.value = read.texture;
     renderer.setRenderTarget(finalTarget);
     renderer.render(this._blitScene, this._blitCamera);
+  }
+
+  private _bindInteractivityTextures(activePasses: PassNode[]): void {
+    let trailTexture: THREE.Texture | null = null;
+    let displacementTexture: THREE.Texture | null = null;
+
+    for (const pass of activePasses) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const candidate = pass as any;
+      if (!trailTexture && typeof candidate.getTrailTexture === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        trailTexture = candidate.getTrailTexture() as THREE.Texture;
+      }
+      if (
+        !displacementTexture &&
+        typeof candidate.getDisplacementTexture === "function"
+      ) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        displacementTexture = candidate.getDisplacementTexture() as THREE.Texture;
+      }
+      if (trailTexture && displacementTexture) break;
+    }
+
+    for (const pass of activePasses) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const candidate = pass as any;
+      if (typeof candidate.setInteractivityTextures === "function") {
+        candidate.setInteractivityTextures(trailTexture, displacementTexture);
+      }
+    }
   }
 }

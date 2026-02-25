@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import type { Layer } from "@/types";
+import type { Layer, LayerGroup } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // History entry — snapshot of layer state
@@ -8,6 +8,7 @@ import type { Layer } from "@/types";
 
 interface HistoryEntry {
   layers: Layer[];
+  groups: LayerGroup[];
   selectedLayerId: string | null;
   timestamp: number;
   label: string;
@@ -143,7 +144,7 @@ export const useHistoryStore = create<HistoryStore>()(
  * Returns a cleanup function to remove the listener.
  *
  * The caller is responsible for wiring the returned entries back into
- * layerStore: `const snapshot = undo(); if (snapshot) { setLayers(snapshot.layers); }`
+ * layerStore: `const snapshot = undo(); if (snapshot) { setLayers(snapshot.layers, snapshot.selectedLayerId, snapshot.groups); }`
  */
 export function registerHistoryShortcuts(
   onUndo: () => void,

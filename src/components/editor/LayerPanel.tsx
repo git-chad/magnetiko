@@ -9,6 +9,8 @@ import {
   CaretRight,
   DotsSixVertical,
   DotsThreeVertical,
+  Eye,
+  EyeSlash,
   FolderSimple,
   Image as ImageIcon,
   PencilSimple,
@@ -46,6 +48,7 @@ import {
   Text,
 } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
+import { useHistoryStore } from "@/store/historyStore";
 import { useLayerStore } from "@/store/layerStore";
 import { MAX_LAYERS } from "@/store/layerStore";
 import { LayerItem } from "./LayerItem";
@@ -110,6 +113,7 @@ function AddLayerMenu() {
   const addLayer = useLayerStore((s) => s.addLayer);
   const createGroup = useLayerStore((s) => s.createGroup);
   const setLayerMedia = useLayerStore((s) => s.setLayerMedia);
+  const pushHistoryState = useHistoryStore((s) => s.pushState);
   const { toast } = useToast();
 
   const imageInputRef = React.useRef<HTMLInputElement>(null);
@@ -134,8 +138,10 @@ function AddLayerMenu() {
   );
 
   const handleCreateGroup = React.useCallback(() => {
+    const { layers, selectedLayerId, groups } = useLayerStore.getState();
+    pushHistoryState({ layers, selectedLayerId, groups, label: "Create group" });
     createGroup();
-  }, [createGroup]);
+  }, [createGroup, pushHistoryState]);
 
   function handleMediaFile(file: File) {
     const lowerName = file.name.toLowerCase();
@@ -278,6 +284,7 @@ function GroupRow({
   childCount,
   canAddSelected,
   onAddSelected,
+  onToggleVisibility,
   onToggle,
   onRename,
   onDelete,
@@ -286,6 +293,7 @@ function GroupRow({
   childCount: number;
   canAddSelected: boolean;
   onAddSelected: () => void;
+  onToggleVisibility: () => void;
   onToggle: () => void;
   onRename: () => void;
   onDelete: () => void;
@@ -300,7 +308,7 @@ function GroupRow({
       ref={setNodeRef}
       style={style}
       data-layer-row="true"
-      className="group mx-3xs my-[2px] flex items-center gap-2xs rounded-sm border border-transparent bg-[var(--color-bg-subtle)] py-[6px] pl-[8px] pr-xs"
+      className={`group mx-3xs my-[2px] flex items-center gap-2xs rounded-sm border border-transparent bg-[var(--color-bg-subtle)] py-[6px] pl-[8px] pr-xs ${group.visible ? "" : "opacity-60"}`}
     >
       <button
         {...attributes}
@@ -327,6 +335,14 @@ function GroupRow({
           {childCount} layer{childCount === 1 ? "" : "s"}
         </p>
       </div>
+
+      <button
+        className="shrink-0 text-[var(--color-fg-tertiary)] transition-colors hover:text-[var(--color-fg-primary)]"
+        aria-label={group.visible ? "Hide group" : "Show group"}
+        onClick={onToggleVisibility}
+      >
+        {group.visible ? <Eye size={13} /> : <EyeSlash size={13} />}
+      </button>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -374,6 +390,8 @@ export function LayerPanel() {
   const renameGroup = useLayerStore((s) => s.renameGroup);
   const removeGroup = useLayerStore((s) => s.removeGroup);
   const toggleGroupCollapsed = useLayerStore((s) => s.toggleGroupCollapsed);
+  const setGroupVisibility = useLayerStore((s) => s.setGroupVisibility);
+  const pushHistoryState = useHistoryStore((s) => s.pushState);
   const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
   const listRef = React.useRef<HTMLDivElement>(null);
   const layerOrderKey = React.useMemo(
@@ -469,6 +487,23 @@ export function LayerPanel() {
     if (oldIndex !== -1 && newIndex !== -1) reorderLayers(oldIndex, newIndex);
   }
 
+  const pushHistorySnapshot = React.useCallback(
+    (label: string) => {
+      const {
+        layers: snapshotLayers,
+        selectedLayerId: snapshotSelectedLayerId,
+        groups: snapshotGroups,
+      } = useLayerStore.getState();
+      pushHistoryState({
+        layers: snapshotLayers,
+        selectedLayerId: snapshotSelectedLayerId,
+        groups: snapshotGroups,
+        label,
+      });
+    },
+    [pushHistoryState],
+  );
+
   const registerRowRef = React.useCallback((id: string, node: HTMLDivElement | null) => {
     if (node) rowRefs.current.set(id, node);
     else rowRefs.current.delete(id);
@@ -532,9 +567,17 @@ export function LayerPanel() {
       if (typeof window === "undefined") return;
       const nextName = window.prompt("Rename group", group.name)?.trim();
       if (!nextName) return;
+      const { layers: snapshotLayers, selectedLayerId: snapshotSelectedLayerId, groups: snapshotGroups } =
+        useLayerStore.getState();
+      pushHistoryState({
+        layers: snapshotLayers,
+        selectedLayerId: snapshotSelectedLayerId,
+        groups: snapshotGroups,
+        label: "Rename group",
+      });
       renameGroup(group.id, nextName);
     },
-    [renameGroup],
+    [pushHistoryState, renameGroup],
   );
 
   React.useEffect(() => {
@@ -600,11 +643,22 @@ export function LayerPanel() {
                         canAddSelected={canAddSelected}
                         onAddSelected={() => {
                           if (!selectedLayer) return;
+                          pushHistorySnapshot("Add layer to group");
                           assignLayerToGroup(selectedLayer.id, row.group.id);
                         }}
-                        onToggle={() => toggleGroupCollapsed(row.group.id)}
+                        onToggleVisibility={() => {
+                          pushHistorySnapshot(row.group.visible ? "Hide group" : "Show group");
+                          setGroupVisibility(row.group.id, !row.group.visible);
+                        }}
+                        onToggle={() => {
+                          pushHistorySnapshot(row.group.collapsed ? "Expand group" : "Collapse group");
+                          toggleGroupCollapsed(row.group.id);
+                        }}
                         onRename={() => handleRenameGroup(row.group)}
-                        onDelete={() => removeGroup(row.group.id)}
+                        onDelete={() => {
+                          pushHistorySnapshot("Delete group");
+                          removeGroup(row.group.id);
+                        }}
                       />
                     );
                   }

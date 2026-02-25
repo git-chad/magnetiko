@@ -120,6 +120,9 @@ export interface LayerGroup {
   id: string;
   name: string;
   collapsed: boolean;
+  visible: boolean;
+  opacity: number;
+  blendMode: BlendMode;
 }
 
 // ── Editor state ──────────────────────────────────────────────────────────────
@@ -143,6 +146,7 @@ export interface EditorState {
 
 export interface HistoryEntry {
   layers: Layer[];
+  groups: LayerGroup[];
   timestamp: number;
   label: string;
 }

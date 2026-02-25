@@ -7,6 +7,8 @@ import {
   CaretDown,
   CaretRight,
   Cube,
+  Eye,
+  EyeSlash,
   Image as ImageIcon,
   LockSimple,
   LockSimpleOpen,
@@ -129,8 +131,8 @@ function usePushHistory() {
   const pushState = useHistoryStore((s) => s.pushState);
   return React.useCallback(
     (label: string, debounce = false) => {
-      const { layers, selectedLayerId } = useLayerStore.getState();
-      pushState({ layers, selectedLayerId, label }, debounce);
+      const { layers, selectedLayerId, groups } = useLayerStore.getState();
+      pushState({ layers, selectedLayerId, groups, label }, debounce);
     },
     [pushState],
   );
@@ -213,8 +215,8 @@ function _LayerHeader({ layer }: { layer: Layer }) {
   function commitEdit() {
     const trimmed = draft.trim();
     if (trimmed && trimmed !== layer.name) {
-      renameLayer(layer.id, trimmed);
       pushHistory("Rename layer");
+      renameLayer(layer.id, trimmed);
     } else {
       setDraft(layer.name);
     }
@@ -227,8 +229,8 @@ function _LayerHeader({ layer }: { layer: Layer }) {
   }
 
   function handleLockToggle() {
-    setLocked(layer.id, !layer.locked);
     pushHistory(layer.locked ? "Unlock layer" : "Lock layer");
+    setLocked(layer.id, !layer.locked);
   }
 
   return (
@@ -531,44 +533,70 @@ function _GeneralSection({ layer }: { layer: Layer }) {
   const setLayerOpacity     = useLayerStore((s) => s.setLayerOpacity);
   const setLayerBlendMode   = useLayerStore((s) => s.setLayerBlendMode);
   const setLayerFilterMode  = useLayerStore((s) => s.setLayerFilterMode);
+  const setGroupVisibility  = useLayerStore((s) => s.setGroupVisibility);
+  const setGroupOpacity     = useLayerStore((s) => s.setGroupOpacity);
+  const setGroupBlendMode   = useLayerStore((s) => s.setGroupBlendMode);
   const groups              = useLayerStore((s) => s.groups);
   const assignLayerToGroup  = useLayerStore((s) => s.assignLayerToGroup);
   const createGroup         = useLayerStore((s) => s.createGroup);
   const pushHistory         = usePushHistory();
 
   function handleOpacity(value: number) {
-    setLayerOpacity(layer.id, value);
     pushHistory("Change opacity", true); // debounced — historyStore handles 300ms
+    setLayerOpacity(layer.id, value);
   }
 
   function handleBlendMode(mode: BlendMode) {
-    setLayerBlendMode(layer.id, mode);
     pushHistory("Change blend mode");
+    setLayerBlendMode(layer.id, mode);
   }
 
   function handleFilterMode(mode: FilterMode) {
-    setLayerFilterMode(layer.id, mode);
     pushHistory("Change layer mode");
+    setLayerFilterMode(layer.id, mode);
+  }
+
+  function handleGroupVisibility(nextVisible: boolean) {
+    if (!layer.groupId) return;
+    pushHistory(nextVisible ? "Show group" : "Hide group");
+    setGroupVisibility(layer.groupId, nextVisible);
+  }
+
+  function handleGroupOpacity(value: number) {
+    if (!layer.groupId) return;
+    pushHistory("Change group opacity", true);
+    setGroupOpacity(layer.groupId, value);
+  }
+
+  function handleGroupBlendMode(mode: BlendMode) {
+    if (!layer.groupId) return;
+    pushHistory("Change group blend mode");
+    setGroupBlendMode(layer.groupId, mode);
   }
 
   function handleGroupChange(value: string) {
     if (value === "__ungrouped") {
-      assignLayerToGroup(layer.id, null);
       pushHistory("Ungroup layer");
+      assignLayerToGroup(layer.id, null);
       return;
     }
     if (value === "__new_group") {
+      pushHistory("Create group");
       const groupId = createGroup(undefined, [layer.id]);
-      if (groupId) pushHistory("Create group");
+      if (!groupId) return;
       return;
     }
-    assignLayerToGroup(layer.id, value);
     pushHistory("Move layer to group");
+    assignLayerToGroup(layer.id, value);
   }
 
   const sortedGroups = React.useMemo<LayerGroup[]>(
     () => [...groups].sort((a, b) => a.name.localeCompare(b.name)),
     [groups],
+  );
+  const groupForLayer = React.useMemo(
+    () => (layer.groupId ? groups.find((group) => group.id === layer.groupId) ?? null : null),
+    [groups, layer.groupId],
   );
 
   return (
@@ -668,6 +696,67 @@ function _GeneralSection({ layer }: { layer: Layer }) {
             </SelectContent>
           </Select>
         </div>
+
+        {groupForLayer && (
+          <>
+            <div className="flex items-center gap-xs py-3xs">
+              <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+                Group vis
+              </Text>
+              <Button
+                size="sm"
+                variant={groupForLayer.visible ? "secondary" : "ghost"}
+                onClick={() => handleGroupVisibility(!groupForLayer.visible)}
+              >
+                {groupForLayer.visible ? <Eye size={13} /> : <EyeSlash size={13} />}
+                {groupForLayer.visible ? "Visible" : "Hidden"}
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-xs py-3xs">
+              <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+                Group op.
+              </Text>
+              <Slider
+                className="flex-1"
+                min={0}
+                max={1}
+                step={0.01}
+                value={[groupForLayer.opacity]}
+                onValueChange={([v]) => handleGroupOpacity(v)}
+              />
+              <span className="w-9 shrink-0 text-right font-mono text-caption text-[var(--color-fg-tertiary)] tabular-nums">
+                {Math.round(groupForLayer.opacity * 100)}%
+              </span>
+            </div>
+
+            <div className="flex items-center gap-xs py-3xs">
+              <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+                Group blend
+              </Text>
+              <Select
+                value={groupForLayer.blendMode}
+                onValueChange={(v) => handleGroupBlendMode(v as BlendMode)}
+              >
+                <SelectTrigger className="h-7 flex-1 text-caption capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BLEND_MODE_GROUPS.map((group) => (
+                    <SelectGroup key={group.label}>
+                      <SelectLabel>{group.label}</SelectLabel>
+                      {group.modes.map((mode) => (
+                        <SelectItem key={mode.value} value={mode.value} className="capitalize">
+                          {mode.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
       </div>
       <Separator />
     </div>

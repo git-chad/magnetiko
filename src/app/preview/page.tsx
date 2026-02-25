@@ -463,6 +463,7 @@ function EditorStoreDemo() {
 function HistoryStoreDemo() {
   const { toast } = useToast();
   const layers = useLayerStore((s) => s.layers);
+  const groups = useLayerStore((s) => s.groups);
   const selectedLayerId = useLayerStore((s) => s.selectedLayerId);
   const past = useHistoryStore((s) => s.past);
   const future = useHistoryStore((s) => s.future);
@@ -476,7 +477,7 @@ function HistoryStoreDemo() {
   function handlePush() {
     snapshotCountRef.current += 1;
     const label = `Snapshot ${snapshotCountRef.current}`;
-    pushState({ layers, selectedLayerId, label });
+    pushState({ layers, selectedLayerId, groups, label });
     toast({ title: `Pushed "${label}"`, description: `Stack: ${past.length + 1} past, 0 future` });
   }
 
@@ -545,11 +546,13 @@ function HistoryStoreDemo() {
           past: past.map((e) => ({
             label: e.label,
             layers: e.layers.length,
+            groups: e.groups.length,
             at: new Date(e.timestamp).toLocaleTimeString(),
           })),
           future: future.map((e) => ({
             label: e.label,
             layers: e.layers.length,
+            groups: e.groups.length,
           })),
           canUndo: past.length > 0,
           canRedo: future.length > 0,

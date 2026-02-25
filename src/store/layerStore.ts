@@ -51,9 +51,12 @@ interface LayerActions {
   removeGroup(groupId: string): void;
   renameGroup(groupId: string, name: string): void;
   toggleGroupCollapsed(groupId: string): void;
+  setGroupVisibility(groupId: string, visible: boolean): void;
+  setGroupOpacity(groupId: string, opacity: number): void;
+  setGroupBlendMode(groupId: string, blendMode: BlendMode): void;
   assignLayerToGroup(layerId: string, groupId: string | null): void;
   /** Restore a full snapshot (used by undo/redo). */
-  setLayers(layers: Layer[], selectedLayerId: string | null): void;
+  setLayers(layers: Layer[], selectedLayerId: string | null, groups?: LayerGroup[]): void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -397,6 +400,9 @@ export const useLayerStore = create<LayerStore>()(
           id: nextGroupId,
           name: normalizedName && normalizedName.length > 0 ? normalizedName : fallbackName,
           collapsed: false,
+          visible: true,
+          opacity: 1,
+          blendMode: "normal",
         });
         if (memberIds.length > 0) {
           const memberSet = new Set(memberIds);
@@ -448,6 +454,27 @@ export const useLayerStore = create<LayerStore>()(
       });
     },
 
+    setGroupVisibility(groupId, visible) {
+      set((state) => {
+        const group = state.groups.find((g) => g.id === groupId);
+        if (group) group.visible = visible;
+      });
+    },
+
+    setGroupOpacity(groupId, opacity) {
+      set((state) => {
+        const group = state.groups.find((g) => g.id === groupId);
+        if (group) group.opacity = Math.max(0, Math.min(1, opacity));
+      });
+    },
+
+    setGroupBlendMode(groupId, blendMode) {
+      set((state) => {
+        const group = state.groups.find((g) => g.id === groupId);
+        if (group) group.blendMode = blendMode;
+      });
+    },
+
     assignLayerToGroup(layerId, groupId) {
       set((state) => {
         const layer = state.layers.find((l) => l.id === layerId);
@@ -480,14 +507,31 @@ export const useLayerStore = create<LayerStore>()(
       });
     },
 
-    setLayers(layers, selectedLayerId) {
+    setLayers(layers, selectedLayerId, groups) {
       set((state) => {
         const nextLayers = layers.slice(0, MAX_LAYERS);
+        const providedGroups = groups ? normalizeGroups(groups) : null;
+        const providedGroupIds = providedGroups ? new Set(providedGroups.map((group) => group.id)) : null;
+        if (providedGroupIds) {
+          for (const layer of nextLayers) {
+            if (layer.groupId && !providedGroupIds.has(layer.groupId)) {
+              layer.groupId = undefined;
+            }
+          }
+        }
         state.layers = nextLayers;
-        const referencedGroupIds = new Set(
-          nextLayers.map((layer) => layer.groupId).filter((id): id is string => typeof id === "string"),
-        );
-        state.groups = state.groups.filter((group) => referencedGroupIds.has(group.id));
+        if (providedGroups) {
+          state.groups = providedGroups;
+        } else {
+          const referencedGroupIds = new Set(
+            nextLayers
+              .map((layer) => layer.groupId)
+              .filter((id): id is string => typeof id === "string"),
+          );
+          state.groups = normalizeGroups(
+            state.groups.filter((group) => referencedGroupIds.has(group.id)),
+          );
+        }
         state.selectedLayerId =
           selectedLayerId && nextLayers.some((layer) => layer.id === selectedLayerId)
             ? selectedLayerId
@@ -503,9 +547,18 @@ export const useLayerStore = create<LayerStore>()(
     },
 
     getVisibleLayers() {
-      const { layers } = get();
+      const { layers, groups } = get();
+      const groupsById = new Map(groups.map((group) => [group.id, group]));
+      const isVisibleWithGroup = (layer: Layer): boolean => {
+        if (!layer.visible) return false;
+        if (!layer.groupId) return true;
+        const group = groupsById.get(layer.groupId);
+        return group ? group.visible : true;
+      };
       const hasSolo = layers.some((l) => l.solo);
-      return hasSolo ? layers.filter((l) => l.solo) : layers.filter((l) => l.visible);
+      return hasSolo
+        ? layers.filter((layer) => layer.solo && isVisibleWithGroup(layer))
+        : layers.filter(isVisibleWithGroup);
     },
 
     getLayersByOrder() {
@@ -527,7 +580,7 @@ function pruneEmptyGroups(state: LayerState): void {
   const used = new Set(
     state.layers.map((layer) => layer.groupId).filter((id): id is string => typeof id === "string"),
   );
-  state.groups = state.groups.filter((group) => used.has(group.id));
+  state.groups = normalizeGroups(state.groups.filter((group) => used.has(group.id)));
 }
 
 function getNextGroupName(groups: LayerGroup[]): string {
@@ -568,4 +621,22 @@ function normalizeTargetIndexForGroupBoundary(
   const groupHead = targetGroupIndices[0]!;
   const groupTail = targetGroupIndices[targetGroupIndices.length - 1]!;
   return movingDown ? groupTail + 1 : groupHead;
+}
+
+function normalizeGroups(groups: LayerGroup[]): LayerGroup[] {
+  const seen = new Set<string>();
+  const normalized: LayerGroup[] = [];
+  for (const group of groups) {
+    if (!group.id || seen.has(group.id)) continue;
+    seen.add(group.id);
+    normalized.push({
+      id: group.id,
+      name: group.name?.trim() ? group.name : "Group",
+      collapsed: group.collapsed ?? false,
+      visible: group.visible ?? true,
+      opacity: Math.max(0, Math.min(1, group.opacity ?? 1)),
+      blendMode: group.blendMode ?? "normal",
+    });
+  }
+  return normalized;
 }

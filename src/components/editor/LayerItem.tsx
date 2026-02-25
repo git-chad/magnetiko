@@ -31,6 +31,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui";
+import { useHistoryStore } from "@/store/historyStore";
 import { useLayerStore } from "@/store/layerStore";
 import { cn } from "@/lib/utils";
 import type { Layer } from "@/types";
@@ -103,6 +104,7 @@ export function LayerItem({
   const groups = useLayerStore((s) => s.groups);
   const assignLayerToGroup = useLayerStore((s) => s.assignLayerToGroup);
   const createGroup = useLayerStore((s) => s.createGroup);
+  const pushHistoryState = useHistoryStore((s) => s.pushState);
 
   const isSelected = selectedLayerId === layer.id;
   const myIndex = layers.findIndex((l) => l.id === layer.id);
@@ -137,6 +139,23 @@ export function LayerItem({
       setIsRenaming(false);
     }
   }
+
+  const pushHistorySnapshot = React.useCallback(
+    (label: string) => {
+      const {
+        layers: snapshotLayers,
+        selectedLayerId: snapshotSelectedLayerId,
+        groups: snapshotGroups,
+      } = useLayerStore.getState();
+      pushHistoryState({
+        layers: snapshotLayers,
+        selectedLayerId: snapshotSelectedLayerId,
+        groups: snapshotGroups,
+        label,
+      });
+    },
+    [pushHistoryState],
+  );
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -293,7 +312,10 @@ export function LayerItem({
             <DropdownMenuSubContent sideOffset={6}>
               <DropdownMenuItem
                 disabled={!layer.groupId}
-                onSelect={() => assignLayerToGroup(layer.id, null)}
+                onSelect={() => {
+                  pushHistorySnapshot("Ungroup layer");
+                  assignLayerToGroup(layer.id, null);
+                }}
               >
                 Ungroup
               </DropdownMenuItem>
@@ -301,13 +323,21 @@ export function LayerItem({
                 <DropdownMenuItem
                   key={group.id}
                   disabled={layer.groupId === group.id}
-                  onSelect={() => assignLayerToGroup(layer.id, group.id)}
+                  onSelect={() => {
+                    pushHistorySnapshot("Move layer to group");
+                    assignLayerToGroup(layer.id, group.id);
+                  }}
                 >
                   {group.name}
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => createGroup(undefined, [layer.id])}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  pushHistorySnapshot("Create group");
+                  createGroup(undefined, [layer.id]);
+                }}
+              >
                 New group from layer
               </DropdownMenuItem>
             </DropdownMenuSubContent>

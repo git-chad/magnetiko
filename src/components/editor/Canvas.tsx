@@ -12,7 +12,7 @@ import { useMediaStore } from "@/store/mediaStore";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { useMouseInteraction } from "@/hooks/useMouseInteraction";
 import { useToast } from "@/components/ui/toast";
-import type { Layer } from "@/types";
+import type { Layer, LayerGroup } from "@/types";
 
 type VideoExportPhase = "recording" | "encoding";
 type ExportVideoOptions = {
@@ -71,9 +71,18 @@ function toSourceMedia(layer: Layer): SourceMedia | null {
   return null;
 }
 
-function getAutoBaseSourceMedia(layers: Layer[]): SourceMedia | null {
+function getAutoBaseSourceMedia(layers: Layer[], groups: LayerGroup[]): SourceMedia | null {
   const hasSolo = layers.some((layer) => layer.solo);
-  const activeLayers = hasSolo ? layers.filter((layer) => layer.solo) : layers.filter((layer) => layer.visible);
+  const groupsById = new Map(groups.map((group) => [group.id, group]));
+  const isVisibleWithGroup = (layer: Layer): boolean => {
+    if (!layer.visible) return false;
+    if (!layer.groupId) return true;
+    const group = groupsById.get(layer.groupId);
+    return group ? group.visible : true;
+  };
+  const activeLayers = hasSolo
+    ? layers.filter((layer) => layer.solo && isVisibleWithGroup(layer))
+    : layers.filter(isVisibleWithGroup);
 
   // In panel order index 0 is top/front; use bottom-most active media as base frame source.
   for (let i = activeLayers.length - 1; i >= 0; i--) {
@@ -255,17 +264,22 @@ export function Canvas({ className }: CanvasProps) {
     ),
   );
   const layerCount = useLayerStore((s) => s.layers.length);
-  const hasActiveAscii = useLayerStore((s) =>
-    s.layers.some((l) => l.visible && l.kind === "shader" && l.shaderType === "ascii"),
-  );
+  const hasActiveAscii = useLayerStore((s) => {
+    const groupsById = new Map(s.groups.map((group) => [group.id, group]));
+    return s.layers.some((layer) => {
+      if (!layer.visible || layer.kind !== "shader" || layer.shaderType !== "ascii") return false;
+      if (!layer.groupId) return true;
+      return groupsById.get(layer.groupId)?.visible ?? true;
+    });
+  });
   const hasMediaLayersRef = React.useRef(hasMediaLayers);
   const toastRef = React.useRef(toast);
   const sourceMediaKind = useLayerStore(
-    (s) => getAutoBaseSourceMedia(s.layers)?.kind ?? null,
+    (s) => getAutoBaseSourceMedia(s.layers, s.groups)?.kind ?? null,
   );
   const selectedLayerId = useLayerStore((s) => s.selectedLayerId);
   const sourceMediaUrl = useLayerStore(
-    (s) => getAutoBaseSourceMedia(s.layers)?.url ?? null,
+    (s) => getAutoBaseSourceMedia(s.layers, s.groups)?.url ?? null,
   );
   const sourceMedia = React.useMemo<SourceMedia | null>(() => {
     if (!sourceMediaKind) return null;
@@ -836,18 +850,22 @@ export function Canvas({ className }: CanvasProps) {
   React.useEffect(() => {
     if (status !== "ready") return;
 
-    function sync(layers: Layer[]) {
+    function sync(layers: Layer[], groups: LayerGroup[]) {
       const p = pipelineRef.current;
       if (!p) return;
+      const groupsById = new Map(groups.map((group) => [group.id, group]));
 
       // All layers — both media and shader — become passes in the pipeline,
       // ordered bottom → top so the render chain composites correctly.
       const passes: PipelineLayer[] = [...layers].reverse().map((l) => ({
         id:         l.id,
         kind:       l.kind,
-        visible:    l.visible,
-        opacity:    l.opacity,
-        blendMode:  l.blendMode,
+        visible:    l.visible && (l.groupId ? (groupsById.get(l.groupId)?.visible ?? true) : true),
+        opacity:    Math.max(
+          0,
+          Math.min(1, l.opacity * (l.groupId ? (groupsById.get(l.groupId)?.opacity ?? 1) : 1)),
+        ),
+        blendMode:  l.groupId ? (groupsById.get(l.groupId)?.blendMode ?? l.blendMode) : l.blendMode,
         filterMode: l.filterMode,
         params:     l.params,
         shaderType: l.shaderType,
@@ -859,8 +877,9 @@ export function Canvas({ className }: CanvasProps) {
       p.syncLayers(passes);
     }
 
-    sync(useLayerStore.getState().layers);
-    const unsub = useLayerStore.subscribe((state) => sync(state.layers));
+    const initialState = useLayerStore.getState();
+    sync(initialState.layers, initialState.groups);
+    const unsub = useLayerStore.subscribe((state) => sync(state.layers, state.groups));
     return unsub;
   }, [status]);
 
