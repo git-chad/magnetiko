@@ -4,6 +4,7 @@ import * as React from "react";
 import { Sparkle } from "@phosphor-icons/react";
 import { v4 as uuidv4 } from "uuid";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -215,13 +216,30 @@ export function PresetBrowser({ open, onOpenChange }: PresetBrowserProps) {
     onOpenChange(false);
   }
 
+  function handleSurpriseMe() {
+    if (SHADER_PRESETS.length === 0) return;
+    const preset = SHADER_PRESETS[Math.floor(Math.random() * SHADER_PRESETS.length)];
+    handleShaderPreset(preset);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[48rem] min-h-[660px]">
         <DialogHeader>
-          <DialogTitle>Get Started</DialogTitle>
+          <div className="flex items-center justify-between gap-sm">
+            <DialogTitle>Get Started</DialogTitle>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={handleSurpriseMe}
+            >
+              <Sparkle size={14} />
+              Surprise me
+            </Button>
+          </div>
         </DialogHeader>
 
         <Tabs defaultValue="photos">
