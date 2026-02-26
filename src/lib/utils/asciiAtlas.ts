@@ -9,11 +9,11 @@ import * as THREE from "three/webgpu";
  * The shader maps luma 0 → char[0], luma 1 → char[last].
  */
 export const CHARSETS: Record<string, string> = {
-  light:    " .:-=+*#%@",
-  dense:    " .',:;!|({#@",
-  blocks:   " ░▒▓█",
+  light: " .:-=+*#%@",
+  dense: " .',:;!|({#@",
+  blocks: " ░▒▓█",
   hatching: " ╱╲╳░▒",
-  binary:   "01",
+  binary: "01",
 };
 
 export type FontWeight = "thin" | "regular" | "bold";
@@ -32,7 +32,7 @@ export type FontWeight = "thin" | "regular" | "bold";
  * Layout: one row of characters, each occupying cellPx × cellPx pixels.
  * White glyph on black background (red channel carries the mask).
  *
- * Shader UV conventions (flipY = true default):
+ * Shader UV conventions (flipY = false):
  *   atlasUV.x = (charIndex + cellFract.x) / numChars
  *   atlasUV.y = cellFract.y   — no extra flip needed
  */
@@ -42,10 +42,10 @@ export function buildAsciiAtlas(
   cellPx: number = 32,
 ): THREE.CanvasTexture {
   const n = Math.max(chars.length, 1);
-  const px = Math.max(Math.round(cellPx), 4);  // never smaller than 4px
+  const px = Math.max(Math.round(cellPx), 4); // never smaller than 4px
 
   const canvas = document.createElement("canvas");
-  canvas.width  = n * px;
+  canvas.width = n * px;
   canvas.height = px;
 
   const ctx = canvas.getContext("2d")!;
@@ -54,16 +54,16 @@ export function buildAsciiAtlas(
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const weightMap: Record<FontWeight, string> = {
-    thin:    "100",
+    thin: "100",
     regular: "400",
-    bold:    "700",
+    bold: "700",
   };
 
   // Use full cell size for the font — matches the reference implementation.
   // textBaseline="middle" centres the glyph so it won't clip at small sizes.
-  ctx.fillStyle    = "#ffffff";
-  ctx.font         = `${weightMap[fontWeight]} ${px}px monospace`;
-  ctx.textAlign    = "center";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `${weightMap[fontWeight]} ${px}px monospace`;
+  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
   for (let i = 0; i < n; i++) {
@@ -86,8 +86,9 @@ export function buildAsciiAtlas(
   const tex = new THREE.CanvasTexture(canvas);
   // NearestFilter is critical: atlas cells are built to match the screen cell
   // size exactly (1:1 pixel mapping). Linear filtering would blur the glyphs.
-  tex.magFilter   = THREE.NearestFilter;
-  tex.minFilter   = THREE.NearestFilter;
+  tex.flipY = false;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
   tex.needsUpdate = true;
   return tex;
 }

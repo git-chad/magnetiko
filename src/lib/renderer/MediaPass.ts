@@ -2,16 +2,25 @@ import * as THREE from "three/webgpu";
 import {
   uv,
   vec2,
+  vec3,
   vec4,
   float,
   texture as tslTexture,
   uniform,
   max,
   mix,
+  clamp,
+  cos,
+  sin,
 } from "three/tsl";
 import { PassNode } from "./PassNode";
-import { loadImageTexture, createVideoTexture, createWebcamTexture } from "./MediaTexture";
+import {
+  loadImageTexture,
+  createVideoTexture,
+  createWebcamTexture,
+} from "./MediaTexture";
 import type { VideoHandle } from "./MediaTexture";
+import type { ShaderParam } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MediaPass
@@ -45,31 +54,46 @@ import type { VideoHandle } from "./MediaTexture";
  */
 export class MediaPass extends PassNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uCanvasAspect:  any;   // uniform(float) — updated by resize()
+  private _uCanvasAspect: any; // uniform(float) — updated by resize()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uTextureAspect: any;   // uniform(float) — set when media loads
+  private _uTextureAspect: any; // uniform(float) — set when media loads
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _mediaTexNode:   any;   // tslTexture node — .value swapped each frame
+  private _mediaTexNode: any; // tslTexture node — .value swapped each frame
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uMirrorX:       any;   // uniform(float) — 1.0 for webcam, 0.0 otherwise
+  private _uMirrorX: any; // uniform(float) — 1.0 for webcam, 0.0 otherwise
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uExposureMul: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uBrightness: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uContrast: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uSaturation: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uHueRad: any;
 
   private _placeholder: THREE.Texture;
 
   // Loaded media state
-  private _currentTex:  THREE.Texture | null      = null;
-  private _videoTex:    THREE.VideoTexture | null  = null;
-  private _videoHandle: VideoHandle | null         = null;
-  private _loadedUrl:   string | null              = null;
+  private _currentTex: THREE.Texture | null = null;
+  private _videoTex: THREE.VideoTexture | null = null;
+  private _videoHandle: VideoHandle | null = null;
+  private _loadedUrl: string | null = null;
 
   // ── Constructor ────────────────────────────────────────────────────────────
 
   constructor(layerId: string) {
     super(layerId);
     // super() calls _buildEffectNode() → guard returns passthrough. Now init.
-    this._placeholder    = new THREE.Texture();
-    this._uCanvasAspect  = uniform(1.0);
+    this._placeholder = new THREE.Texture();
+    this._uCanvasAspect = uniform(1.0);
     this._uTextureAspect = uniform(1.0);
-    this._uMirrorX       = uniform(0.0);
+    this._uMirrorX = uniform(0.0);
+    this._uExposureMul = uniform(1.0);
+    this._uBrightness = uniform(0.0);
+    this._uContrast = uniform(1.0);
+    this._uSaturation = uniform(1.0);
+    this._uHueRad = uniform(0.0);
     this._effectNode = this._buildEffectNode();
     this._rebuildColorNode();
     this._material.needsUpdate = true;
@@ -78,7 +102,9 @@ export class MediaPass extends PassNode {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /** The URL currently loaded (or being loaded) into this pass. */
-  get loadedUrl(): string | null { return this._loadedUrl; }
+  get loadedUrl(): string | null {
+    return this._loadedUrl;
+  }
 
   /**
    * Asynchronously load a media URL into this pass.
@@ -149,6 +175,35 @@ export class MediaPass extends PassNode {
     return this._videoTex !== null;
   }
 
+  override updateUniforms(params: ShaderParam[]): void {
+    for (const param of params) {
+      switch (param.key) {
+        case "exposure":
+          this._uExposureMul.value =
+            typeof param.value === "number" ? Math.pow(2, param.value) : 1.0;
+          break;
+        case "brightness":
+          this._uBrightness.value =
+            typeof param.value === "number" ? param.value : 0.0;
+          break;
+        case "contrast":
+          this._uContrast.value =
+            typeof param.value === "number" ? Math.max(0, param.value) : 1.0;
+          break;
+        case "saturation":
+          this._uSaturation.value =
+            typeof param.value === "number" ? Math.max(0, param.value) : 1.0;
+          break;
+        case "hue":
+          this._uHueRad.value =
+            typeof param.value === "number"
+              ? (param.value * Math.PI) / 180
+              : 0.0;
+          break;
+      }
+    }
+  }
+
   override dispose(): void {
     this._releaseCurrentMedia();
     this._placeholder.dispose();
@@ -157,38 +212,131 @@ export class MediaPass extends PassNode {
 
   // ── Effect node ────────────────────────────────────────────────────────────
 
-  protected override _buildEffectNode(): any { // eslint-disable-line @typescript-eslint/no-explicit-any
+  protected override _buildEffectNode(): any {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     // Guard: super() calls this before uniforms exist. Return passthrough.
     if (!this._uCanvasAspect) return this._inputNode;
 
     // Cover UV — regular uv() (no Y-flip: image textures are bottom-origin)
-    const ratio       = this._uTextureAspect.div(this._uCanvasAspect);
-    const centeredUV  = uv().sub(0.5);
+    const ratio = this._uTextureAspect.div(this._uCanvasAspect);
+    const centeredUV = uv().sub(0.5);
     const coverScaleX = max(ratio, float(1.0));
     const coverScaleY = max(float(1.0).div(ratio), float(1.0));
     const scaledX = centeredUV.x.div(coverScaleX);
     const mirroredX = mix(scaledX, scaledX.negate(), this._uMirrorX);
-    const coverUV = vec2(
-      mirroredX,
-      centeredUV.y.div(coverScaleY),
-    ).add(0.5);
+    const coverUV = vec2(mirroredX, centeredUV.y.div(coverScaleY)).add(0.5);
 
     this._mediaTexNode = tslTexture(this._placeholder, coverUV);
-    return vec4(this._mediaTexNode.rgb, float(1.0));
+    const sourceColor = vec3(
+      float(this._mediaTexNode.r),
+      float(this._mediaTexNode.g),
+      float(this._mediaTexNode.b),
+    );
+    const exposedColor = sourceColor.mul(this._uExposureMul);
+    const brightenedColor = exposedColor.add(
+      vec3(this._uBrightness, this._uBrightness, this._uBrightness),
+    );
+    const contrastedColor = brightenedColor
+      .sub(vec3(0.5, 0.5, 0.5))
+      .mul(this._uContrast)
+      .add(vec3(0.5, 0.5, 0.5));
+    const luma = float(contrastedColor.x)
+      .mul(float(0.2126))
+      .add(float(contrastedColor.y).mul(float(0.7152)))
+      .add(float(contrastedColor.z).mul(float(0.0722)));
+    const saturatedColor = mix(
+      vec3(luma, luma, luma),
+      contrastedColor,
+      this._uSaturation,
+    );
+    const hueCos = float(cos(this._uHueRad));
+    const hueSin = float(sin(this._uHueRad));
+    const rotatedColor = vec3(
+      float(saturatedColor.x)
+        .mul(
+          float(0.213)
+            .add(hueCos.mul(float(0.787)))
+            .sub(hueSin.mul(float(0.213))),
+        )
+        .add(
+          float(saturatedColor.y).mul(
+            float(0.715)
+              .sub(hueCos.mul(float(0.715)))
+              .sub(hueSin.mul(float(0.715))),
+          ),
+        )
+        .add(
+          float(saturatedColor.z).mul(
+            float(0.072)
+              .sub(hueCos.mul(float(0.072)))
+              .add(hueSin.mul(float(0.928))),
+          ),
+        ),
+      float(saturatedColor.x)
+        .mul(
+          float(0.213)
+            .sub(hueCos.mul(float(0.213)))
+            .add(hueSin.mul(float(0.143))),
+        )
+        .add(
+          float(saturatedColor.y).mul(
+            float(0.715)
+              .add(hueCos.mul(float(0.285)))
+              .add(hueSin.mul(float(0.14))),
+          ),
+        )
+        .add(
+          float(saturatedColor.z).mul(
+            float(0.072)
+              .sub(hueCos.mul(float(0.072)))
+              .sub(hueSin.mul(float(0.283))),
+          ),
+        ),
+      float(saturatedColor.x)
+        .mul(
+          float(0.213)
+            .sub(hueCos.mul(float(0.213)))
+            .sub(hueSin.mul(float(0.787))),
+        )
+        .add(
+          float(saturatedColor.y).mul(
+            float(0.715)
+              .sub(hueCos.mul(float(0.715)))
+              .add(hueSin.mul(float(0.715))),
+          ),
+        )
+        .add(
+          float(saturatedColor.z).mul(
+            float(0.072)
+              .add(hueCos.mul(float(0.928)))
+              .add(hueSin.mul(float(0.072))),
+          ),
+        ),
+    );
+    const adjustedColor = clamp(
+      rotatedColor,
+      vec3(float(0.0), float(0.0), float(0.0)),
+      vec3(float(1.0), float(1.0), float(1.0)),
+    );
+    return vec4(adjustedColor, float(1.0));
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
 
   private _setAspect(tex: THREE.Texture): void {
-    const img = tex.image as HTMLImageElement | HTMLVideoElement | null | undefined;
+    const img = tex.image as
+      | HTMLImageElement
+      | HTMLVideoElement
+      | null
+      | undefined;
     const tw =
       img instanceof HTMLVideoElement
         ? img.videoWidth
-        : (img as HTMLImageElement | null)?.naturalWidth ?? 1;
+        : ((img as HTMLImageElement | null)?.naturalWidth ?? 1);
     const th =
       img instanceof HTMLVideoElement
         ? img.videoHeight
-        : (img as HTMLImageElement | null)?.naturalHeight ?? 1;
+        : ((img as HTMLImageElement | null)?.naturalHeight ?? 1);
     if (this._uTextureAspect) {
       this._uTextureAspect.value = tw / Math.max(th, 1);
     }
@@ -196,10 +344,10 @@ export class MediaPass extends PassNode {
 
   private _releaseCurrentMedia(): void {
     this._currentTex?.dispose();
-    this._currentTex  = null;
-    this._videoTex    = null;
+    this._currentTex = null;
+    this._videoTex = null;
     this._videoHandle?.dispose();
     this._videoHandle = null;
-    this._loadedUrl   = null;
+    this._loadedUrl = null;
   }
 }

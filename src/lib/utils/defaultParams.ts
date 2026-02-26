@@ -236,6 +236,14 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           group: "Color",
         },
         {
+          key: "monoColor",
+          label: "Glyph Color",
+          type: "color",
+          value: "#ffffff",
+          group: "Color",
+          description: "Tint applied to glyphs when Color Mode = Monochrome",
+        },
+        {
           key: "bgOpacity",
           label: "BG Opacity",
           type: "float",
@@ -1989,11 +1997,72 @@ export function getDefaultModelParams(): ShaderParam[] {
   ];
 }
 
+function getDefaultMediaParams(): ShaderParam[] {
+  return [
+    {
+      key: "exposure",
+      label: "Exposure",
+      type: "float",
+      value: 0,
+      min: -4,
+      max: 4,
+      step: 0.05,
+      group: "Color",
+      description: "Overall light gain in exposure stops",
+    },
+    {
+      key: "brightness",
+      label: "Brightness",
+      type: "float",
+      value: 0,
+      min: -1,
+      max: 1,
+      step: 0.01,
+      group: "Color",
+      description: "Adds or removes overall light evenly across the image",
+    },
+    {
+      key: "contrast",
+      label: "Contrast",
+      type: "float",
+      value: 1,
+      min: 0,
+      max: 2,
+      step: 0.01,
+      group: "Color",
+      description: "Expands or compresses tonal separation around mid grey",
+    },
+    {
+      key: "saturation",
+      label: "Saturation",
+      type: "float",
+      value: 1,
+      min: 0,
+      max: 2,
+      step: 0.01,
+      group: "Color",
+      description: "Controls color intensity from monochrome to oversaturated",
+    },
+    {
+      key: "hue",
+      label: "Hue",
+      type: "float",
+      value: 0,
+      min: -180,
+      max: 180,
+      step: 1,
+      group: "Color",
+      description: "Rotates colors around the hue wheel",
+    },
+  ];
+}
+
 export function getDefaultParamsForLayer(
   kind: LayerKind,
   shaderType?: ShaderType,
 ): ShaderParam[] {
   if (kind === "shader" && shaderType) return getDefaultParams(shaderType);
   if (kind === "model") return getDefaultModelParams();
+  if (kind === "image" || kind === "video") return getDefaultMediaParams();
   return [];
 }

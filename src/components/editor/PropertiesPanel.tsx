@@ -933,6 +933,21 @@ function _ParamsSection({ layer }: { layer: Layer }) {
     pushHistory(`Change ${label}`);
   }
 
+  function isParamDisabled(param: ShaderParam): boolean {
+    if (
+      layer.kind === "shader" &&
+      layer.shaderType === "ascii" &&
+      param.key === "customChars"
+    ) {
+      const charset = layer.params.find(
+        (entry) => entry.key === "charset",
+      )?.value;
+      return charset !== "custom";
+    }
+
+    return false;
+  }
+
   return (
     <div>
       {[...groups.entries()].map(([groupName, params]) => {
@@ -971,6 +986,7 @@ function _ParamsSection({ layer }: { layer: Layer }) {
                     key={param.key}
                     param={param}
                     defaultParam={defaultParamsMap[param.key]}
+                    disabled={isParamDisabled(param)}
                     onChange={handleChange}
                     onCommit={handleCommit}
                     keyframe={

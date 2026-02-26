@@ -28,6 +28,7 @@ export interface ParamControlProps {
   param: ShaderParam;
   /** Full default param object (same key). Used to determine if reset is needed. */
   defaultParam?: ShaderParam;
+  disabled?: boolean;
   /**
    * Called immediately on every interaction.
    * Use this to update shader uniforms in real-time.
@@ -83,6 +84,7 @@ function valuesEqual(
 export function ParamControl({
   param,
   defaultParam,
+  disabled = false,
   onChange,
   onCommit,
   keyframe,
@@ -124,7 +126,11 @@ export function ParamControl({
       {/* Label row */}
       <div className="flex items-center justify-between gap-xs">
         <div className="flex items-center gap-3xs">
-          <Text variant="caption" color="secondary" as="span">
+          <Text
+            variant="caption"
+            color={disabled ? "disabled" : "secondary"}
+            as="span"
+          >
             {param.label}
           </Text>
           {param.description && (
@@ -152,7 +158,7 @@ export function ParamControl({
                   }
                   aria-label={`Toggle keyframe for ${param.label}`}
                   onClick={keyframe.onToggle}
-                  disabled={keyframe.disabled}
+                  disabled={disabled || keyframe.disabled}
                   className={
                     keyframe.state === "track"
                       ? "text-[var(--color-accent)]"
@@ -180,6 +186,7 @@ export function ParamControl({
               variant="ghost"
               aria-label={`Reset ${param.label} to default`}
               onClick={handleReset}
+              disabled={disabled}
               className={`transition-opacity ${
                 hovered && isDirty
                   ? "opacity-100"
@@ -193,7 +200,7 @@ export function ParamControl({
       </div>
 
       {/* Control */}
-      <_ParamInput param={param} emit={emit} />
+      <_ParamInput param={param} emit={emit} disabled={disabled} />
     </div>
   );
 }
@@ -205,9 +212,10 @@ export function ParamControl({
 interface _ParamInputProps {
   param: ShaderParam;
   emit: (value: ShaderParam["value"]) => void;
+  disabled?: boolean;
 }
 
-function _ParamInput({ param, emit }: _ParamInputProps) {
+function _ParamInput({ param, emit, disabled = false }: _ParamInputProps) {
   switch (param.type) {
     case "float":
     case "int":
@@ -218,6 +226,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
           max={param.max ?? 1}
           step={param.type === "int" ? 1 : (param.step ?? 0.01)}
           emit={emit}
+          disabled={disabled}
         />
       );
 
@@ -227,6 +236,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
           <Switch
             checked={param.value as boolean}
             onCheckedChange={(v) => emit(v)}
+            disabled={disabled}
           />
           <Text variant="caption" color="tertiary" as="span">
             {(param.value as boolean) ? "On" : "Off"}
@@ -245,7 +255,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
     case "enum":
       return (
         <Select value={param.value as string} onValueChange={(v) => emit(v)}>
-          <SelectTrigger className="h-7 text-caption">
+          <SelectTrigger className="h-7 text-caption" disabled={disabled}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -269,6 +279,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
             const limit = param.maxLength ?? 10;
             emit(event.target.value.slice(0, limit));
           }}
+          disabled={disabled}
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="none"
@@ -285,6 +296,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
           max={param.max ?? 1}
           step={param.step ?? 0.01}
           emit={(v) => emit(v)}
+          disabled={disabled}
         />
       );
     }
@@ -300,6 +312,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
             max={param.max ?? 1}
             step={param.step ?? 0.01}
             emit={(v) => emit([v, y, z])}
+            disabled={disabled}
           />
           <_SliderRow
             label="Y"
@@ -308,6 +321,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
             max={param.max ?? 1}
             step={param.step ?? 0.01}
             emit={(v) => emit([x, v, z])}
+            disabled={disabled}
           />
           <_SliderRow
             label="Z"
@@ -316,6 +330,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
             max={param.max ?? 1}
             step={param.step ?? 0.01}
             emit={(v) => emit([x, y, v])}
+            disabled={disabled}
           />
         </div>
       );
@@ -336,12 +351,14 @@ function _SliderControl({
   max,
   step,
   emit,
+  disabled = false,
 }: {
   value: number;
   min: number;
   max: number;
   step: number;
   emit: (v: number) => void;
+  disabled?: boolean;
 }) {
   // Format displayed value: show 0 decimals for integers, up to 2 for floats.
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
@@ -355,6 +372,7 @@ function _SliderControl({
         max={max}
         step={step}
         value={[value]}
+        disabled={disabled}
         onValueChange={([v]) => emit(v)}
       />
       <span className="w-9 shrink-0 text-right font-mono text-caption text-[var(--color-fg-tertiary)] tabular-nums">
@@ -375,6 +393,7 @@ function _SliderRow({
   max,
   step,
   emit,
+  disabled = false,
 }: {
   label: string;
   value: number;
@@ -382,6 +401,7 @@ function _SliderRow({
   max: number;
   step: number;
   emit: (v: number) => void;
+  disabled?: boolean;
 }) {
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
   const display = value.toFixed(decimals);
@@ -402,6 +422,7 @@ function _SliderRow({
         max={max}
         step={step}
         value={[value]}
+        disabled={disabled}
         onValueChange={([v]) => emit(v)}
       />
       <span className="w-9 shrink-0 text-right font-mono text-caption text-[var(--color-fg-tertiary)] tabular-nums">
@@ -421,12 +442,14 @@ function _XYPadControl({
   max,
   step,
   emit,
+  disabled = false,
 }: {
   value: [number, number];
   min: number;
   max: number;
   step: number;
   emit: (v: number[]) => void;
+  disabled?: boolean;
 }) {
   const [x, y] = value;
   const padRef = React.useRef<HTMLDivElement>(null);
@@ -457,13 +480,17 @@ function _XYPadControl({
         ref={padRef}
         role="presentation"
         aria-label="XY control pad"
-        className="relative w-full select-none cursor-crosshair rounded-xs border border-[var(--color-border)] overflow-hidden"
+        className={`relative w-full select-none rounded-xs border border-[var(--color-border)] overflow-hidden ${
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-crosshair"
+        }`}
         style={{ aspectRatio: "1 / 1" }}
         onPointerDown={(e) => {
+          if (disabled) return;
           (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
           applyDrag(e.clientX, e.clientY);
         }}
         onPointerMove={(e) => {
+          if (disabled) return;
           if (
             !(e.currentTarget as HTMLDivElement).hasPointerCapture(e.pointerId)
           )
@@ -525,6 +552,7 @@ function _XYPadControl({
         max={max}
         step={step}
         emit={(val) => emit([val, y])}
+        disabled={disabled}
       />
       <_SliderRow
         label="Y"
@@ -533,6 +561,7 @@ function _XYPadControl({
         max={max}
         step={step}
         emit={(val) => emit([x, val])}
+        disabled={disabled}
       />
 
       {/* Numeric readout */}

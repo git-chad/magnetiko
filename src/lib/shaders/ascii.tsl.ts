@@ -38,7 +38,7 @@ import type { FontWeight } from "@/lib/utils/asciiAtlas";
  *
  * Color modes (_colorModeU):
  *   0 = source     — glyph takes the cell-center colour; bg = source * bgOpacity
- *   1 = monochrome — white glyphs on black background
+ *   1 = monochrome — tinted glyphs on black background
  *   2 = green-terminal — green-luminance glyphs on black (classic CRT)
  */
 export class AsciiPass extends PassNode {
@@ -48,6 +48,12 @@ export class AsciiPass extends PassNode {
   private readonly _numCharsU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _colorModeU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _monoColorRU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _monoColorGU: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly _monoColorBU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _bgOpacityU: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,10 +80,10 @@ export class AsciiPass extends PassNode {
   private _atlasTexture: THREE.CanvasTexture | null = null;
 
   // Track current settings to detect changes that require atlas rebuild.
-  private _currentCharset     = "light";
+  private _currentCharset = "light";
   private _currentCustomChars = " .:-=+*#%@";
   private _currentFontWeight: FontWeight = "regular";
-  private _currentCellSize    = 16;
+  private _currentCellSize = 16;
 
   // Bloom sub-pass (optional, per-shader enhancement).
   private readonly _bloom: BloomSubPass;
@@ -89,11 +95,14 @@ export class AsciiPass extends PassNode {
     // Guard: super() already called _buildEffectNode() once, but the guard
     // returned the passthrough _inputNode because these uniforms didn't exist
     // yet. Initialise them now, then rebuild the real effect.
-    this._cellSizeU  = uniform(16.0);
-    this._numCharsU  = uniform(CHARSETS["light"].length);  // plain number, not a TSL node
-    this._colorModeU = uniform(1.0);  // 1=monochrome (white glyphs on black bg)
+    this._cellSizeU = uniform(16.0);
+    this._numCharsU = uniform(CHARSETS["light"].length); // plain number, not a TSL node
+    this._colorModeU = uniform(1.0); // 1=monochrome (tinted glyphs on black bg)
+    this._monoColorRU = uniform(1.0);
+    this._monoColorGU = uniform(1.0);
+    this._monoColorBU = uniform(1.0);
     this._bgOpacityU = uniform(1.0);
-    this._invertU    = uniform(0.0);
+    this._invertU = uniform(0.0);
     this._interactionModeU = uniform(0.0);
     this._interactionAmountU = uniform(0.5);
 
@@ -163,7 +172,8 @@ export class AsciiPass extends PassNode {
 
   // ── Effect node ────────────────────────────────────────────────────────────
 
-  protected override _buildEffectNode(): /* TSL Node */ any { // eslint-disable-line @typescript-eslint/no-explicit-any
+  protected override _buildEffectNode(): /* TSL Node */ any {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     // Guard: called once by super() before uniforms are initialised.
     if (!this._cellSizeU) return this._inputNode;
 
@@ -171,7 +181,9 @@ export class AsciiPass extends PassNode {
     const rtUV = vec2(uv().x, float(1.0).sub(uv().y));
 
     // Normalised cell size (UV fraction per cell on each axis).
-    const normalizedCellSize = vec2(this._cellSizeU, this._cellSizeU).div(screenSize);
+    const normalizedCellSize = vec2(this._cellSizeU, this._cellSizeU).div(
+      screenSize,
+    );
 
     // ── Cell-center UV ────────────────────────────────────────────────────────
     // Floor UV to cell index, shift to cell centre, convert back to UV.
@@ -187,7 +199,8 @@ export class AsciiPass extends PassNode {
     const sampledColor = this._inputSampledNode;
 
     // ── Luminance (Rec. 709) ──────────────────────────────────────────────────
-    const luma = float(sampledColor.r).mul(float(0.2126))
+    const luma = float(sampledColor.r)
+      .mul(float(0.2126))
       .add(float(sampledColor.g).mul(float(0.7152)))
       .add(float(sampledColor.b).mul(float(0.0722)));
 
@@ -200,7 +213,8 @@ export class AsciiPass extends PassNode {
     this._interactionTrailNode = tslTexture(this._blackTexture, rtUV);
     this._interactionDisplacementNode = tslTexture(this._blackTexture, rtUV);
     const trailLuma = clamp(
-      float(this._interactionTrailNode.r).mul(float(0.2126))
+      float(this._interactionTrailNode.r)
+        .mul(float(0.2126))
         .add(float(this._interactionTrailNode.g).mul(float(0.7152)))
         .add(float(this._interactionTrailNode.b).mul(float(0.0722))),
       float(0.0),
@@ -216,16 +230,20 @@ export class AsciiPass extends PassNode {
       float(0.0),
       float(1.0),
     );
-    const interactionSignal = float(select(
-      this._interactionModeU.lessThan(float(1.5)),
-      trailLuma,
-      displacementMagnitude,
-    ));
-    const interactionOffset = float(select(
-      this._interactionModeU.lessThan(float(0.5)),
-      float(0.0),
-      interactionSignal.mul(this._interactionAmountU),
-    ));
+    const interactionSignal = float(
+      select(
+        this._interactionModeU.lessThan(float(1.5)),
+        trailLuma,
+        displacementMagnitude,
+      ),
+    );
+    const interactionOffset = float(
+      select(
+        this._interactionModeU.lessThan(float(0.5)),
+        float(0.0),
+        interactionSignal.mul(this._interactionAmountU),
+      ),
+    );
     const interactionLuma = clamp(
       adjustedLuma.add(interactionOffset),
       float(0.0),
@@ -260,18 +278,23 @@ export class AsciiPass extends PassNode {
     const characterMask = float(this._atlasSampledNode.r);
 
     // ── Glyph colour per color mode ───────────────────────────────────────────
-    const srcColor   = vec3(float(sampledColor.r), float(sampledColor.g), float(sampledColor.b));
-    const monoColor  = vec3(interactionLuma, interactionLuma, interactionLuma);
+    const srcColor = vec3(
+      float(sampledColor.r),
+      float(sampledColor.g),
+      float(sampledColor.b),
+    );
+    const monoTint = vec3(
+      this._monoColorRU,
+      this._monoColorGU,
+      this._monoColorBU,
+    );
+    const monoColor = monoTint.mul(interactionLuma);
     const greenColor = vec3(float(0.0), interactionLuma, float(0.0));
 
     const dotColor = select(
       this._colorModeU.lessThan(float(0.5)),
       srcColor,
-      select(
-        this._colorModeU.lessThan(float(1.5)),
-        monoColor,
-        greenColor,
-      ),
+      select(this._colorModeU.lessThan(float(1.5)), monoColor, greenColor),
     );
 
     // ── Background colour per color mode ──────────────────────────────────────
@@ -291,7 +314,7 @@ export class AsciiPass extends PassNode {
 
   override updateUniforms(params: ShaderParam[]): void {
     let needsAtlasRebuild = false;
-    let charsetChanged    = false;
+    let charsetChanged = false;
 
     for (const p of params) {
       switch (p.key) {
@@ -310,7 +333,7 @@ export class AsciiPass extends PassNode {
           const val = p.value as string;
           if (val !== this._currentCharset) {
             this._currentCharset = val;
-            charsetChanged    = true;
+            charsetChanged = true;
             needsAtlasRebuild = true;
           }
           break;
@@ -321,7 +344,7 @@ export class AsciiPass extends PassNode {
           if (val !== this._currentCustomChars) {
             this._currentCustomChars = val;
             if (this._currentCharset === "custom") {
-              charsetChanged    = true;
+              charsetChanged = true;
               needsAtlasRebuild = true;
             }
           }
@@ -330,18 +353,29 @@ export class AsciiPass extends PassNode {
 
         case "colorMode": {
           const modeMap: Record<string, number> = {
-            source: 0, monochrome: 1, "green-terminal": 2,
+            source: 0,
+            monochrome: 1,
+            "green-terminal": 2,
           };
           this._colorModeU.value = modeMap[p.value as string] ?? 0;
           break;
         }
+
+        case "monoColor":
+          setColorUniforms(
+            p.value as string,
+            this._monoColorRU,
+            this._monoColorGU,
+            this._monoColorBU,
+          );
+          break;
 
         case "bgOpacity":
           this._bgOpacityU.value = typeof p.value === "number" ? p.value : 1;
           break;
 
         case "fontWeight": {
-          const fw = (p.value as string) as FontWeight;
+          const fw = p.value as string as FontWeight;
           if (fw !== this._currentFontWeight) {
             this._currentFontWeight = fw;
             needsAtlasRebuild = true;
@@ -402,7 +436,11 @@ export class AsciiPass extends PassNode {
         : (CHARSETS[this._currentCharset] ?? CHARSETS["light"]);
 
     this._atlasTexture?.dispose();
-    this._atlasTexture = buildAsciiAtlas(chars, this._currentFontWeight, this._currentCellSize);
+    this._atlasTexture = buildAsciiAtlas(
+      chars,
+      this._currentFontWeight,
+      this._currentCellSize,
+    );
 
     // Swap the live texture reference — takes effect on the next render() call.
     if (this._atlasSampledNode) {
@@ -421,4 +459,50 @@ export class AsciiPass extends PassNode {
     this._bloom.dispose();
     super.dispose();
   }
+}
+
+function setColorUniforms(
+  value: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rU: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  gU: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  bU: any,
+): void {
+  const [r, g, b] = parseCSSColorRGB(value);
+  rU.value = r;
+  gU.value = g;
+  bU.value = b;
+}
+
+function parseCSSColorRGB(css: string): [number, number, number] {
+  const rgba = css.match(
+    /rgba?\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*[\d.]+)?\s*\)/i,
+  );
+  if (rgba) {
+    return [
+      Number.parseFloat(rgba[1]) / 255,
+      Number.parseFloat(rgba[2]) / 255,
+      Number.parseFloat(rgba[3]) / 255,
+    ];
+  }
+
+  const hex = css.trim().replace("#", "");
+  if (hex.length === 6) {
+    return [
+      Number.parseInt(hex.slice(0, 2), 16) / 255,
+      Number.parseInt(hex.slice(2, 4), 16) / 255,
+      Number.parseInt(hex.slice(4, 6), 16) / 255,
+    ];
+  }
+  if (hex.length === 3) {
+    return [
+      Number.parseInt(hex[0] + hex[0], 16) / 255,
+      Number.parseInt(hex[1] + hex[1], 16) / 255,
+      Number.parseInt(hex[2] + hex[2], 16) / 255,
+    ];
+  }
+
+  return [1, 1, 1];
 }
