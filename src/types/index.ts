@@ -65,6 +65,7 @@ export type ShaderParamType =
   | "vec3"
   | "color"
   | "enum"
+  | "text"
   | "bool";
 
 export interface ShaderParam {
@@ -77,6 +78,8 @@ export interface ShaderParam {
   step?: number;
   /** Valid options when type === 'enum' */
   options?: { label: string; value: string }[];
+  /** Character limit when type === 'text' */
+  maxLength?: number;
   /** Groups controls in the sidebar (collapsible sections) */
   group?: string;
   /** Tooltip text shown next to the control */

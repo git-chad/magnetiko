@@ -5,6 +5,7 @@ import * as React from "react";
 import { ColorPicker } from "@/components/shared/ColorPicker";
 import {
   Button,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -75,6 +76,7 @@ function valuesEqual(
  *   bool         → Switch
  *   color        → Native colour picker swatch (Phase 5.3 will replace with custom)
  *   enum         → Select dropdown
+ *   text         → Text input
  *   vec2         → Two sliders (X / Y)
  *   vec3         → Three sliders (X / Y / Z)
  */
@@ -254,6 +256,24 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
             ))}
           </SelectContent>
         </Select>
+      );
+
+    case "text":
+      return (
+        <Input
+          value={
+            typeof param.value === "string" ? param.value : String(param.value)
+          }
+          maxLength={param.maxLength ?? 10}
+          onChange={(event) => {
+            const limit = param.maxLength ?? 10;
+            emit(event.target.value.slice(0, limit));
+          }}
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="none"
+          className="h-7 text-caption"
+        />
       );
 
     case "vec2": {

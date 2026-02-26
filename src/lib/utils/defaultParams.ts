@@ -38,7 +38,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           type: "bool",
           value: true,
           group: "Grid",
-          description: "Maintain square cells regardless of canvas aspect ratio",
+          description:
+            "Maintain square cells regardless of canvas aspect ratio",
         },
       ];
 
@@ -53,7 +54,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           max: 20,
           step: 0.5,
           group: "Grid",
-          description: "Luma-driven radius added on top of the minimum (bright → larger)",
+          description:
+            "Luma-driven radius added on top of the minimum (bright → larger)",
         },
         {
           key: "dotMin",
@@ -64,7 +66,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           max: 10,
           step: 0.5,
           group: "Grid",
-          description: "Minimum dot radius in pixels (keeps dots visible in dark areas)",
+          description:
+            "Minimum dot radius in pixels (keeps dots visible in dark areas)",
         },
         {
           key: "gridSpacing",
@@ -213,10 +216,12 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
         {
           key: "customChars",
           label: "Custom Chars",
-          type: "enum",
+          type: "text",
           value: " .:-=+*#%@",
+          maxLength: 10,
           group: "Characters",
-          description: "Character sequence from light to dark (used when Charset = Custom)",
+          description:
+            "Character sequence from light to dark (used when Charset = Custom)",
         },
         {
           key: "colorMode",
@@ -271,7 +276,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
             { label: "Displacement", value: "displacement" },
           ],
           group: "Interaction",
-          description: "Use Interactivity layer textures to modulate character density",
+          description:
+            "Use Interactivity layer textures to modulate character density",
         },
         {
           key: "interactionAmount",
@@ -300,7 +306,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           max: 1,
           step: 0.01,
           group: "Bloom",
-          description: "Brightness above which pixels emit bloom (uses max channel, not luma)",
+          description:
+            "Brightness above which pixels emit bloom (uses max channel, not luma)",
         },
         {
           key: "bloomSoftKnee",
@@ -311,7 +318,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           max: 1,
           step: 0.01,
           group: "Bloom",
-          description: "Transition width around the threshold — higher = softer falloff",
+          description:
+            "Transition width around the threshold — higher = softer falloff",
         },
         {
           key: "bloomIntensity",
@@ -417,7 +425,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
             { label: "Displacement", value: "displacement" },
           ],
           group: "Interaction",
-          description: "Use Interactivity layer textures to bias dither threshold",
+          description:
+            "Use Interactivity layer textures to bias dither threshold",
         },
         {
           key: "interactionAmount",
@@ -735,7 +744,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
             { label: "Directional", value: "directional" },
           ],
           group: "Prism",
-          description: "Radial adds edge fringing; directional applies a global split axis",
+          description:
+            "Radial adds edge fringing; directional applies a global split axis",
         },
         {
           key: "amount",
@@ -1545,7 +1555,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           type: "bool",
           value: true,
           group: "Grain",
-          description: "Single-channel luminance noise vs. per-channel RGB noise",
+          description:
+            "Single-channel luminance noise vs. per-channel RGB noise",
         },
         {
           key: "blendMode",
@@ -1648,7 +1659,8 @@ export function getDefaultParams(shaderType: ShaderType): ShaderParam[] {
           max: 0.03,
           step: 0.0005,
           group: "Trail Routing",
-          description: "UV displacement scale when routing mode is displacement",
+          description:
+            "UV displacement scale when routing mode is displacement",
         },
         {
           key: "curlStrength",
