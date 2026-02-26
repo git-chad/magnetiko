@@ -1,14 +1,11 @@
 "use client";
 
-import * as React from "react";
 import {
   ArrowCounterClockwise,
   Camera,
   CaretDown,
   CaretRight,
   Cube,
-  Eye,
-  EyeSlash,
   Image as ImageIcon,
   LockSimple,
   LockSimpleOpen,
@@ -17,6 +14,8 @@ import {
   Trash,
   VideoCamera,
 } from "@phosphor-icons/react";
+import * as React from "react";
+import { ParamControl } from "@/components/shared/ParamControl";
 import {
   Button,
   Input,
@@ -36,15 +35,25 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui";
-import { useLayerStore } from "@/store/layerStore";
-import { useHistoryStore } from "@/store/historyStore";
-import { useEditorStore } from "@/store/editorStore";
-import { useMediaStore } from "@/store/mediaStore";
-import { getDefaultParamsForLayer } from "@/lib/utils/defaultParams";
-import { ParamControl } from "@/components/shared/ParamControl";
 import { GROUPS_ENABLED } from "@/config/featureFlags";
 import { cn } from "@/lib/utils";
-import type { BlendMode, FilterMode, FrameAspectMode, Layer, ShaderParam } from "@/types";
+import { getDefaultParamsForLayer } from "@/lib/utils/defaultParams";
+import { useEditorStore } from "@/store/editorStore";
+import { useHistoryStore } from "@/store/historyStore";
+import { useLayerStore } from "@/store/layerStore";
+import { useMediaStore } from "@/store/mediaStore";
+import {
+  hasKeyframeAtTime,
+  isParamAnimatable,
+  useTimelineStore,
+} from "@/store/timelineStore";
+import type {
+  BlendMode,
+  FilterMode,
+  FrameAspectMode,
+  Layer,
+  ShaderParam,
+} from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Blend mode option groups (all 16 CSS blend modes, organised by category)
@@ -54,32 +63,47 @@ const BLEND_MODE_GROUPS: Array<{
   label: string;
   modes: Array<{ value: BlendMode; label: string }>;
 }> = [
-  { label: "Normal",     modes: [{ value: "normal",    label: "Normal" }] },
-  { label: "Darken",     modes: [
-    { value: "darken",     label: "Darken" },
-    { value: "multiply",   label: "Multiply" },
-    { value: "color-burn", label: "Color Burn" },
-  ]},
-  { label: "Lighten",    modes: [
-    { value: "lighten",    label: "Lighten" },
-    { value: "screen",     label: "Screen" },
-    { value: "color-dodge", label: "Color Dodge" },
-  ]},
-  { label: "Contrast",   modes: [
-    { value: "overlay",    label: "Overlay" },
-    { value: "soft-light", label: "Soft Light" },
-    { value: "hard-light", label: "Hard Light" },
-  ]},
-  { label: "Difference", modes: [
-    { value: "difference", label: "Difference" },
-    { value: "exclusion",  label: "Exclusion" },
-  ]},
-  { label: "Component",  modes: [
-    { value: "hue",        label: "Hue" },
-    { value: "saturation", label: "Saturation" },
-    { value: "color",      label: "Color" },
-    { value: "luminosity", label: "Luminosity" },
-  ]},
+  { label: "Normal", modes: [{ value: "normal", label: "Normal" }] },
+  {
+    label: "Darken",
+    modes: [
+      { value: "darken", label: "Darken" },
+      { value: "multiply", label: "Multiply" },
+      { value: "color-burn", label: "Color Burn" },
+    ],
+  },
+  {
+    label: "Lighten",
+    modes: [
+      { value: "lighten", label: "Lighten" },
+      { value: "screen", label: "Screen" },
+      { value: "color-dodge", label: "Color Dodge" },
+    ],
+  },
+  {
+    label: "Contrast",
+    modes: [
+      { value: "overlay", label: "Overlay" },
+      { value: "soft-light", label: "Soft Light" },
+      { value: "hard-light", label: "Hard Light" },
+    ],
+  },
+  {
+    label: "Difference",
+    modes: [
+      { value: "difference", label: "Difference" },
+      { value: "exclusion", label: "Exclusion" },
+    ],
+  },
+  {
+    label: "Component",
+    modes: [
+      { value: "hue", label: "Hue" },
+      { value: "saturation", label: "Saturation" },
+      { value: "color", label: "Color" },
+      { value: "luminosity", label: "Luminosity" },
+    ],
+  },
 ];
 
 const FRAME_ASPECT_MODES: Array<{ value: FrameAspectMode; label: string }> = [
@@ -103,7 +127,8 @@ function _safeAspect(width: number, height: number): number {
 async function _loadImageAspect(url: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(_safeAspect(img.naturalWidth, img.naturalHeight));
+    img.onload = () =>
+      resolve(_safeAspect(img.naturalWidth, img.naturalHeight));
     img.onerror = () => reject(new Error("Could not read image metadata."));
     img.src = url;
   });
@@ -113,7 +138,8 @@ async function _loadVideoAspect(url: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     video.preload = "metadata";
-    video.onloadedmetadata = () => resolve(_safeAspect(video.videoWidth, video.videoHeight));
+    video.onloadedmetadata = () =>
+      resolve(_safeAspect(video.videoWidth, video.videoHeight));
     video.onerror = () => reject(new Error("Could not read video metadata."));
     video.src = url;
   });
@@ -150,8 +176,8 @@ function usePushHistory() {
  */
 export function PropertiesPanel() {
   const selectedLayerId = useLayerStore((s) => s.selectedLayerId);
-  const layer = useLayerStore((s) =>
-    s.layers.find((l) => l.id === selectedLayerId) ?? null,
+  const layer = useLayerStore(
+    (s) => s.layers.find((l) => l.id === selectedLayerId) ?? null,
   );
 
   return (
@@ -173,9 +199,7 @@ export function PropertiesPanel() {
             <>
               <_GeneralSection layer={layer} />
               <_MaskPaintSection layer={layer} />
-              {layer.params.length > 0 && (
-                <_ParamsSection layer={layer} />
-              )}
+              {layer.params.length > 0 && <_ParamsSection layer={layer} />}
               <_ActionsSection layer={layer} />
             </>
           ) : (
@@ -211,7 +235,12 @@ function _MaskPaintSection({ layer }: { layer: Layer }) {
       <_SectionLabel title="Mask Paint" />
       <div className="space-y-0 px-xs pb-xs">
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Enabled
           </Text>
           <Switch
@@ -227,7 +256,12 @@ function _MaskPaintSection({ layer }: { layer: Layer }) {
         </div>
 
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Brush
           </Text>
           <Slider
@@ -245,7 +279,12 @@ function _MaskPaintSection({ layer }: { layer: Layer }) {
         </div>
 
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Softness
           </Text>
           <Slider
@@ -263,7 +302,12 @@ function _MaskPaintSection({ layer }: { layer: Layer }) {
         </div>
 
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Erase
           </Text>
           <Switch
@@ -301,12 +345,12 @@ function _MaskPaintSection({ layer }: { layer: Layer }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function _LayerHeader({ layer }: { layer: Layer }) {
-  const renameLayer  = useLayerStore((s) => s.renameLayer);
-  const setLocked    = useLayerStore((s) => s.setLayerLocked);
-  const pushHistory  = usePushHistory();
+  const renameLayer = useLayerStore((s) => s.renameLayer);
+  const setLocked = useLayerStore((s) => s.setLayerLocked);
+  const pushHistory = usePushHistory();
 
   const [isEditing, setIsEditing] = React.useState(false);
-  const [draft, setDraft]         = React.useState(layer.name);
+  const [draft, setDraft] = React.useState(layer.name);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Sync draft when an external rename (e.g. from LayerItem) changes the name
@@ -332,8 +376,11 @@ function _LayerHeader({ layer }: { layer: Layer }) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter")  commitEdit();
-    if (e.key === "Escape") { setDraft(layer.name); setIsEditing(false); }
+    if (e.key === "Enter") commitEdit();
+    if (e.key === "Escape") {
+      setDraft(layer.name);
+      setIsEditing(false);
+    }
   }
 
   function handleLockToggle() {
@@ -345,11 +392,17 @@ function _LayerHeader({ layer }: { layer: Layer }) {
     <div className="flex items-center gap-xs border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-xs py-xs">
       {/* Kind icon */}
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xs border border-[var(--color-border)] bg-[var(--color-bg)]">
-        {layer.kind === "image"   ? <ImageIcon   size={14} className="text-[var(--color-fg-tertiary)]" /> :
-         layer.kind === "video"   ? <VideoCamera size={14} className="text-[var(--color-fg-tertiary)]" /> :
-         layer.kind === "webcam"  ? <Camera      size={14} className="text-[var(--color-fg-tertiary)]" /> :
-         layer.kind === "model"   ? <Cube        size={14} className="text-[var(--color-fg-tertiary)]" /> :
-         <Shapes size={14} className="text-[var(--color-fg-tertiary)]" />}
+        {layer.kind === "image" ? (
+          <ImageIcon size={14} className="text-[var(--color-fg-tertiary)]" />
+        ) : layer.kind === "video" ? (
+          <VideoCamera size={14} className="text-[var(--color-fg-tertiary)]" />
+        ) : layer.kind === "webcam" ? (
+          <Camera size={14} className="text-[var(--color-fg-tertiary)]" />
+        ) : layer.kind === "model" ? (
+          <Cube size={14} className="text-[var(--color-fg-tertiary)]" />
+        ) : (
+          <Shapes size={14} className="text-[var(--color-fg-tertiary)]" />
+        )}
       </div>
 
       {/* Name + type */}
@@ -394,14 +447,22 @@ function _LayerHeader({ layer }: { layer: Layer }) {
             variant="ghost"
             aria-label={layer.locked ? "Unlock layer" : "Lock layer"}
             onClick={handleLockToggle}
-            className={layer.locked ? "text-[var(--color-fg-secondary)]" : "text-[var(--color-fg-disabled)]"}
+            className={
+              layer.locked
+                ? "text-[var(--color-fg-secondary)]"
+                : "text-[var(--color-fg-disabled)]"
+            }
           >
-            {layer.locked
-              ? <LockSimple size={13} weight="bold" />
-              : <LockSimpleOpen size={13} />}
+            {layer.locked ? (
+              <LockSimple size={13} weight="bold" />
+            ) : (
+              <LockSimpleOpen size={13} />
+            )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>{layer.locked ? "Unlock layer" : "Lock layer"}</TooltipContent>
+        <TooltipContent>
+          {layer.locked ? "Unlock layer" : "Lock layer"}
+        </TooltipContent>
       </Tooltip>
     </div>
   );
@@ -450,7 +511,10 @@ function _FrameAspectSection({ layer }: { layer: Layer | null }) {
 
   const selectedAsset = React.useMemo(() => {
     if (!selectedMediaLayer?.mediaUrl) return null;
-    return mediaAssets.find((asset) => asset.url === selectedMediaLayer.mediaUrl) ?? null;
+    return (
+      mediaAssets.find((asset) => asset.url === selectedMediaLayer.mediaUrl) ??
+      null
+    );
   }, [mediaAssets, selectedMediaLayer]);
 
   const [customWidthInput, setCustomWidthInput] = React.useState(
@@ -470,7 +534,12 @@ function _FrameAspectSection({ layer }: { layer: Layer | null }) {
     const width = Number.parseInt(customWidthInput, 10);
     const height = Number.parseInt(customHeightInput, 10);
 
-    if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+    if (
+      !Number.isFinite(width) ||
+      width <= 0 ||
+      !Number.isFinite(height) ||
+      height <= 0
+    ) {
       setCustomWidthInput(String(frameAspectCustom.width));
       setCustomHeightInput(String(frameAspectCustom.height));
       return;
@@ -522,7 +591,12 @@ function _FrameAspectSection({ layer }: { layer: Layer | null }) {
       <_SectionLabel title="Frame" />
       <div className="space-y-2xs px-xs pb-xs">
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Mode
           </Text>
           <Select
@@ -550,7 +624,12 @@ function _FrameAspectSection({ layer }: { layer: Layer | null }) {
         </div>
 
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Current
           </Text>
           <span className="font-mono text-caption text-[var(--color-fg-tertiary)]">
@@ -573,7 +652,12 @@ function _FrameAspectSection({ layer }: { layer: Layer | null }) {
 
         {frameAspectMode === "locked" && (
           <div className="flex items-center gap-xs py-3xs">
-            <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+            <Text
+              variant="caption"
+              color="secondary"
+              as="span"
+              className="w-14 shrink-0"
+            >
               Locked
             </Text>
             <span className="font-mono text-caption text-[var(--color-fg-tertiary)]">
@@ -585,7 +669,12 @@ function _FrameAspectSection({ layer }: { layer: Layer | null }) {
         {frameAspectMode === "custom" && (
           <>
             <div className="flex items-center gap-xs py-3xs">
-              <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+              <Text
+                variant="caption"
+                color="secondary"
+                as="span"
+                className="w-14 shrink-0"
+              >
                 Ratio
               </Text>
               <div className="flex flex-1 items-center gap-3xs">
@@ -598,7 +687,9 @@ function _FrameAspectSection({ layer }: { layer: Layer | null }) {
                   onKeyDown={handleCustomKeyDown}
                   className="h-7"
                 />
-                <span className="text-caption text-[var(--color-fg-disabled)]">:</span>
+                <span className="text-caption text-[var(--color-fg-disabled)]">
+                  :
+                </span>
                 <Input
                   type="number"
                   min={1}
@@ -638,10 +729,10 @@ function _FrameAspectSection({ layer }: { layer: Layer | null }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function _GeneralSection({ layer }: { layer: Layer }) {
-  const setLayerOpacity     = useLayerStore((s) => s.setLayerOpacity);
-  const setLayerBlendMode   = useLayerStore((s) => s.setLayerBlendMode);
-  const setLayerFilterMode  = useLayerStore((s) => s.setLayerFilterMode);
-  const pushHistory         = usePushHistory();
+  const setLayerOpacity = useLayerStore((s) => s.setLayerOpacity);
+  const setLayerBlendMode = useLayerStore((s) => s.setLayerBlendMode);
+  const setLayerFilterMode = useLayerStore((s) => s.setLayerFilterMode);
+  const pushHistory = usePushHistory();
 
   function handleOpacity(value: number) {
     pushHistory("Change opacity", true); // debounced — historyStore handles 300ms
@@ -662,10 +753,14 @@ function _GeneralSection({ layer }: { layer: Layer }) {
     <div>
       <_SectionLabel title="General" />
       <div className="space-y-0 px-xs pb-xs">
-
         {/* Opacity */}
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Opacity
           </Text>
           <Slider
@@ -683,7 +778,12 @@ function _GeneralSection({ layer }: { layer: Layer }) {
 
         {/* Blend Mode */}
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Blend
           </Text>
           <Select
@@ -698,7 +798,11 @@ function _GeneralSection({ layer }: { layer: Layer }) {
                 <SelectGroup key={group.label}>
                   <SelectLabel>{group.label}</SelectLabel>
                   {group.modes.map((m) => (
-                    <SelectItem key={m.value} value={m.value} className="capitalize">
+                    <SelectItem
+                      key={m.value}
+                      value={m.value}
+                      className="capitalize"
+                    >
                       {m.label}
                     </SelectItem>
                   ))}
@@ -710,7 +814,12 @@ function _GeneralSection({ layer }: { layer: Layer }) {
 
         {/* Filter / Mask mode */}
         <div className="flex items-center gap-xs py-3xs">
-          <Text variant="caption" color="secondary" as="span" className="w-14 shrink-0">
+          <Text
+            variant="caption"
+            color="secondary"
+            as="span"
+            className="w-14 shrink-0"
+          >
             Mode
           </Text>
           <div className="flex gap-3xs">
@@ -751,8 +860,21 @@ function _GeneralSection({ layer }: { layer: Layer }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function _ParamsSection({ layer }: { layer: Layer }) {
-  const updateParam  = useLayerStore((s) => s.updateParam);
-  const pushHistory  = usePushHistory();
+  const updateParam = useLayerStore((s) => s.updateParam);
+  const pushHistory = usePushHistory();
+  const timelineTracks = useTimelineStore((s) => s.tracks);
+  const timelineCurrentTime = useTimelineStore((s) => s.currentTime);
+  const toggleKeyframe = useTimelineStore((s) => s.toggleKeyframe);
+  const upsertKeyframe = useTimelineStore((s) => s.upsertKeyframe);
+
+  const layerTrackByParam = React.useMemo(() => {
+    const map = new Map<string, (typeof timelineTracks)[number]>();
+    for (const track of timelineTracks) {
+      if (track.layerId !== layer.id) continue;
+      map.set(track.paramKey, track);
+    }
+    return map;
+  }, [layer.id, timelineTracks]);
 
   // Build ordered group map — params without a group go into "Parameters"
   const groups = React.useMemo(() => {
@@ -760,7 +882,7 @@ function _ParamsSection({ layer }: { layer: Layer }) {
     for (const p of layer.params) {
       const key = p.group ?? "Parameters";
       if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(p);
+      map.get(key)?.push(p);
     }
     return map;
   }, [layer.params]);
@@ -769,7 +891,10 @@ function _ParamsSection({ layer }: { layer: Layer }) {
   const defaultParamsMap = React.useMemo(() => {
     if (layer.params.length === 0) return {} as Record<string, ShaderParam>;
     return Object.fromEntries(
-      getDefaultParamsForLayer(layer.kind, layer.shaderType).map((p) => [p.key, p]),
+      getDefaultParamsForLayer(layer.kind, layer.shaderType).map((p) => [
+        p.key,
+        p,
+      ]),
     );
   }, [layer.kind, layer.params.length, layer.shaderType]);
 
@@ -779,8 +904,8 @@ function _ParamsSection({ layer }: { layer: Layer }) {
   );
   React.useEffect(() => {
     setExpanded(Object.fromEntries([...groups.keys()].map((k) => [k, true])));
-  // Intentionally only resetting on layer identity change, not every param update
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally only resetting on layer identity change, not every param update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layer.id]);
 
   function toggleGroup(key: string) {
@@ -791,8 +916,20 @@ function _ParamsSection({ layer }: { layer: Layer }) {
     updateParam(layer.id, key, value);
   }
 
-  function handleCommit(key: string, _value: ShaderParam["value"]) {
+  function handleCommit(key: string, value: ShaderParam["value"]) {
     const label = layer.params.find((p) => p.key === key)?.label ?? key;
+    const param = layer.params.find((p) => p.key === key);
+    const track = layerTrackByParam.get(key) ?? null;
+    if (param && track && hasKeyframeAtTime(track, timelineCurrentTime)) {
+      upsertKeyframe({
+        layerId: layer.id,
+        paramKey: key,
+        paramLabel: param.label,
+        paramType: param.type,
+        value,
+        time: timelineCurrentTime,
+      });
+    }
     pushHistory(`Change ${label}`);
   }
 
@@ -810,9 +947,11 @@ function _ParamsSection({ layer }: { layer: Layer }) {
               aria-expanded={isOpen}
             >
               <span className="text-[var(--color-fg-disabled)]">
-                {isOpen
-                  ? <CaretDown size={10} weight="bold" />
-                  : <CaretRight size={10} weight="bold" />}
+                {isOpen ? (
+                  <CaretDown size={10} weight="bold" />
+                ) : (
+                  <CaretRight size={10} weight="bold" />
+                )}
               </span>
               <Text
                 variant="caption"
@@ -834,6 +973,34 @@ function _ParamsSection({ layer }: { layer: Layer }) {
                     defaultParam={defaultParamsMap[param.key]}
                     onChange={handleChange}
                     onCommit={handleCommit}
+                    keyframe={
+                      isParamAnimatable(param.type)
+                        ? {
+                            state: (() => {
+                              const track =
+                                layerTrackByParam.get(param.key) ?? null;
+                              if (!track) return "none";
+                              return hasKeyframeAtTime(
+                                track,
+                                timelineCurrentTime,
+                              )
+                                ? "keyframe"
+                                : "track";
+                            })(),
+                            disabled: layer.locked,
+                            onToggle: () => {
+                              toggleKeyframe({
+                                layerId: layer.id,
+                                paramKey: param.key,
+                                paramLabel: param.label,
+                                paramType: param.type,
+                                value: param.value,
+                                time: timelineCurrentTime,
+                              });
+                            },
+                          }
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -851,9 +1018,9 @@ function _ParamsSection({ layer }: { layer: Layer }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function _ActionsSection({ layer }: { layer: Layer }) {
-  const resetParams  = useLayerStore((s) => s.resetParams);
-  const removeLayer  = useLayerStore((s) => s.removeLayer);
-  const pushHistory  = usePushHistory();
+  const resetParams = useLayerStore((s) => s.resetParams);
+  const removeLayer = useLayerStore((s) => s.removeLayer);
+  const pushHistory = usePushHistory();
 
   function handleReset() {
     // Push current state before resetting so it can be undone
@@ -882,7 +1049,9 @@ function _ActionsSection({ layer }: { layer: Layer }) {
               Reset all
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Reset all parameters to their defaults</TooltipContent>
+          <TooltipContent>
+            Reset all parameters to their defaults
+          </TooltipContent>
         </Tooltip>
       )}
       <Button

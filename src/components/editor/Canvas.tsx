@@ -1,22 +1,28 @@
 "use client";
 
+import { ArrowSquareIn, ImageSquare } from "@phosphor-icons/react";
 import * as React from "react";
 import * as THREE from "three/webgpu";
-import { ArrowSquareIn, ImageSquare } from "@phosphor-icons/react";
-import { isWebGPUSupported } from "@/lib/renderer/WebGPURenderer";
-import { PipelineManager } from "@/lib/renderer/PipelineManager";
+import { useToast } from "@/components/ui/toast";
+import { GROUPS_ENABLED } from "@/config/featureFlags";
+import { useMediaUpload } from "@/hooks/useMediaUpload";
+import { useMouseInteraction } from "@/hooks/useMouseInteraction";
 import type {
   ExportImageOptions,
   PipelineLayer,
 } from "@/lib/renderer/PipelineManager";
-import { useLayerStore } from "@/store/layerStore";
+import { PipelineManager } from "@/lib/renderer/PipelineManager";
+import { isWebGPUSupported } from "@/lib/renderer/WebGPURenderer";
+import {
+  evaluateTimelineForLayers,
+  getTimelineControlledLayerIds,
+  paramsSignature,
+} from "@/lib/timeline/evaluate";
 import { useEditorStore } from "@/store/editorStore";
 import { useHistoryStore } from "@/store/historyStore";
+import { useLayerStore } from "@/store/layerStore";
 import { useMediaStore } from "@/store/mediaStore";
-import { useMediaUpload } from "@/hooks/useMediaUpload";
-import { useMouseInteraction } from "@/hooks/useMouseInteraction";
-import { useToast } from "@/components/ui/toast";
-import { GROUPS_ENABLED } from "@/config/featureFlags";
+import { useTimelineStore } from "@/store/timelineStore";
 import type { Layer, LayerGroup } from "@/types";
 
 type VideoExportPhase = "recording" | "encoding";
@@ -389,6 +395,51 @@ export function Canvas({ className }: CanvasProps) {
   const lastOomWarnRef = React.useRef<number>(-Infinity);
   const lastMaskPointerRef = React.useRef<{ x: number; y: number } | null>(
     null,
+  );
+  const timelineSignatureByLayerRef = React.useRef(new Map<string, string>());
+
+  const applyTimelineParamsToPipeline = React.useCallback(
+    (pipeline: PipelineManager, explicitTime?: number) => {
+      const timelineState = useTimelineStore.getState();
+      const layerState = useLayerStore.getState();
+      const evaluationTime =
+        typeof explicitTime === "number"
+          ? explicitTime
+          : timelineState.currentTime;
+      const evaluated = evaluateTimelineForLayers(
+        layerState.layers,
+        timelineState.tracks,
+        evaluationTime,
+      );
+      const controlledLayerIds = getTimelineControlledLayerIds(
+        timelineState.tracks,
+        layerState.layers,
+      );
+      const layerById = new Map(
+        layerState.layers.map((layer) => [layer.id, layer]),
+      );
+
+      for (const item of evaluated) {
+        const signature = paramsSignature(item.params);
+        const previous = timelineSignatureByLayerRef.current.get(item.layerId);
+        if (previous === signature) continue;
+        pipeline.updateLayerParams(item.layerId, item.params);
+        timelineSignatureByLayerRef.current.set(item.layerId, signature);
+      }
+
+      const trackedLayerIds = Array.from(
+        timelineSignatureByLayerRef.current.keys(),
+      );
+      for (const layerId of trackedLayerIds) {
+        if (controlledLayerIds.has(layerId)) continue;
+        const layer = layerById.get(layerId);
+        if (layer) {
+          pipeline.updateLayerParams(layer.id, layer.params);
+        }
+        timelineSignatureByLayerRef.current.delete(layerId);
+      }
+    },
+    [],
   );
 
   const updateCanvasExportHints = React.useCallback((zoomBoost: number) => {
@@ -910,12 +961,20 @@ export function Canvas({ className }: CanvasProps) {
       const pipeline = pipelineRef.current;
       if (!pipeline) throw new Error("Renderer pipeline is not ready.");
       const nowSec = performance.now() / 1000;
+      applyTimelineParamsToPipeline(
+        pipeline,
+        useTimelineStore.getState().currentTime,
+      );
       return pipeline.exportImageBlob(nowSec, 1 / 60, options);
     };
     window.__magnetikoExportPng = async () => {
       const pipeline = pipelineRef.current;
       if (!pipeline) throw new Error("Renderer pipeline is not ready.");
       const nowSec = performance.now() / 1000;
+      applyTimelineParamsToPipeline(
+        pipeline,
+        useTimelineStore.getState().currentTime,
+      );
       return pipeline.exportPngBlob(nowSec, 1 / 60);
     };
     window.__magnetikoExportVideo = async (options) => {
@@ -978,6 +1037,10 @@ export function Canvas({ className }: CanvasProps) {
 
       try {
         const startTimeSec = performance.now() / 1000;
+        const timelineSnapshot = useTimelineStore.getState();
+        const timelineStartTime = timelineSnapshot.currentTime;
+        const timelineDuration = timelineSnapshot.duration;
+        const timelineLoop = timelineSnapshot.loop;
         let nextFrameAt = performance.now();
 
         recorder.start(1000);
@@ -985,6 +1048,13 @@ export function Canvas({ className }: CanvasProps) {
 
         for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
           const timeSec = startTimeSec + frameIndex * deltaSec;
+          let timelineTime = timelineStartTime + frameIndex * deltaSec;
+          if (timelineDuration > 0) {
+            timelineTime = timelineLoop
+              ? timelineTime % timelineDuration
+              : Math.min(timelineDuration, timelineTime);
+          }
+          applyTimelineParamsToPipeline(pipeline, timelineTime);
           pipeline.renderExportFrame(timeSec, deltaSec);
 
           if (track && typeof track.requestFrame === "function") {
@@ -1012,6 +1082,10 @@ export function Canvas({ className }: CanvasProps) {
       } finally {
         if (recorder.state !== "inactive") recorder.stop();
         stream.getTracks().forEach((streamTrack) => streamTrack.stop());
+        applyTimelineParamsToPipeline(
+          pipeline,
+          useTimelineStore.getState().currentTime,
+        );
         pipeline.endExportSession();
       }
     };
@@ -1020,7 +1094,7 @@ export function Canvas({ className }: CanvasProps) {
       if (window.__magnetikoExportPng) delete window.__magnetikoExportPng;
       if (window.__magnetikoExportVideo) delete window.__magnetikoExportVideo;
     };
-  }, [status]);
+  }, [applyTimelineParamsToPipeline, status]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1218,6 +1292,15 @@ export function Canvas({ className }: CanvasProps) {
             pipeline!.addClickForInteractivity(click.uvX, click.uvY);
           }
 
+          const timelineState = useTimelineStore.getState();
+          if (timelineState.isPlaying) {
+            timelineState.advance(delta);
+          }
+          applyTimelineParamsToPipeline(
+            pipeline!,
+            useTimelineStore.getState().currentTime,
+          );
+
           let didRender = false;
           try {
             didRender = pipeline!.render(timeSec, delta);
@@ -1316,6 +1399,7 @@ export function Canvas({ className }: CanvasProps) {
       maskCanvasByLayerRef.current.clear();
       maskDataByLayerRef.current.clear();
       maskLoadTokenByLayerRef.current.clear();
+      timelineSignatureByLayerRef.current.clear();
       rendererRef.current = null;
       pipelineRef.current = null;
     };

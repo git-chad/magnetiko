@@ -1,26 +1,23 @@
 "use client";
 
+import { ArrowCounterClockwise, Diamond, Info } from "@phosphor-icons/react";
 import * as React from "react";
-import {
-  ArrowCounterClockwise,
-  Info,
-} from "@phosphor-icons/react";
+import { ColorPicker } from "@/components/shared/ColorPicker";
 import {
   Button,
-  Slider,
-  Switch,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Slider,
+  Switch,
   Text,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui";
 import type { ShaderParam } from "@/types";
-import { ColorPicker } from "@/components/shared/ColorPicker";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -40,6 +37,11 @@ export interface ParamControlProps {
    * Use this to push a history snapshot.
    */
   onCommit?: (key: string, value: ShaderParam["value"]) => void;
+  keyframe?: {
+    state: "none" | "track" | "keyframe";
+    onToggle: () => void;
+    disabled?: boolean;
+  };
   className?: string;
 }
 
@@ -47,7 +49,10 @@ export interface ParamControlProps {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function valuesEqual(a: ShaderParam["value"], b: ShaderParam["value"]): boolean {
+function valuesEqual(
+  a: ShaderParam["value"],
+  b: ShaderParam["value"],
+): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((v, i) => v === (b as number[])[i]);
   }
@@ -78,9 +83,12 @@ export function ParamControl({
   defaultParam,
   onChange,
   onCommit,
+  keyframe,
   className,
 }: ParamControlProps) {
-  const commitTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [hovered, setHovered] = React.useState(false);
 
   const isDirty =
@@ -131,20 +139,55 @@ export function ParamControl({
           )}
         </div>
 
-        {/* Reset button — visible only on hover when value differs from default */}
-        {defaultParam && (
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={`Reset ${param.label} to default`}
-            onClick={handleReset}
-            className={`transition-opacity ${
-              hovered && isDirty ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
-          >
-            <ArrowCounterClockwise size={11} />
-          </Button>
-        )}
+        <div className="flex items-center gap-3xs">
+          {keyframe && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon-sm"
+                  variant={
+                    keyframe.state === "keyframe" ? "secondary" : "ghost"
+                  }
+                  aria-label={`Toggle keyframe for ${param.label}`}
+                  onClick={keyframe.onToggle}
+                  disabled={keyframe.disabled}
+                  className={
+                    keyframe.state === "track"
+                      ? "text-[var(--color-accent)]"
+                      : undefined
+                  }
+                >
+                  <Diamond
+                    size={11}
+                    weight={keyframe.state === "none" ? "regular" : "fill"}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {keyframe.state === "keyframe"
+                  ? "Remove keyframe at playhead"
+                  : "Add keyframe at playhead"}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Reset button — visible only on hover when value differs from default */}
+          {defaultParam && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Reset ${param.label} to default`}
+              onClick={handleReset}
+              className={`transition-opacity ${
+                hovered && isDirty
+                  ? "opacity-100"
+                  : "pointer-events-none opacity-0"
+              }`}
+            >
+              <ArrowCounterClockwise size={11} />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Control */}
@@ -199,10 +242,7 @@ function _ParamInput({ param, emit }: _ParamInputProps) {
 
     case "enum":
       return (
-        <Select
-          value={param.value as string}
-          onValueChange={(v) => emit(v)}
-        >
+        <Select value={param.value as string} onValueChange={(v) => emit(v)}>
           <SelectTrigger className="h-7 text-caption">
             <SelectValue />
           </SelectTrigger>
@@ -285,7 +325,7 @@ function _SliderControl({
 }) {
   // Format displayed value: show 0 decimals for integers, up to 2 for floats.
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
-  const display  = value.toFixed(decimals);
+  const display = value.toFixed(decimals);
 
   return (
     <div className="flex items-center gap-xs">
@@ -324,7 +364,7 @@ function _SliderRow({
   emit: (v: number) => void;
 }) {
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
-  const display  = value.toFixed(decimals);
+  const display = value.toFixed(decimals);
 
   return (
     <div className="flex items-center gap-xs">
@@ -369,15 +409,14 @@ function _XYPadControl({
   emit: (v: number[]) => void;
 }) {
   const [x, y] = value;
-  const padRef  = React.useRef<HTMLDivElement>(null);
+  const padRef = React.useRef<HTMLDivElement>(null);
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
 
   // Normalize value → 0-1 for display, denormalize back for emit
-  const norm   = (val: number) => (val - min) / (max - min);
+  const norm = (val: number) => (val - min) / (max - min);
   const denorm = (n: number) => min + n * (max - min);
-  const snap   = (val: number) =>
-    Math.round(val / step) * step;
-  const clamp  = (val: number) => Math.max(min, Math.min(max, val));
+  const snap = (val: number) => Math.round(val / step) * step;
+  const clamp = (val: number) => Math.max(min, Math.min(max, val));
 
   const applyDrag = React.useCallback(
     (clientX: number, clientY: number) => {
@@ -385,10 +424,7 @@ function _XYPadControl({
       const rect = padRef.current.getBoundingClientRect();
       const nx = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const ny = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-      emit([
-        clamp(snap(denorm(nx))),
-        clamp(snap(denorm(ny))),
-      ]);
+      emit([clamp(snap(denorm(nx))), clamp(snap(denorm(ny)))]);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [min, max, step, emit],
@@ -408,7 +444,10 @@ function _XYPadControl({
           applyDrag(e.clientX, e.clientY);
         }}
         onPointerMove={(e) => {
-          if (!(e.currentTarget as HTMLDivElement).hasPointerCapture(e.pointerId)) return;
+          if (
+            !(e.currentTarget as HTMLDivElement).hasPointerCapture(e.pointerId)
+          )
+            return;
           applyDrag(e.clientX, e.clientY);
         }}
       >
