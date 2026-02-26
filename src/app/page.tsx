@@ -19,6 +19,7 @@ import { useLayerStore } from "@/store/layerStore";
 const LEFT_W = 280; // px
 const RIGHT_W = 320; // px
 const ANIM = { duration: 0.15, ease: "power2.inOut" } as const;
+const PRESET_BROWSER_DISMISSED_KEY = "magnetiko-preset-browser-dismissed";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Editor layout
@@ -31,9 +32,28 @@ export default function EditorPage() {
 
   // Preset browser — auto-open on first load when no layers
   const [presetOpen, setPresetOpen] = React.useState(false);
+  const hasHandledInitialPresetOpenRef = React.useRef(false);
   React.useEffect(() => {
-    if (layers.length === 0) setPresetOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (hasHandledInitialPresetOpenRef.current) return;
+    hasHandledInitialPresetOpenRef.current = true;
+    if (layers.length > 0) return;
+    try {
+      const dismissed = localStorage.getItem(PRESET_BROWSER_DISMISSED_KEY);
+      if (dismissed === "1") return;
+    } catch {
+      // localStorage may be unavailable in restricted contexts.
+    }
+    setPresetOpen(true);
+  }, [layers.length]);
+
+  const handlePresetOpenChange = React.useCallback((next: boolean) => {
+    setPresetOpen(next);
+    if (next) return;
+    try {
+      localStorage.setItem(PRESET_BROWSER_DISMISSED_KEY, "1");
+    } catch {
+      // localStorage may be unavailable in restricted contexts.
+    }
   }, []);
 
   const leftRef = React.useRef<HTMLElement>(null);
@@ -217,7 +237,10 @@ export default function EditorPage() {
         />
 
         {/* Preset browser */}
-        <PresetBrowser open={presetOpen} onOpenChange={setPresetOpen} />
+        <PresetBrowser
+          open={presetOpen}
+          onOpenChange={handlePresetOpenChange}
+        />
       </div>
     </TooltipProvider>
   );

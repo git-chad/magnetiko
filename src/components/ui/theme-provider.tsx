@@ -13,6 +13,7 @@ interface ThemeContextValue {
 const ThemeContext = React.createContext<ThemeContextValue | null>(null);
 
 const COOKIE_NAME = "magnetiko-theme";
+const LOCAL_STORAGE_THEME_KEY = "magnetiko-theme";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
 function ThemeProvider({
@@ -29,16 +30,28 @@ function ThemeProvider({
     root.classList.remove("light", "dark");
     root.classList.add(next);
     document.cookie = `${COOKIE_NAME}=${next}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    try {
+      localStorage.setItem(LOCAL_STORAGE_THEME_KEY, next);
+    } catch {
+      // localStorage may be unavailable in restricted contexts.
+    }
     setThemeState(next);
   }, []);
 
-  // On mount, sync from html class (set server-side) → state
+  // On mount, prefer persisted localStorage theme, fallback to server html class.
   React.useEffect(() => {
+    let persisted: Theme | null = null;
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_THEME_KEY);
+      if (saved === "dark" || saved === "light") persisted = saved;
+    } catch {
+      // localStorage may be unavailable in restricted contexts.
+    }
     const htmlClass = document.documentElement.classList.contains("dark")
       ? "dark"
       : "light";
-    setThemeState(htmlClass);
-  }, []);
+    applyTheme(persisted ?? htmlClass);
+  }, [applyTheme]);
 
   const setTheme = React.useCallback(
     (next: Theme) => applyTheme(next),
